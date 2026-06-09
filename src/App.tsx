@@ -1,121 +1,73 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+    <div className="container">
+      
+      {/* HERO */}
+      <section className="hero">
+        <h1>🌱 HydroSmart</h1>
+        <p>Sistema inteligente de automatización para invernaderos multiplanta</p>
+        <button>Ver Demo</button>
       </section>
 
-      <div className="ticks"></div>
+      {/* PROBLEMA */}
+      <section className="section">
+        <h2>🚨 Problema</h2>
+        <p>
+          En un invernadero con diferentes cultivos, cada planta requiere condiciones
+          específicas. El control manual provoca errores, desperdicio de agua
+          y baja eficiencia.
+        </p>
+      </section>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {/* SOLUCIÓN */}
+      <section className="section">
+        <h2>💡 Solución</h2>
+        <p>
+          HydroSmart automatiza el riego, monitoreo y control ambiental
+          usando sensores, IoT y una plataforma web + móvil en tiempo real.
+        </p>
+      </section>
+
+      {/* FEATURES */}
+      <section className="section grid">
+        <div className="card">
+          <h3>🌡️ Monitoreo</h3>
+          <p>Temperatura, humedad y pH en tiempo real</p>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+
+        <div className="card">
+          <h3>💧 Riego automático</h3>
+          <p>Sistema inteligente según cada planta</p>
+        </div>
+
+        <div className="card">
+          <h3>📱 App móvil</h3>
+          <p>Control desde cualquier lugar</p>
+        </div>
+
+        <div className="card">
+          <h3>☁️ API</h3>
+          <p>Datos en la nube y alertas en tiempo real</p>
         </div>
       </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* TECNOLOGÍA */}
+      <section className="section">
+        <h2>⚙️ Tecnologías</h2>
+        <p>
+          React + Vite + Firebase + IoT (sensores) + API REST
+        </p>
+      </section>
+
+      {/* CTA */}
+      <section className="hero">
+        <h2>🚀 Empieza ahora</h2>
+        <button>Contactar</button>
+      </section>
+
+    </div>
   )
 }
 

@@ -9,6 +9,64 @@ body {
   text-align: center;
 }
 
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 20px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+}
+
+.brand-mark {
+  font-size: 2rem;
+}
+
+.header-brand strong {
+  display: block;
+  font-size: 1.4rem;
+}
+
+.header-brand p {
+  margin: 4px 0 0;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.header-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-nav a {
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.header-nav a:hover {
+  opacity: 0.8;
+}
+
+.header-cta {
+  background: black;
+  color: white;
+  padding: 10px 18px;
+  border-radius: 999px;
+}
+
 .hero {
   padding: 80px 20px;
   background: linear-gradient(135deg, #22c55e, #16a34a);

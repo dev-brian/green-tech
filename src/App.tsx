@@ -13,10 +13,10 @@ function App() {
         </div>
 
         <nav className="header-nav">
-          <a href="#problema">Problema</a>
-          <a href="#solucion">Solución</a>
-          <a href="#tecnologia">Tecnología</a>
-          <a href="#contacto" className="button header-cta">Contactar</a>
+          <a href="#problema" className="nav-link"><span>🚨</span> Problema</a>
+          <a href="#solucion" className="nav-link"><span>💡</span> Solución</a>
+          <a href="#tecnologia" className="nav-link"><span>⚙️</span> Tecnología</a>
+          <a href="#contacto" className="header-cta"><span>📞</span> Contactar</a>
         </nav>
       </header>
 

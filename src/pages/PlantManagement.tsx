@@ -27,7 +27,7 @@ const plants = [
 export default function PlantManagement() {
   return (
     <div className="container animate-fade-in">
-      <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
+      <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
         <div>
           <h2>Gestión de Plantas</h2>
           <p className="text-muted" style={{ margin: 0 }}>Administra los perfiles de cultivo del sistema inteligente.</p>
@@ -37,7 +37,7 @@ export default function PlantManagement() {
         </button>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+      <div className="grid grid-cards" style={{ gap: '2rem' }}>
         {plants.map(plant => (
           <div key={plant.id} className="glass-panel" style={{ border: plant.active ? '1px solid var(--accent-green)' : '1px solid var(--panel-border)', position: 'relative' }}>
             {plant.active && (

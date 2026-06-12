@@ -21,13 +21,13 @@ export default function Navigation() {
       top: 0,
       zIndex: 50
     }}>
-      <div className="container flex justify-between items-center">
+      <div className="container flex justify-between items-center nav-header">
         <div className="flex items-center" style={{ gap: '0.75rem' }}>
           <Leaf className="text-green" size={28} />
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#fff' }}>Green<span className="text-green">Tech</span></h1>
         </div>
         
-        <div className="flex" style={{ gap: '1.5rem' }}>
+        <div className="flex nav-links" style={{ gap: '1.5rem' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;

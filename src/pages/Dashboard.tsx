@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Thermometer, Droplets, FlaskConical, Sun, Power } from 'lucide-react';
 
@@ -12,7 +12,7 @@ const mockData = [
 ];
 
 export default function Dashboard() {
-  const [currentMetrics, setCurrentMetrics] = useState({
+  const [currentMetrics] = useState({
     temp: 22.5,
     humidity: 65,
     ph: 6.2,

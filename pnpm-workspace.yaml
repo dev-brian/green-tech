@@ -1,2 +1,3 @@
 allowBuilds:
-  core-js: true
+  '0': core-js
+  core-js: set this to true or false

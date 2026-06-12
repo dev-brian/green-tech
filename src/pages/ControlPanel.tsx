@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings2, Power, Droplet, Thermometer } from 'lucide-react';
+import { Settings2, Power } from 'lucide-react';
 
 export default function ControlPanel() {
   const [isAutoMode, setIsAutoMode] = useState(true);

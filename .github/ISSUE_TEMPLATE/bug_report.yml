@@ -14,7 +14,7 @@ body:
     attributes:
       label: 📌 Descripción del Bug
       description: Una descripción clara y concisa de lo que es el error.
-      placeholder: Ejemplo: El botón de inicio de sesión no responde cuando se hace clic desde dispositivos móviles...
+      placeholder: Ejemplo - El botón de inicio de sesión no responde cuando se hace clic desde dispositivos móviles...
     validations:
       required: true
 

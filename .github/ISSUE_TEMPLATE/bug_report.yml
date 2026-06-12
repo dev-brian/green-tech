@@ -1,0 +1,83 @@
+name: 🐛 Reporte de Bug
+description: Informa sobre un error o comportamiento inesperado para ayudarnos a mejorar.
+title: "[BUG]: <breve descripción del error>"
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de reportar este problema. Por favor, completa la siguiente información para ayudarnos a resolverlo lo antes posible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📌 Descripción del Bug
+      description: Una descripción clara y concisa de lo que es el error.
+      placeholder: Ejemplo: El botón de inicio de sesión no responde cuando se hace clic desde dispositivos móviles...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔁 Pasos para Reproducir
+      description: Indica los pasos exactos para reproducir el comportamiento.
+      placeholder: |
+        1. Ir a '...'
+        2. Hacer clic en '...'
+        3. Desplazarse hacia abajo hasta '...'
+        4. Ver el error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 🎯 Comportamiento Esperado
+      description: Una descripción clara y concisa de lo que esperabas que sucediera.
+      placeholder: El botón debería redirigir al panel de control del usuario de forma inmediata.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Capturas de Pantalla / Video
+      description: Si aplica, añade capturas de pantalla o grabaciones de pantalla para ayudar a explicar el problema.
+      placeholder: Arrastra y suelta imágenes aquí...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 💻 Entorno / Sistema Operativo
+      description: ¿En qué entorno o sistema operativo experimentaste el problema?
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS
+        - Otro (especificar en notas)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 📦 Versión de la Aplicación
+      description: Indica la versión del software donde ocurre el bug (ej. v1.2.4).
+      placeholder: e.g., v2.1.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 🔍 Contexto Adicional
+      description: Cualquier otro contexto, logs del sistema o información sobre el bug que consideres relevante.
+    validations:
+      required: false

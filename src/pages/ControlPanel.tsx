@@ -14,7 +14,7 @@ export default function ControlPanel() {
 
   return (
     <div className="container animate-fade-in">
-      <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
+      <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
         <h2>Panel de Control</h2>
         <div className="flex items-center" style={{ gap: '1rem' }}>
           <span className="text-muted">Modo Manual</span>
@@ -26,7 +26,7 @@ export default function ControlPanel() {
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+      <div className="grid grid-cards" style={{ gap: '2rem' }}>
         {/* Manual Overrides */}
         <div className="glass-panel" style={{ opacity: isAutoMode ? 0.6 : 1, transition: 'opacity 0.3s' }}>
           <h3 className="flex items-center" style={{ gap: '0.5rem', marginBottom: '1.5rem' }}>

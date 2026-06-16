@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   return (
     <div className="container animate-fade-in">
-      <div className="flex justify-between items-center" style={{ marginBottom: '2rem' }}>
+      <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
         <h2>Dashboard - Estado Actual</h2>
         <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--accent-green)', boxShadow: '0 0 10px var(--accent-green)' }}></span>
@@ -31,7 +31,7 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '2rem' }}>
+      <div className="grid grid-metrics" style={{ marginBottom: '2rem' }}>
         <div className="glass-panel text-center">
           <Thermometer size={32} className="text-amber" style={{ margin: '0 auto 0.5rem' }} />
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Temperatura</p>
@@ -64,7 +64,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Section */}
-      <div className="grid" style={{ gridTemplateColumns: '1fr', gap: '2rem' }}>
+      <div className="grid grid-charts">
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>Histórico de Temperatura y Humedad</h3>
           <div style={{ width: '100%', height: 300 }}>

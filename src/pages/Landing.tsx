@@ -9,7 +9,7 @@ export default function Landing() {
         <div style={{ display: 'inline-block', padding: '0.5rem 1rem', background: 'var(--accent-green-glow)', borderRadius: '999px', color: 'var(--accent-green)', fontWeight: 'bold', marginBottom: '2rem' }}>
           Sistema Inteligente
         </div>
-        <h1 style={{ fontSize: '4rem', fontWeight: 800, marginBottom: '1.5rem', background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+        <h1 className="hero-title" style={{ fontSize: '4rem', fontWeight: 800, marginBottom: '1.5rem', background: 'linear-gradient(to right, #fff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           El Futuro del Cultivo
         </h1>
         <p style={{ fontSize: '1.25rem', color: 'var(--text-muted)', maxWidth: '600px', marginBottom: '3rem' }}>
@@ -21,7 +21,7 @@ export default function Landing() {
       </section>
 
       {/* Features Grid */}
-      <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', padding: '4rem 0' }}>
+      <section className="grid grid-cards" style={{ padding: '4rem 0' }}>
         <div className="glass-panel">
           <Activity size={40} className="text-green" style={{ marginBottom: '1rem' }} />
           <h3>Monitoreo 24/7</h3>

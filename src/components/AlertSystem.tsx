@@ -14,7 +14,7 @@ export default function AlertSystem() {
   if (alerts.length === 0) return null;
 
   return (
-    <div style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '1rem', width: '350px' }}>
+    <div className="alert-container" style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {alerts.map(alert => (
         <div key={alert.id} className="animate-fade-in" style={{
           background: alert.type === 'danger' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(245, 158, 11, 0.9)',

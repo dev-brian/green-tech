@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard, Settings2, Leaf } from 'lucide-react';
+import { Home, LayoutDashboard, Settings2, Leaf, Menu, X } from 'lucide-react';
 
 export default function Navigation() {
   const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Inicio', icon: Home },
@@ -21,13 +23,17 @@ export default function Navigation() {
       top: 0,
       zIndex: 50
     }}>
-      <div className="container flex justify-between items-center">
+      <div className="container flex justify-between items-center nav-header">
         <div className="flex items-center" style={{ gap: '0.75rem' }}>
           <Leaf className="text-green" size={28} />
           <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#fff' }}>Green<span className="text-green">Tech</span></h1>
         </div>
         
-        <div className="flex" style={{ gap: '1.5rem' }}>
+        <button className="mobile-menu-btn" onClick={() => setIsOpen(!isOpen)}>
+          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+        
+        <div className={`flex nav-links ${isOpen ? 'open' : ''}`} style={{ gap: '1.5rem' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -35,6 +41,7 @@ export default function Navigation() {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={() => setIsOpen(false)}
                 className="flex items-center"
                 style={{
                   gap: '0.5rem',

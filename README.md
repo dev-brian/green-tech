@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+# Green Tech - Sistema Inteligente de Cultivo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Green Tech es una aplicación web moderna diseñada para monitorear, controlar y optimizar el entorno de invernaderos y cultivos en tiempo real utilizando tecnología de vanguardia y precisión inteligente.
 
-Currently, two official plugins are available:
+## 🌟 Características Principales
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Monitoreo 24/7**: Sensores de alta precisión que vigilan constantemente la temperatura, humedad y el pH del agua.
+- **Riego Automatizado**: Control automático de bombas de agua basado en las necesidades reales y actuales de cada planta.
+- **Alertas al Instante**: Sistema de notificaciones en tiempo real que alerta si algún parámetro sale del rango óptimo establecido.
+- **Gestión de Plantas**: Administración y seguimiento individual del estado de las plantas.
+- **Panel de Control Integral**: Un *dashboard* completo con gráficos interactivos y controles manuales/automáticos.
 
-## React Compiler
+## 🛠️ Tecnologías Utilizadas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Este proyecto está construido con herramientas modernas para asegurar el mejor rendimiento y experiencia de desarrollo:
 
-## Expanding the ESLint configuration
+- **Frontend Core**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Estilos**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **Enrutamiento**: [React Router v7](https://reactrouter.com/)
+- **Gráficos**: [Recharts](https://recharts.org/)
+- **Iconos**: [Lucide React](https://lucide.dev/)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Cómo empezar (Desarrollo Local)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Requisitos Previos
+- Node.js (v18 o superior recomendado)
+- `pnpm` (Gestor de paquetes recomendado para este proyecto)
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Instalación
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. Clona el repositorio:
+   ```bash
+   git clone <URL_DEL_REPOSITORIO>
+   cd green-tech
+   ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Instala las dependencias:
+   ```bash
+   pnpm install
+   ```
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+3. Inicia el servidor de desarrollo:
+   ```bash
+   pnpm run dev
+   ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+4. Abre tu navegador y visita `http://localhost:5173`
+
+*(Nota: si tienes problemas con los scripts de construcción de dependencias con pnpm v10+, ejecuta `pnpm approve-builds` antes de iniciar el proyecto).*
+
+## 📁 Estructura del Proyecto
+
+```text
+src/
+├── assets/          # Recursos estáticos (imágenes, fuentes, etc.)
+├── components/      # Componentes reutilizables (Navegación, Sistema de Alertas, etc.)
+├── pages/           # Vistas principales de la aplicación
+│   ├── Landing.tsx          # Página de inicio / Presentación
+│   ├── Dashboard.tsx        # Panel principal de monitoreo y gráficos
+│   ├── ControlPanel.tsx     # Controles manuales del sistema
+│   └── PlantManagement.tsx  # Gestión del inventario de plantas
+├── App.tsx          # Componente raíz y configuración de rutas
+├── index.css        # Estilos globales y configuración de Tailwind
+└── main.tsx         # Punto de entrada de la aplicación React
 ```

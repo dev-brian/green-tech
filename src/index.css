@@ -330,3 +330,56 @@ input[type=range]::-webkit-slider-runnable-track {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ─── Micro-interacciones Landing ─── */
+
+/* Pulse en el indicador "live" del hero */
+@keyframes pulse-live {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+}
+
+/* Entrada escalonada de tarjetas en grid */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.glass-panel {
+  animation: slideUp 0.5s ease both;
+}
+
+/* Hover más pronunciado para tarjetas de beneficios */
+.glass-panel:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.35);
+}
+
+/* Glow en iconos al hover del panel */
+.glass-panel:hover svg {
+  filter: drop-shadow(0 0 8px currentColor);
+  transition: filter 0.3s ease;
+}
+
+/* Botón CTA hero: shimmer de luz */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.btn-primary {
+  background-size: 200% auto;
+  background-image: linear-gradient(90deg, #059669 0%, #10b981 40%, #34d399 60%, #059669 100%);
+  animation: shimmer 4s linear infinite;
+}
+
+.btn-primary:hover {
+  animation-play-state: paused;
+  background-image: linear-gradient(90deg, #059669, #10b981);
+}
+
+/* Transición suave en los step-dots del carrusel */
+.step-dot {
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
+}
+

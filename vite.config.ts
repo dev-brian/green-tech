@@ -5,5 +5,5 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/green-tech/',
+  base: process.env.NODE_ENV === 'production' ? '/green-tech/' : '/',
 })

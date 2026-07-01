@@ -7,8 +7,11 @@ import ControlPanel from './pages/ControlPanel';
 import PlantManagement from './pages/PlantManagement';
 
 function App() {
+  const basename = import.meta.env.BASE_URL;
+  const routerBasename = basename === '/' ? '' : basename.replace(/\/$/, '');
+
   return (
-    <Router>
+    <Router basename={routerBasename}>
       <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Navigation />
         <AlertSystem />

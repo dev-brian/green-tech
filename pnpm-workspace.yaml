@@ -1,3 +1,5 @@
-allowBuilds:
-  '0': core-js
-  core-js: true
+packages:
+  - '.'
+
+onlyBuiltDependencies:
+  - core-js

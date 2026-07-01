@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
 import Landing from './pages/Landing';
@@ -7,11 +7,8 @@ import ControlPanel from './pages/ControlPanel';
 import PlantManagement from './pages/PlantManagement';
 
 function App() {
-  const basename = import.meta.env.BASE_URL;
-  const routerBasename = basename === '/' ? '' : basename.replace(/\/$/, '');
-
   return (
-    <Router basename={routerBasename}>
+    <Router>
       <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <Navigation />
         <AlertSystem />

@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --bg-color: #0b1120;
   --panel-bg: rgba(30, 41, 59, 0.7);
@@ -239,6 +241,15 @@ input[type=range]::-webkit-slider-runnable-track {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .animate-fade-in {

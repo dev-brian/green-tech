@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users } from 'lucide-react';
+import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
@@ -347,6 +347,35 @@ export default function Landing() {
               Ver Perfiles de Cultivo
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* ── 8. CONTACTO ─────────────────────────────────────────────────────── */}
+      <section style={{ padding: '4rem 0 6rem', textAlign: 'center' }}>
+        <div className="container flex flex-col items-center">
+          <p style={{ color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>¿TIENES DUDAS?</p>
+          <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 800, marginBottom: '2rem' }}>
+            Contáctanos
+          </h2>
+          <a
+            href="mailto:green.tech.contacto@gmail.com"
+            className="glass-panel"
+            style={{ 
+              display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20, 
+              textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
+              border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 40px rgba(59,130,246,0.1)'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Mail size={28} style={{ color: 'var(--accent-blue)' }} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Escríbenos a</p>
+              <p style={{ fontWeight: 800, color: 'white', margin: 0, fontSize: '1.2rem', letterSpacing: '0.02em' }}>green.tech.contacto@gmail.com</p>
+            </div>
+          </a>
         </div>
       </section>
 

@@ -14,6 +14,7 @@ import {
   Sprout
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
+import logoUrl from '../icons/logo-green-tech.png';
 
 // ─── Nav items per role ───────────────────────────────────────────────────────
 
@@ -54,7 +55,18 @@ function WorkspaceSelector() {
   const { workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
   const [open, setOpen] = useState(false);
 
-  if (!activeWorkspace || workspaces.length <= 1) return null;
+  if (!activeWorkspace) return null;
+
+  if (workspaces.length <= 1) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/50 border border-white/5 text-sm text-white">
+        <Sprout size={14} className="text-emerald-500" />
+        <span className="hidden sm:block max-w-[120px] truncate text-slate-300 text-xs font-medium">
+          {activeWorkspace.name}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
@@ -194,43 +206,42 @@ export default function Navigation() {
         top: 0,
         zIndex: 50,
       }}
-      className="py-2 sm:py-3"
+      className="py-2 sm:py-3 lg:py-5"
     >
       <div className="container flex justify-between items-center px-4 md:px-8">
         {/* Brand */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-            <Leaf className="text-emerald-400" size={18} />
-          </div>
-          <span className="text-white font-bold text-lg hidden sm:block">
+        <Link to="/" className="flex items-center gap-2.5 lg:gap-3 lg:w-1/4 hover:opacity-80 transition-opacity">
+          <img src={logoUrl} alt="GreenTech" className="w-9 h-9 lg:w-11 lg:h-11 object-contain drop-shadow-md" />
+          <span className="text-white font-extrabold tracking-tight text-xl lg:text-2xl hidden sm:block drop-shadow-sm">
             Green<span className="text-emerald-400">Tech</span>
           </span>
-        </div>
+        </Link>
 
         {/* Desktop links */}
-        <div className="hidden lg:flex items-center gap-1">
+        <div className="hidden lg:flex items-center justify-center gap-8 lg:w-2/4">
           {visibleItems.map((item) => {
-            const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`relative py-1.5 text-[13px] lg:text-[14px] uppercase tracking-widest font-bold transition-all duration-300 ${
                   isActive
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <Icon size={16} />
                 {item.label}
+                {isActive && (
+                  <span className="absolute -bottom-2.5 left-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full -translate-x-1/2 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                )}
               </Link>
             );
           })}
         </div>
 
         {/* Right side: workspace selector + user menu + mobile toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-3 lg:w-1/4">
           {user && (
             <>
               <WorkspaceSelector />

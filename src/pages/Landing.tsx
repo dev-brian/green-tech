@@ -23,7 +23,7 @@ const steps = [
   {
     number: '02',
     icon: BarChart3,
-    title: 'ALGORA Analiza',
+    title: 'Palarix Analiza',
     description: 'Nuestro motor de reglas procesa los datos en tiempo real, detecta anomalías y genera predicciones de comportamiento.',
     color: 'var(--accent-blue)',
     glow: 'rgba(59, 130, 246, 0.25)',
@@ -102,7 +102,7 @@ export default function Landing() {
           marginBottom: '2rem', letterSpacing: '0.05em'
         }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)', display: 'inline-block' }} />
-          UTT · Proyecto ALGORA · Invernadero Hidropónico
+          UTT · Proyecto Palarix · Invernadero Hidropónico
         </div>
 
         {/* Headline */}
@@ -119,7 +119,7 @@ export default function Landing() {
         </h1>
 
         <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)', maxWidth: '620px', marginBottom: '3rem', lineHeight: 1.7 }}>
-          ALGORA transforma invernaderos tradicionales en sistemas inteligentes. Telemetría en tiempo real, control automático y alertas predictivas para proteger cada ciclo de cultivo.
+          Palarix transforma invernaderos tradicionales en sistemas inteligentes. Telemetría en tiempo real, control automático y alertas predictivas para proteger cada ciclo de cultivo.
         </p>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -165,7 +165,7 @@ export default function Landing() {
           <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>EL PROCESO</p>
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 800, margin: 0 }}>Tres pasos. Cero pérdidas.</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: '1rem', maxWidth: 520, margin: '1rem auto 0' }}>
-            Desde el sensor hasta la decisión, ALGORA cierra el ciclo de control en segundos.
+            Desde el sensor hasta la decisión, Palarix cierra el ciclo de control en segundos.
           </p>
         </div>
 
@@ -337,7 +337,7 @@ export default function Landing() {
             Tu invernadero, sin sorpresas.
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '2.5rem' }}>
-            Accede al dashboard en vivo, explora los datos de sensores y comprueba por qué ALGORA es la solución que el campo mexicano necesita.
+            Accede al dashboard en vivo, explora los datos de sensores y comprueba por qué Palarix es la solución que el campo mexicano necesita.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/dashboard" className="btn-primary" style={{ fontSize: '1.05rem', padding: '1rem 2.2rem' }}>
@@ -360,8 +360,8 @@ export default function Landing() {
           <a
             href="mailto:green.tech.contacto@gmail.com"
             className="glass-panel"
-            style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20, 
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20,
               textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
               border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 40px rgba(59,130,246,0.1)'
             }}

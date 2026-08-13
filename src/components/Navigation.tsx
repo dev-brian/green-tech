@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/',          label: 'Inicio',       icon: Home },
   { path: '/dashboard', label: 'Dashboard',    icon: LayoutDashboard },
   { path: '/control',   label: 'Alertas',      icon: Settings2 },
-  { path: '/plants',    label: 'Plantas',       icon: Leaf },
+  { path: '/plants',    label: 'Plantas',       icon: Leaf, roles: ['admin'] },
 ];
 
 // ─── Role badge ───────────────────────────────────────────────────────────────
@@ -49,76 +49,117 @@ function RoleBadge({ role }: { role: UserRole }) {
   );
 }
 
+import { Settings, Plus } from 'lucide-react';
+import WorkspaceSettingsModal from './WorkspaceSettingsModal';
+
 // ─── Workspace Selector ───────────────────────────────────────────────────────
 
 function WorkspaceSelector() {
   const { workspaces, activeWorkspace, setActiveWorkspace } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   if (!activeWorkspace) return null;
 
-  if (workspaces.length <= 1) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/50 border border-white/5 text-sm text-white">
-        <Sprout size={14} className="text-emerald-500" />
-        <span className="hidden sm:block max-w-[120px] truncate text-slate-300 text-xs font-medium">
-          {activeWorkspace.name}
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-white/5 transition-all text-sm text-white"
-      >
-        <Sprout size={14} className="text-emerald-500" />
-        <span className="hidden sm:block max-w-[120px] truncate text-slate-300 text-xs font-medium">
-          {activeWorkspace.name}
-        </span>
-        <ChevronDown
-          size={14}
-          className={`text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
+    <>
+      <div className="relative flex items-center gap-1">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-white/5 transition-all text-xs sm:text-sm text-white min-h-[40px]"
+        >
+          <Sprout size={14} className="text-emerald-500 flex-shrink-0" />
+          <span className="max-w-[75px] xs:max-w-[100px] sm:max-w-[120px] truncate text-slate-300 text-xs font-medium">
+            {activeWorkspace.name}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`text-slate-500 transition-transform duration-200 flex-shrink-0 ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-40 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-[fadeIn_0.15s_ease]">
-            <div className="px-3 py-2 border-b border-white/10 bg-slate-800/30">
-              <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Mis Invernaderos</span>
+        <button
+          onClick={() => setShowSettingsModal(true)}
+          className="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-white/5 transition-all text-slate-400 hover:text-white"
+          title="Configuración del Invernadero"
+        >
+          <Settings size={15} />
+        </button>
+
+        {open && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+            <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-[fadeIn_0.15s_ease]">
+              <div className="px-3 py-2 border-b border-white/10 bg-slate-800/30 flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Mis Invernaderos</span>
+                <span className="text-[10px] text-slate-400 font-medium">{workspaces.length}</span>
+              </div>
+              
+              <div className="max-h-48 overflow-y-auto">
+                {workspaces.map((ws) => (
+                  <button
+                    key={ws.id}
+                    onClick={() => {
+                      setActiveWorkspace(ws);
+                      setOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 text-xs transition-colors text-left ${
+                      activeWorkspace.id === ws.id 
+                        ? 'bg-emerald-500/10 text-emerald-400 font-semibold' 
+                        : 'text-slate-300 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="truncate max-w-[120px]">{ws.name}</span>
+                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${
+                      ws.role === 'admin' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'
+                    }`}>
+                      {ws.role}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-1.5 border-t border-white/10 bg-slate-950/40 flex flex-col gap-1">
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setShowSettingsModal(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  <Settings size={13} className="text-slate-400" />
+                  Configurar Invernadero
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    navigate('/onboarding');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors font-medium"
+                >
+                  <Plus size={13} />
+                  + Crear o Unirme a Invernadero
+                </button>
+              </div>
             </div>
-            {workspaces.map((ws) => (
-              <button
-                key={ws.id}
-                onClick={() => {
-                  setActiveWorkspace(ws);
-                  setOpen(false);
-                }}
-                className={`w-full flex flex-col px-3 py-2 text-sm transition-colors text-left ${
-                  activeWorkspace.id === ws.id 
-                    ? 'bg-emerald-500/10 text-emerald-400' 
-                    : 'text-slate-300 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <span className="truncate w-full font-medium">{ws.name}</span>
-                <span className="text-[10px] opacity-70 capitalize">{ws.role}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+
+      <WorkspaceSettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
+    </>
   );
 }
 
 // ─── User menu (desktop) ──────────────────────────────────────────────────────
 
 function UserMenu() {
-  const { user, logout, activeWorkspace } = useAuth();
+  const { user, logout, currentRole } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -155,11 +196,9 @@ function UserMenu() {
             <div className="px-4 py-3 border-b border-white/10">
               <p className="text-white text-sm font-semibold truncate">{user.name}</p>
               <p className="text-slate-400 text-xs truncate">{user.email}</p>
-              {activeWorkspace && (
-                <div className="mt-1.5">
-                  <RoleBadge role={activeWorkspace.role} />
-                </div>
-              )}
+              <div className="mt-1.5">
+                <RoleBadge role={currentRole} />
+              </div>
             </div>
 
             <button
@@ -182,7 +221,7 @@ function UserMenu() {
 export default function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, activeWorkspace } = useAuth();
+  const { user, logout, currentRole } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   async function handleMobileLogout() {
@@ -193,7 +232,7 @@ export default function Navigation() {
 
   // Filter nav items by role
   const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.roles || (activeWorkspace && item.roles.includes(activeWorkspace.role))
+    (item) => !item.roles || item.roles.includes(currentRole)
   );
 
   return (

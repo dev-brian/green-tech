@@ -1,4 +1,6 @@
-import { Leaf, Droplets, ThermometerSun, Plus } from 'lucide-react';
+import { Leaf, Droplets, ThermometerSun, Plus, ShieldAlert } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const plants = [
   {
@@ -25,8 +27,27 @@ const plants = [
 ];
 
 export default function PlantManagement() {
+  const { isAdmin } = useAuth();
+
+  if (!isAdmin) {
+    return (
+      <div className="container animate-fade-in py-12 flex flex-col items-center justify-center text-center min-h-[60vh]">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
+          <ShieldAlert size={36} className="text-amber-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Acceso Restringido</h2>
+        <p className="text-slate-400 max-w-md mb-6">
+          La gestión de cultivos y catálogo de plantas es una función exclusiva para usuarios con rol de <strong>Administrador</strong>.
+        </p>
+        <Link to="/dashboard" className="btn-primary inline-flex items-center gap-2">
+          Volver al Dashboard
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="container animate-fade-in">
+    <div className="container animate-fade-in py-6">
       <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
         <div>
           <h2>Gestión de Plantas</h2>

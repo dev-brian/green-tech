@@ -6,12 +6,19 @@ interface ProtectedRouteProps {
   children: ReactNode;
   /** Optional: restrict to specific roles. Omit to allow any authenticated user. */
   requiredRole?: UserRole;
+  /** Optional: list of allowed roles. Omit to allow any authenticated user. */
+  allowedRoles?: UserRole[];
   /** Whether the user must have an active workspace (default: true) */
   requireWorkspace?: boolean;
 }
 
-export default function ProtectedRoute({ children, requiredRole, requireWorkspace = true }: ProtectedRouteProps) {
-  const { user, loading, activeWorkspace } = useAuth();
+export default function ProtectedRoute({
+  children,
+  requiredRole,
+  allowedRoles,
+  requireWorkspace = true,
+}: ProtectedRouteProps) {
+  const { user, loading, activeWorkspace, currentRole } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -35,12 +42,15 @@ export default function ProtectedRoute({ children, requiredRole, requireWorkspac
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Role check
-  if (requiredRole) {
-    const currentRole = activeWorkspace ? activeWorkspace.role : user.role;
-    if (currentRole !== requiredRole) {
+  // Role checks
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!allowedRoles.includes(currentRole)) {
       return <Navigate to="/dashboard" replace />;
     }
+  }
+
+  if (requiredRole && currentRole !== requiredRole) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;

@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Reglas para Invernaderos (greenhouses) ──────────────────────────────────
+    match /greenhouses/{greenhouseId} {
+      
+      // Permitir lectura a cualquier usuario autenticado 
+      // (Permite buscar por inviteCode para unirse como Operador)
+      allow read: if request.auth != null;
+
+      // Permitir creación de nuevos invernaderos
+      allow create: if request.auth != null;
+
+      // Permitir actualización (ej. unirse a memberIds, regenerar inviteCode)
+      allow update: if request.auth != null;
+
+      // Permitir eliminación de invernaderos a usuarios autenticados
+      allow delete: if request.auth != null;
+
+      // ─── Subcolección de Miembros (members) ──────────────────────────────────
+      match /members/{memberId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // ─── Telemetría y Sensores (telemetry_data) ──────────────────────────────
+    match /telemetry_data/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # SPECS.md - Plataforma Web GREEN TECH
 
 **Proyecto:** Sistema Inteligente de Automatización GREEN TECH
-**Equipo:** ALGORA — Universidad Tecnológica de Tlaxcala (UTT)
+**Equipo:** Palarix — Universidad Tecnológica de Tlaxcala (UTT)
 **Versión del documento:** 1.0
 **Estado:** Fuente única de la verdad (Single Source of Truth) para desarrollo Frontend/Backend
 
@@ -425,9 +425,9 @@ Generación de datos para reporte SENASICA.
 
 | Tipo de dato | Ubicación | Retención | Justificación |
 |---|---|---|---|
-| Lecturas crudas de telemetría (alta frecuencia) | Firestore `telemetry_data` | 24 meses en almacenamiento "caliente" (consulta directa) | Cubre al menos 2 ciclos de cultivo para analítica y trazabilidad de exportación |
+| Telemetría cruda (alta frecuencia) | Firestore `telemetry_data` | 24 meses en almacenamiento "caliente" (consulta directa) | Cubre al menos 2 ciclos de cultivo para analítica y trazabilidad de exportación |
 | Datos agregados (promedios diarios/semanales) | Firestore `telemetry_aggregates` (colección derivada) | Indefinida | Bajo volumen; sustenta reportes históricos de largo plazo sin saturar almacenamiento |
-| Telemetría cruda > 24 meses | Exportada a almacenamiento frío (Cloud Storage - Archive tier) o eliminada tras generar agregados | Según política interna de ALGORA/UTT, mínimo legal de exportación (SENASICA) | Reduce costo de almacenamiento manteniendo cumplimiento |
+| Telemetría cruda > 24 meses | Exportada a almacenamiento frío (Cloud Storage - Archive tier) o eliminada tras generar agregados | Según política interna de Palarix/UTT, mínimo legal de exportación (SENASICA) | Reduce costo de almacenamiento manteniendo cumplimiento |
 | Reportes SENASICA generados (PDF firmado) | Firebase Storage | 5 años (estándar de auditorías de exportación agroalimentaria) | Requisito típico de trazabilidad para EE. UU./Canadá |
 | Alertas | Firestore `alerts` | 24 meses | Auditoría de respuesta operativa |
 | Datos de usuario (cuenta) | Firestore `users` | Mientras la cuenta esté activa; eliminación bajo solicitud ARCO | Cumplimiento LFPDPPP |

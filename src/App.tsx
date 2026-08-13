@@ -68,7 +68,7 @@ function AppShell() {
           <Route
             path="/plants"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <PlantManagement />
               </ProtectedRoute>
             }

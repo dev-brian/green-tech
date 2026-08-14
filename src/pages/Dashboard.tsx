@@ -23,9 +23,39 @@ export default function Dashboard() {
 const [chartData, setChartData] = useState(mockData);
 const [selectedMetric, setSelectedMetric] = useState('temp');
 
-const tempOptimal = currentMetrics.temp >= 18 && currentMetrics.temp <= 28;
-const humidityOptimal = currentMetrics.humidity >= 50 && currentMetrics.humidity <= 80;
-const phOptimal = currentMetrics.ph >= 5.5 && currentMetrics.ph <= 7;
+const [selectedCrop, setSelectedCrop] = useState('lechuga');
+const cropRanges = {
+  lechuga: {
+    tempMin: 18,
+    tempMax: 24,
+    humidityMin: 50,
+    humidityMax: 80,
+    phMin: 5.5,
+    phMax: 6.5,
+  },
+  jitomate: {
+    tempMin: 20,
+    tempMax: 28,
+    humidityMin: 60,
+    humidityMax: 80,
+    phMin: 5.5,
+    phMax: 6.8,
+  },
+};
+
+const currentCrop = cropRanges[selectedCrop as keyof typeof cropRanges];
+
+const tempOptimal =
+  currentMetrics.temp >= currentCrop.tempMin &&
+  currentMetrics.temp <= currentCrop.tempMax;
+
+const humidityOptimal =
+  currentMetrics.humidity >= currentCrop.humidityMin &&
+  currentMetrics.humidity <= currentCrop.humidityMax;
+
+const phOptimal =
+  currentMetrics.ph >= currentCrop.phMin &&
+  currentMetrics.ph <= currentCrop.phMax;
 
 const allOptimal = tempOptimal && humidityOptimal && phOptimal;
 
@@ -145,7 +175,8 @@ useEffect(() => {
           <span style={{ fontWeight: 600 }}>🌱 Cultivo:</span>
 
             <select
-              defaultValue="lechuga"
+              value={selectedCrop}
+              onChange={(e) => setSelectedCrop(e.target.value)}
               style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.25)',
                 color: '#fff',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Thermometer, Droplets, FlaskConical, Sun, Power } from 'lucide-react';
 
@@ -12,23 +12,154 @@ const mockData = [
 ];
 
 export default function Dashboard() {
-  const [currentMetrics] = useState({
-    temp: 22.5,
-    humidity: 65,
-    ph: 6.2,
-    light: 'Óptimo',
-    pumpStatus: 'Activa'
-  });
+  const [currentMetrics, setCurrentMetrics] = useState({
+  temp: 22.5,
+  humidity: 65,
+  ph: 6.2,
+  light: 'Óptimo',
+  pumpStatus: 'Activa'
+});
+
+const [chartData, setChartData] = useState(mockData);
+const [selectedMetric, setSelectedMetric] = useState('temp');
+
+const tempOptimal = currentMetrics.temp >= 18 && currentMetrics.temp <= 28;
+const humidityOptimal = currentMetrics.humidity >= 50 && currentMetrics.humidity <= 80;
+const phOptimal = currentMetrics.ph >= 5.5 && currentMetrics.ph <= 7;
+
+const allOptimal = tempOptimal && humidityOptimal && phOptimal;
+
+const hasCritical =
+  currentMetrics.temp < 15 ||
+  currentMetrics.temp > 32 ||
+  currentMetrics.humidity < 40 ||
+  currentMetrics.humidity > 90 ||
+  currentMetrics.ph < 5 ||
+  currentMetrics.ph > 8;
+
+const greenhouseStatus = hasCritical
+  ? 'critical'
+  : allOptimal
+    ? 'optimal'
+    : 'warning';
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    setCurrentMetrics((prev) => {
+      const newTemp = Number(
+        (prev.temp + (Math.random() - 0.5) * 0.6).toFixed(1)
+      );
+
+      const newHumidity = Math.round(
+        prev.humidity + (Math.random() - 0.5) * 2
+      );
+
+      const newPh = Number(
+        (prev.ph + (Math.random() - 0.5) * 0.2).toFixed(2)
+      );
+
+      setChartData((previousData) => [
+        ...previousData,
+        {
+          time: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          }),
+          temp: newTemp,
+          humidity: newHumidity,
+          ph: newPh,
+        },
+      ]);
+
+      return {
+        ...prev,
+        temp: newTemp,
+        humidity: newHumidity,
+        ph: newPh,
+      };
+    });
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, []);
 
   return (
     <div className="container animate-fade-in">
-      <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
-        <h2>Dashboard - Estado Actual</h2>
-        <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--accent-green)', boxShadow: '0 0 10px var(--accent-green)' }}></span>
-          <span style={{ fontWeight: 600 }}>Planta: Lechuga</span>
+      <div
+  className="flex justify-between items-center flex-col-mobile"
+  style={{ marginBottom: '2rem' }}
+>
+  <div>
+    <h2 style={{ marginBottom: '0.5rem' }}>Estado actual</h2>
+
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <span
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          backgroundColor:
+          greenhouseStatus === 'optimal'
+          ? 'var(--accent-green)'
+          : greenhouseStatus === 'warning'
+          ? 'var(--accent-amber)'
+          : 'var(--accent-red)',
+
+          boxShadow:
+            greenhouseStatus === 'optimal'
+            ? '0 0 10px var(--accent-green)'
+            : greenhouseStatus === 'warning'
+            ? '0 0 10px var(--accent-amber)'
+            : '0 0 10px var(--accent-red)',
+          }}
+        />
+
+          <span style={{ fontWeight: 600 }}>
+            {greenhouseStatus === 'optimal'
+            ? '🟢 Invernadero en condiciones óptimas'
+            : greenhouseStatus === 'warning'
+            ? '🟡 Invernadero requiere atención'
+            : '🔴 Invernadero en estado crítico'}
+          </span>
+          </div>
         </div>
-      </div>
+
+          <div
+            className="glass-panel"
+            style={{
+              padding: '0.5rem 1rem',
+              display: 'flex',
+              gap: '0.5rem',
+              alignItems: 'center',
+            }}
+          >
+          <span style={{ fontWeight: 600 }}>🌱 Cultivo:</span>
+
+            <select
+              defaultValue="lechuga"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                color: '#fff',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '8px',
+                padding: '0.4rem 0.7rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+
+                <option value="lechuga" style={{ backgroundColor: '#1f2937' }}>
+                  Lechuga
+                </option>
+
+                <option value="jitomate" style={{ backgroundColor: '#1f2937' }}>
+                  Jitomate
+                </option>
+            </select>
+          </div>
+        </div>
 
       {/* Metrics Cards */}
       <div className="grid grid-metrics" style={{ marginBottom: '2rem' }}>
@@ -37,19 +168,19 @@ export default function Dashboard() {
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Temperatura</p>
           <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.temp}°C</h3>
         </div>
-        
+
         <div className="glass-panel text-center">
           <Droplets size={32} className="text-blue" style={{ margin: '0 auto 0.5rem' }} />
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Humedad</p>
           <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.humidity}%</h3>
         </div>
-        
+
         <div className="glass-panel text-center">
           <FlaskConical size={32} className="text-green" style={{ margin: '0 auto 0.5rem' }} />
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>pH del Agua</p>
           <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.ph}</h3>
         </div>
-        
+
         <div className="glass-panel text-center">
           <Sun size={32} style={{ margin: '0 auto 0.5rem', color: '#fbbf24' }} />
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Luz</p>
@@ -66,20 +197,71 @@ export default function Dashboard() {
       {/* Charts Section */}
       <div className="grid grid-charts">
         <div className="glass-panel">
-          <h3 style={{ marginBottom: '1.5rem' }}>Histórico de Temperatura y Humedad</h3>
-          <div style={{ width: '100%', height: 300 }}>
+          <div
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1.5rem',
+  }}
+>
+  <h3 style={{ margin: 0 }}>Historial</h3>
+
+  <select
+    value={selectedMetric}
+    onChange={(e) => setSelectedMetric(e.target.value)}
+    style={{
+      backgroundColor: 'rgba(0, 0, 0, 0.25)',
+      color: '#fff',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRadius: '8px',
+      padding: '0.4rem 0.7rem',
+      fontWeight: 600,
+      cursor: 'pointer',
+      outline: 'none',
+    }}
+  >
+    <option value="temp" style={{ backgroundColor: '#1f2937' }}>
+      Temperatura
+    </option>
+    <option value="humidity" style={{ backgroundColor: '#1f2937' }}>
+      Humedad
+    </option>
+    <option value="ph" style={{ backgroundColor: '#1f2937' }}>
+      pH
+    </option>
+  </select>
+</div>
+
+<div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer>
-              <LineChart data={mockData}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--panel-border)" />
-                <XAxis dataKey="time" stroke="var(--text-muted)" />
-                <YAxis yAxisId="left" stroke="var(--accent-amber)" />
-                <YAxis yAxisId="right" orientation="right" stroke="var(--accent-blue)" />
-                <Tooltip 
+                <XAxis
+  dataKey="time"
+  stroke="var(--text-muted)"
+/>
+
+<YAxis
+  stroke="var(--text-muted)"
+  tickFormatter={(value) => {
+    if (selectedMetric === 'temp') return `${value}°C`;
+    if (selectedMetric === 'humidity') return `${value}%`;
+    return value;
+  }}
+/>
+                <Tooltip
                   contentStyle={{ backgroundColor: 'var(--panel-bg)', borderColor: 'var(--panel-border)', borderRadius: '8px' }}
                   itemStyle={{ color: '#fff' }}
                 />
-                <Line yAxisId="left" type="monotone" dataKey="temp" stroke="var(--accent-amber)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="var(--accent-blue)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line
+                  type="monotone"
+                  dataKey={selectedMetric}
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>

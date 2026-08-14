@@ -17,7 +17,7 @@ export default function Dashboard() {
   humidity: 65,
   ph: 6.2,
   light: 70,
-  pumpStatus: 'Activa'
+  pumpStatus: 'Apagada'
 });
 
 const [chartData, setChartData] = useState(mockData);
@@ -61,6 +61,9 @@ useEffect(() => {
       const newLight = Math.round(
         prev.light + (Math.random() - 0.5) * 6);
 
+      const newPumpStatus =
+      prev.pumpStatus === 'Activa' ? 'Apagada' : 'Activa';
+
       setChartData((previousData) => [
         ...previousData,
         {
@@ -81,9 +84,10 @@ useEffect(() => {
         humidity: newHumidity,
         ph: newPh,
         light: newLight,
+        pumpStatus: newPumpStatus,
       };
     });
-  }, 3000);
+  }, 5000);
 
   return () => clearInterval(interval);
 }, []);

@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Thermometer, Droplets, FlaskConical, Sun, Power } from 'lucide-react';
 
-const mockData = [
-  { time: '08:00', temp: 20, humidity: 60, ph: 6.0 },
-  { time: '10:00', temp: 22, humidity: 62, ph: 6.1 },
-  { time: '12:00', temp: 24, humidity: 58, ph: 6.2 },
-  { time: '14:00', temp: 25, humidity: 55, ph: 6.2 },
-  { time: '16:00', temp: 23, humidity: 60, ph: 6.1 },
-  { time: '18:00', temp: 21, humidity: 65, ph: 6.0 },
-];
+type ChartData = {
+  time: string;
+  temp: number;
+  humidity: number;
+  ph: number;
+};
 
 export default function Dashboard() {
   const [currentMetrics, setCurrentMetrics] = useState({
@@ -20,7 +18,7 @@ export default function Dashboard() {
   pumpStatus: 'Apagada'
 });
 
-const [chartData, setChartData] = useState(mockData);
+const [chartData, setChartData] = useState<ChartData[]>([]);
 const [selectedMetric, setSelectedMetric] = useState('temp');
 
 const [selectedCrop, setSelectedCrop] = useState('lechuga');

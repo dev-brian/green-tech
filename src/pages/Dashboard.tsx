@@ -16,7 +16,7 @@ export default function Dashboard() {
   temp: 22.5,
   humidity: 65,
   ph: 6.2,
-  light: 'Óptimo',
+  light: 70,
   pumpStatus: 'Activa'
 });
 
@@ -58,6 +58,9 @@ useEffect(() => {
         (prev.ph + (Math.random() - 0.5) * 0.2).toFixed(2)
       );
 
+      const newLight = Math.round(
+        prev.light + (Math.random() - 0.5) * 6);
+
       setChartData((previousData) => [
         ...previousData,
         {
@@ -77,6 +80,7 @@ useEffect(() => {
         temp: newTemp,
         humidity: newHumidity,
         ph: newPh,
+        light: newLight,
       };
     });
   }, 3000);
@@ -184,7 +188,13 @@ useEffect(() => {
         <div className="glass-panel text-center">
           <Sun size={32} style={{ margin: '0 auto 0.5rem', color: '#fbbf24' }} />
           <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Luz</p>
-          <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{currentMetrics.light}</h3>
+          <h3 style={{ fontSize: '1.5rem', margin: 0 }}>
+            {currentMetrics.light >= 50 && currentMetrics.light <= 80
+            ? 'Óptima'
+            : currentMetrics.light > 80
+            ? 'Exceso de luz'
+            : 'Luz insuficiente'}
+          </h3>
         </div>
 
         <div className="glass-panel text-center">

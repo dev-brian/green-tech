@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Thermometer, Droplets, FlaskConical, Sun, Power } from 'lucide-react';
+import { Thermometer, Droplets, FlaskConical, Sun, Power, History } from 'lucide-react';
 
 type ChartData = {
   time: string;
@@ -10,7 +10,7 @@ type ChartData = {
 };
 
 export default function Dashboard() {
-  const [currentMetrics, setCurrentMetrics] = useState({
+  const [currentMetrics, setCurrentMetrics] = useState({// Matrices actuales del invernadero
   temp: 22.5,
   humidity: 65,
   ph: 6.2,
@@ -18,10 +18,11 @@ export default function Dashboard() {
   pumpStatus: 'Apagada'
 });
 
-const [chartData, setChartData] = useState<ChartData[]>([]);
+const [chartData, setChartData] = useState<ChartData[]>([]);//Datos utilizados para la grafica
 const [selectedMetric, setSelectedMetric] = useState('temp');
+const [showHistory, setShowHistory] = useState(false);
 
-const [selectedCrop, setSelectedCrop] = useState('lechuga');
+const [selectedCrop, setSelectedCrop] = useState('lechuga');//Rangos optimos segun el cultivo
 const cropRanges = {
   lechuga: {
     tempMin: 18,
@@ -43,6 +44,7 @@ const cropRanges = {
 
 const currentCrop = cropRanges[selectedCrop as keyof typeof cropRanges];
 
+//Evaluación de las condiciones del invernadero
 const tempOptimal =
   currentMetrics.temp >= currentCrop.tempMin &&
   currentMetrics.temp <= currentCrop.tempMax;
@@ -71,6 +73,7 @@ const greenhouseStatus = hasCritical
     ? 'optimal'
     : 'warning';
 
+    //Actualización automatica  de las mediciones cada 5 segundos
 useEffect(() => {
   const interval = setInterval(() => {
     setCurrentMetrics((prev) => {
@@ -120,6 +123,7 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
+//EStado actual y selección del cultivo
   return (
     <div className="container animate-fade-in">
       <div
@@ -198,7 +202,7 @@ useEffect(() => {
           </div>
         </div>
 
-      {/* Metrics Cards */}
+      {/*Tarjetas de metrices*/}
       <div className="grid grid-metrics" style={{ marginBottom: '2rem' }}>
         <div className="glass-panel text-center">
           <Thermometer size={32} className="text-amber" style={{ margin: '0 auto 0.5rem' }} />
@@ -237,7 +241,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Charts Section */}
+      {/* Grafica de historial */}
       <div className="grid grid-charts">
         <div className="glass-panel">
           <div
@@ -248,7 +252,23 @@ useEffect(() => {
     marginBottom: '1.5rem',
   }}
 >
+<div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
   <h3 style={{ margin: 0 }}>Historial</h3>
+
+  <button
+  onClick={() => setShowHistory(true)}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+    padding: '0.2rem',
+  }}
+  title="Ver historial"
+>
+  <History size={20} />
+</button>
+</div>
 
   <select
     value={selectedMetric}
@@ -308,8 +328,93 @@ useEffect(() => {
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+
+                </div>
       </div>
+
+{/*Ventana de hsitorial de mediciones*/}
+      {showHistory && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+              }}
+            >
+              <h2 style={{ margin: 0 }}>
+                🕘 Historial de mediciones
+              </h2>
+
+              <button
+                onClick={() => setShowHistory(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  textAlign: 'center',
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ padding: '0.8rem' }}>Hora</th>
+                    <th style={{ padding: '0.8rem' }}>Temperatura</th>
+                    <th style={{ padding: '0.8rem' }}>Humedad</th>
+                    <th style={{ padding: '0.8rem' }}>pH del agua</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {chartData.map((data, index) => (
+                    <tr key={index}>
+                      <td style={{ padding: '0.7rem' }}>{data.time}</td>
+                      <td style={{ padding: '0.7rem' }}>{data.temp}°C</td>
+                      <td style={{ padding: '0.7rem' }}>{data.humidity}%</td>
+                      <td style={{ padding: '0.7rem' }}>{data.ph}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

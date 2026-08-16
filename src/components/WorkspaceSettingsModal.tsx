@@ -20,6 +20,51 @@ interface WorkspaceSettingsModalProps {
   onClose: () => void;
 }
 
+/* ── Badge de rol ─────────────────────────────────────────── */
+function RoleBadge({ role }: { role: 'admin' | 'operador' }) {
+  const isAdmin = role === 'admin';
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      background: isAdmin ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+      color: isAdmin ? 'var(--status-green)' : 'var(--status-blue)',
+      border: `1px solid ${isAdmin ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}`,
+      borderRadius: 'var(--radius-full)',
+      padding: '2px 8px',
+      fontSize: '0.625rem',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      flexShrink: 0,
+    }}>
+      {isAdmin ? <ShieldCheck size={9} strokeWidth={2} /> : <Wrench size={9} strokeWidth={2} />}
+      {isAdmin ? 'Admin' : 'Operador'}
+    </span>
+  );
+}
+
+/* ── Avatar de inicial ────────────────────────────────────── */
+function Avatar({ name }: { name: string }) {
+  return (
+    <div className="nm-flat" style={{
+      width: 36,
+      height: 36,
+      borderRadius: 'var(--radius-full)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      fontSize: '0.875rem',
+      fontWeight: 700,
+      color: 'var(--accent)',
+    }}>
+      {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSettingsModalProps) {
   const {
     activeWorkspace,
@@ -32,55 +77,36 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
     leaveWorkspace
   } = useAuth();
 
-  const [inviteCode, setInviteCode] = useState<string>('');
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [inviteCode,     setInviteCode]     = useState<string>('');
+  const [members,        setMembers]        = useState<WorkspaceMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [loadingCode, setLoadingCode] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [loadingCode,    setLoadingCode]    = useState(true);
+  const [copied,         setCopied]         = useState(false);
+  const [actionError,    setActionError]    = useState<string | null>(null);
 
-  // Close on Escape key
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Data fetching
   useEffect(() => {
     if (!isOpen || !activeWorkspace || !isAdmin) return;
-
     let isMounted = true;
 
     getWorkspaceInviteCode(activeWorkspace.id)
-      .then((code) => {
-        if (isMounted) setInviteCode(code);
-      })
-      .catch((err: unknown) => {
-        console.error('Error fetching invite code:', err);
-      })
-      .finally(() => {
-        if (isMounted) setLoadingCode(false);
-      });
+      .then(code => { if (isMounted) setInviteCode(code); })
+      .catch(err => console.error('Error fetching invite code:', err))
+      .finally(() => { if (isMounted) setLoadingCode(false); });
 
     getWorkspaceMembers(activeWorkspace.id)
-      .then((memberList) => {
-        if (isMounted) setMembers(memberList);
-      })
-      .catch((err: unknown) => {
-        console.error('Error fetching members:', err);
-      })
-      .finally(() => {
-        if (isMounted) setLoadingMembers(false);
-      });
+      .then(list => { if (isMounted) setMembers(list); })
+      .catch(err => console.error('Error fetching members:', err))
+      .finally(() => { if (isMounted) setLoadingMembers(false); });
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [isOpen, activeWorkspace, isAdmin, getWorkspaceInviteCode, getWorkspaceMembers]);
 
   if (!isOpen || !activeWorkspace || !user) return null;
@@ -94,193 +120,274 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
 
   async function handleRegenerateCode() {
     if (!activeWorkspace) return;
-    if (!window.confirm('¿Estás seguro de regenerar el código? El código anterior dejará de funcionar inmediatamente.')) {
-      return;
-    }
+    if (!window.confirm('¿Regenerar el código? El anterior dejará de funcionar inmediatamente.')) return;
     setLoadingCode(true);
     setActionError(null);
     try {
       const newCode = await regenerateInviteCode(activeWorkspace.id);
       setInviteCode(newCode);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al regenerar código';
-      setActionError(msg);
+      setActionError(err instanceof Error ? err.message : 'Error al regenerar código');
     } finally {
       setLoadingCode(false);
     }
   }
 
-  async function handleRemoveMember(memberUid: string, memberName?: string) {
+  async function handleRemoveMember(uid: string, name?: string) {
     if (!activeWorkspace) return;
-    if (!window.confirm(`¿Seguro que deseas expulsar a ${memberName || 'este integrante'} del invernadero?`)) {
-      return;
-    }
+    if (!window.confirm(`¿Expulsar a ${name || 'este integrante'} del invernadero?`)) return;
     setActionError(null);
     try {
-      await removeMember(activeWorkspace.id, memberUid);
-      setMembers((prev) => prev.filter((m) => m.uid !== memberUid));
+      await removeMember(activeWorkspace.id, uid);
+      setMembers(prev => prev.filter(m => m.uid !== uid));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al expulsar integrante';
-      setActionError(msg);
+      setActionError(err instanceof Error ? err.message : 'Error al expulsar integrante');
     }
   }
 
   async function handleLeaveWorkspace() {
     if (!activeWorkspace) return;
-    if (!window.confirm(`¿Seguro que deseas abandonar el invernadero "${activeWorkspace.name}"? Perderás acceso inmediatamente.`)) {
-      return;
-    }
+    if (!window.confirm(`¿Abandonar "${activeWorkspace.name}"? Perderás acceso inmediatamente.`)) return;
     setActionError(null);
     try {
       await leaveWorkspace(activeWorkspace.id);
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al abandonar el invernadero';
-      setActionError(msg);
+      setActionError(err instanceof Error ? err.message : 'Error al abandonar el invernadero');
     }
   }
 
   const modalContent = (
+    /* ── Backdrop ─────────────────────────────────────────── */
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-[fadeIn_0.15s_ease]"
-      style={{ margin: 0 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'var(--space-sm)',
+        background: 'rgba(0,0,0,0.72)',
+      }}
     >
+      {/* ── Panel principal ──────────────────────────────── */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        onClick={e => e.stopPropagation()}
+        className="nm-flat animate-fade-in"
+        style={{
+          width: '100%',
+          maxWidth: 480,
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          borderRadius: 'var(--radius-lg)',
+        }}
       >
-        
-        {/* Header */}
-        <div className="flex items-start justify-between p-4 sm:p-6 border-b border-white/10 bg-slate-800/40 gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate max-w-[220px] sm:max-w-xs">{activeWorkspace.name}</h3>
-              {isAdmin ? (
-                <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0">
-                  <ShieldCheck size={10} /> Admin
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex-shrink-0">
-                  <Wrench size={10} /> Operador
-                </span>
-              )}
+        {/* ── Cabecera ─────────────────────────────────── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 'var(--space-sm)',
+          padding: 'var(--space-md)',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexWrap: 'wrap', marginBottom: 4 }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: 'clamp(1rem, 3vw, 1.25rem)',
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 220,
+              }}>
+                {activeWorkspace.name}
+              </h3>
+              <RoleBadge role={isAdmin ? 'admin' : 'operador'} />
             </div>
-            <p className="text-slate-400 text-xs mt-1">Configuración e integrantes del espacio de trabajo</p>
+            <p className="metric-timestamp">
+              Configuración e integrantes del espacio de trabajo
+            </p>
           </div>
+
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 min-w-[40px] min-h-[40px] flex items-center justify-center"
+            className="nm-flat"
             aria-label="Cerrar modal"
+            style={{
+              width: 40, height: 40,
+              border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
           >
-            <X size={20} />
+            <X size={18} strokeWidth={1.5} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col gap-5 sm:gap-6">
+        {/* ── Cuerpo (scrollable) ──────────────────────── */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 'var(--space-md)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-md)',
+        }}>
 
+          {/* Error banner */}
           {actionError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2">
-              <AlertTriangle size={16} className="flex-shrink-0" />
-              <span>{actionError}</span>
+            <div className="nm-concave" style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-xs)',
+              padding: 'var(--space-sm)',
+              borderLeft: '3px solid var(--status-red)',
+            }}>
+              <AlertTriangle size={16} strokeWidth={1.5} color="var(--status-red)" style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: '0.8125rem', color: 'var(--status-red)' }}>{actionError}</span>
             </div>
           )}
 
-          {/* Section 1: Invite Code (Admin Only) */}
+          {/* ── Código de invitación (solo Admin) ──────── */}
           {isAdmin && (
-            <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <div className="flex items-center gap-2 text-slate-200 font-semibold text-xs sm:text-sm">
-                  <Key size={16} className="text-emerald-400 flex-shrink-0" />
-                  Código de Invitación
-                </div>
-                <span className="text-[11px] text-slate-400">Comparte este código para sumar operadores</span>
+            <section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
+                <Key size={16} strokeWidth={1.5} color="var(--accent)" />
+                <span className="metric-label">Código de Invitación</span>
               </div>
+              <div className="nm-concave" style={{ padding: 'var(--space-sm)' }}>
+                <p style={{ margin: '0 0 var(--space-sm)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Comparte este código para que operadores accedan al invernadero.
+                </p>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 'var(--space-sm)',
+                  flexWrap: 'wrap',
+                }}>
+                  {/* Código monospace */}
+                  <span style={{
+                    fontFamily: 'monospace',
+                    fontSize: 'clamp(1.25rem, 4vw, 1.75rem)',
+                    fontWeight: 800,
+                    color: 'var(--accent)',
+                    letterSpacing: '0.2em',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    {loadingCode ? '· · · · · ·' : inviteCode}
+                  </span>
 
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-slate-950/70 border border-emerald-500/30 rounded-xl p-2.5">
-                <span className="w-full sm:w-auto flex-1 font-mono text-center text-lg font-bold text-emerald-400 tracking-widest py-1 sm:py-0">
-                  {loadingCode ? 'Cargando...' : inviteCode}
-                </span>
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                  <button
-                    onClick={handleCopyCode}
-                    disabled={loadingCode || !inviteCode}
-                    className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 min-h-[38px]"
-                    title="Copiar código"
-                  >
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? 'Copiado' : 'Copiar'}
-                  </button>
-                  <button
-                    onClick={handleRegenerateCode}
-                    disabled={loadingCode}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors disabled:opacity-50 min-w-[38px] min-h-[38px] flex items-center justify-center"
-                    title="Regenerar código (Invalidar anterior)"
-                  >
-                    <RefreshCw size={14} className={loadingCode ? 'animate-spin' : ''} />
-                  </button>
+                  {/* Acciones */}
+                  <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                    <button
+                      onClick={handleCopyCode}
+                      disabled={loadingCode || !inviteCode}
+                      className="nm-flat"
+                      title="Copiar código"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '0 var(--space-sm)',
+                        minHeight: 40, border: 'none',
+                        borderRadius: 'var(--radius-sm)',
+                        color: copied ? 'var(--accent)' : 'var(--text-secondary)',
+                        fontSize: '0.8125rem', fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'color 0.2s',
+                      }}
+                    >
+                      {copied ? <Check size={14} strokeWidth={1.5} /> : <Copy size={14} strokeWidth={1.5} />}
+                      {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+
+                    <button
+                      onClick={handleRegenerateCode}
+                      disabled={loadingCode}
+                      className="nm-flat"
+                      title="Regenerar código"
+                      style={{
+                        width: 40, height: 40,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: 'none', borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-secondary)', cursor: 'pointer',
+                      }}
+                    >
+                      <RefreshCw size={14} strokeWidth={1.5} style={{ animation: loadingCode ? 'spin 0.7s linear infinite' : 'none' }} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Section 2: Member Management (Admin Only) */}
+          {/* ── Lista de integrantes (solo Admin) ──────── */}
           {isAdmin && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between text-slate-200 font-semibold text-sm">
-                <div className="flex items-center gap-2">
-                  <Users size={16} className="text-blue-400" />
-                  Integrantes del Invernadero ({members.length})
-                </div>
+            <section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
+                <Users size={16} strokeWidth={1.5} color="var(--status-blue)" />
+                <span className="metric-label">Integrantes ({members.length})</span>
               </div>
 
               {loadingMembers ? (
-                <div className="py-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-500 rounded-full animate-spin" />
-                  Cargando miembros...
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-xs)', padding: 'var(--space-xl)', color: 'var(--text-disabled)' }}>
+                  <div style={{ width: 16, height: 16, border: '2px solid var(--text-disabled)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  <span style={{ fontSize: '0.8125rem' }}>Cargando...</span>
                 </div>
               ) : members.length === 0 ? (
-                <p className="text-slate-500 text-xs italic">No hay otros miembros registrados.</p>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-disabled)', fontStyle: 'italic', padding: 'var(--space-sm) 0' }}>
+                  No hay otros integrantes registrados.
+                </p>
               ) : (
-                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto">
-                  {members.map((member) => {
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', maxHeight: 240, overflowY: 'auto' }}>
+                  {members.map(member => {
                     const isSelf = member.uid === user.uid;
                     return (
                       <div
                         key={member.uid}
-                        className="flex items-center justify-between p-3 rounded-xl bg-slate-800/30 border border-white/5 text-xs"
+                        className="nm-concave"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 'var(--space-sm)',
+                          padding: 'var(--space-sm)',
+                        }}
                       >
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400">
-                            {(member.name || member.email || 'U').charAt(0).toUpperCase()}
-                          </div>
-                          <div className="overflow-hidden">
-                            <p className="text-white font-medium truncate">
-                              {member.name || 'Usuario'} {isSelf && '(Tú)'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', overflow: 'hidden', flex: 1 }}>
+                          <Avatar name={member.name || member.email || 'U'} />
+                          <div style={{ overflow: 'hidden' }}>
+                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {member.name || 'Usuario'}{isSelf && <span style={{ color: 'var(--accent)', marginLeft: 6, fontSize: '0.75rem' }}>(Tú)</span>}
                             </p>
-                            <p className="text-slate-400 text-[11px] truncate">{member.email}</p>
+                            <p className="metric-timestamp" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {member.email}
+                            </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {member.role === 'admin' ? (
-                            <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-emerald-500/20">
-                              Admin
-                            </span>
-                          ) : (
-                            <span className="bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-blue-500/20">
-                              Operador
-                            </span>
-                          )}
-
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flexShrink: 0 }}>
+                          <RoleBadge role={member.role as 'admin' | 'operador'} />
                           {!isSelf && (
                             <button
                               onClick={() => handleRemoveMember(member.uid, member.name || member.email)}
-                              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                               title="Expulsar integrante"
+                              className="nm-flat"
+                              style={{
+                                width: 32, height: 32,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: 'none', borderRadius: 'var(--radius-sm)',
+                                color: 'var(--text-disabled)', cursor: 'pointer',
+                                transition: 'color 0.15s ease',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.color = 'var(--status-red)')}
+                              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-disabled)')}
                             >
-                              <UserX size={15} />
+                              <UserX size={14} strokeWidth={1.5} />
                             </button>
                           )}
                         </div>
@@ -289,27 +396,50 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
                   })}
                 </div>
               )}
-            </div>
+            </section>
           )}
+        </div>
 
-          {/* Section 3: Actions Footer */}
-          <div className="pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <button
-              onClick={handleLeaveWorkspace}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 py-2.5 px-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold transition-colors min-h-[42px]"
-            >
-              <LogOut size={16} />
-              Abandonar Invernadero
-            </button>
+        {/* ── Footer de acciones ────────────────────────── */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--space-sm)',
+          padding: 'var(--space-md)',
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+          flexShrink: 0,
+        }}>
+          {/* Abandonar invernadero */}
+          <button
+            onClick={handleLeaveWorkspace}
+            className="nm-flat btn-nm-danger"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 'var(--space-xs)',
+              minHeight: 48,
+              padding: '0 var(--space-md)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              flex: '1 1 auto',
+            }}
+          >
+            <LogOut size={16} strokeWidth={1.5} />
+            Abandonar Invernadero
+          </button>
 
-            <button
-              onClick={onClose}
-              className="w-full sm:w-auto flex items-center justify-center py-2.5 px-6 bg-slate-800 hover:bg-slate-700 border border-white/10 rounded-xl text-white text-xs font-semibold transition-colors min-h-[42px]"
-            >
-              Cerrar
-            </button>
-          </div>
-
+          {/* Cerrar */}
+          <button
+            onClick={onClose}
+            className="btn-secondary"
+            style={{ flex: '1 1 auto', minWidth: 100 }}
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

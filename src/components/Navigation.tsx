@@ -14,7 +14,7 @@ import {
   Sprout
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
-import logoUrl from '../icons/logo-green-tech.png';
+import logoUrl from '../icons/icon_green-tech.svg';
 
 // ─── Nav items per role ───────────────────────────────────────────────────────
 
@@ -36,15 +36,22 @@ const NAV_ITEMS: NavItem[] = [
 // ─── Role badge ───────────────────────────────────────────────────────────────
 
 function RoleBadge({ role }: { role: UserRole }) {
-  return role === 'admin' ? (
-    <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-      <ShieldCheck size={10} />
-      Admin
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-      <Wrench size={10} />
-      Operador
+  const isAdmin = role === 'admin';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: isAdmin ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+      color: isAdmin ? 'var(--status-green)' : 'var(--status-blue)',
+      border: `1px solid ${isAdmin ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}`,
+      borderRadius: 'var(--radius-full)',
+      padding: '2px 8px',
+      fontSize: '0.625rem',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+    }}>
+      {isAdmin ? <ShieldCheck size={9} strokeWidth={2} /> : <Wrench size={9} strokeWidth={2} />}
+      {isAdmin ? 'Admin' : 'Operador'}
     </span>
   );
 }
@@ -64,83 +71,147 @@ function WorkspaceSelector() {
 
   return (
     <>
-      <div className="relative flex items-center gap-1">
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+
+        {/* Botón principal del selector */}
         <button
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-white/5 transition-all text-xs sm:text-sm text-white min-h-[40px]"
+          id="workspace-selector-btn"
+          onClick={() => setOpen(v => !v)}
+          className="nm-flat"
+          style={{
+            display: 'flex', alignItems: 'center',
+            gap: 'var(--space-xs)',
+            padding: '0 var(--space-sm)',
+            minHeight: 40,
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            cursor: 'pointer',
+            maxWidth: 180,
+          }}
         >
-          <Sprout size={14} className="text-emerald-500 flex-shrink-0" />
-          <span className="max-w-[75px] xs:max-w-[100px] sm:max-w-[120px] truncate text-slate-300 text-xs font-medium">
+          <Sprout size={14} strokeWidth={1.5} color="var(--accent)" style={{ flexShrink: 0 }} />
+          <span style={{
+            fontSize: '0.8125rem', fontWeight: 600,
+            color: 'var(--text-primary)',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            maxWidth: 120,
+          }}>
             {activeWorkspace.name}
           </span>
           <ChevronDown
-            size={14}
-            className={`text-slate-500 transition-transform duration-200 flex-shrink-0 ${open ? 'rotate-180' : ''}`}
+            size={12} strokeWidth={1.5}
+            color="var(--text-disabled)"
+            style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
           />
         </button>
 
+        {/* Botón de configuración */}
         <button
           onClick={() => setShowSettingsModal(true)}
-          className="p-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 border border-white/5 transition-all text-slate-400 hover:text-white"
+          className="nm-flat"
           title="Configuración del Invernadero"
+          style={{
+            width: 40, height: 40,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)', cursor: 'pointer',
+          }}
         >
-          <Settings size={15} />
+          <Settings size={14} strokeWidth={1.5} />
         </button>
 
+        {/* Dropdown */}
         {open && (
           <>
-            <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-full mt-2 z-40 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-[fadeIn_0.15s_ease]">
-              <div className="px-3 py-2 border-b border-white/10 bg-slate-800/30 flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Mis Invernaderos</span>
-                <span className="text-[10px] text-slate-400 font-medium">{workspaces.length}</span>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 30 }} onClick={() => setOpen(false)} />
+            <div
+              className="nm-flat animate-fade-in"
+              style={{
+                position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+                zIndex: 40, width: 224,
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Cabecera del dropdown */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: 'var(--space-xs) var(--space-sm)',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+              }}>
+                <span className="metric-label">Mis Invernaderos</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)', fontWeight: 700 }}>{workspaces.length}</span>
               </div>
-              
-              <div className="max-h-48 overflow-y-auto">
-                {workspaces.map((ws) => (
+
+              {/* Lista de workspaces */}
+              <div style={{ maxHeight: 192, overflowY: 'auto' }}>
+                {workspaces.map(ws => (
                   <button
                     key={ws.id}
-                    onClick={() => {
-                      setActiveWorkspace(ws);
-                      setOpen(false);
+                    onClick={() => { setActiveWorkspace(ws); setOpen(false); }}
+                    style={{
+                      width: '100%', display: 'flex',
+                      alignItems: 'center', justifyContent: 'space-between',
+                      padding: 'var(--space-xs) var(--space-sm)',
+                      background: activeWorkspace.id === ws.id ? 'rgba(16,185,129,0.08)' : 'transparent',
+                      border: 'none', cursor: 'pointer',
+                      minHeight: 40, textAlign: 'left',
+                      transition: 'background 0.15s ease',
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 text-xs transition-colors text-left ${
-                      activeWorkspace.id === ws.id 
-                        ? 'bg-emerald-500/10 text-emerald-400 font-semibold' 
-                        : 'text-slate-300 hover:text-white hover:bg-white/5'
-                    }`}
+                    onMouseEnter={e => { if (activeWorkspace.id !== ws.id) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onMouseLeave={e => { if (activeWorkspace.id !== ws.id) e.currentTarget.style.background = 'transparent'; }}
                   >
-                    <span className="truncate max-w-[120px]">{ws.name}</span>
-                    <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded font-bold ${
-                      ws.role === 'admin' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'
-                    }`}>
-                      {ws.role}
+                    <span style={{
+                      fontSize: '0.8125rem', fontWeight: 600,
+                      color: activeWorkspace.id === ws.id ? 'var(--accent)' : 'var(--text-primary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120,
+                    }}>
+                      {ws.name}
                     </span>
+                    <RoleBadge role={ws.role as UserRole} />
                   </button>
                 ))}
               </div>
 
-              <div className="p-1.5 border-t border-white/10 bg-slate-950/40 flex flex-col gap-1">
+              {/* Acciones del footer */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: 'var(--space-xs)' }}>
                 <button
-                  onClick={() => {
-                    setOpen(false);
-                    setShowSettingsModal(true);
+                  onClick={() => { setOpen(false); setShowSettingsModal(true); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center',
+                    gap: 'var(--space-xs)',
+                    padding: 'var(--space-xs) var(--space-sm)',
+                    minHeight: 40, border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8125rem', fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'color 0.15s ease',
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
                 >
-                  <Settings size={13} className="text-slate-400" />
+                  <Settings size={13} strokeWidth={1.5} />
                   Configurar Invernadero
                 </button>
 
                 <button
-                  onClick={() => {
-                    setOpen(false);
-                    navigate('/onboarding');
+                  onClick={() => { setOpen(false); navigate('/onboarding'); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center',
+                    gap: 'var(--space-xs)',
+                    padding: 'var(--space-xs) var(--space-sm)',
+                    minHeight: 40, border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    color: 'var(--accent)',
+                    fontSize: '0.8125rem', fontWeight: 700,
+                    cursor: 'pointer',
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors font-medium"
                 >
-                  <Plus size={13} />
-                  + Crear o Unirme a Invernadero
+                  <Plus size={13} strokeWidth={1.5} />
+                  Crear o Unirme
                 </button>
               </div>
             </div>
@@ -171,42 +242,105 @@ function UserMenu() {
   }
 
   return (
-    <div className="relative">
+    <div style={{ position: 'relative' }}>
+      {/* Avatar + nombre */}
       <button
         id="user-menu-btn"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-sm text-white"
+        onClick={() => setOpen(v => !v)}
+        className="nm-flat"
+        style={{
+          display: 'flex', alignItems: 'center',
+          gap: 'var(--space-xs)',
+          padding: '0 var(--space-xs) 0 var(--space-xs)',
+          minHeight: 40, border: 'none',
+          borderRadius: 'var(--radius-md)', cursor: 'pointer',
+        }}
       >
-        <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
+        {/* Avatar circular neumórfico */}
+        <div className="nm-concave" style={{
+          width: 28, height: 28,
+          borderRadius: 'var(--radius-full)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.75rem', fontWeight: 800,
+          color: 'var(--accent)',
+          flexShrink: 0,
+        }}>
           {user.name.charAt(0).toUpperCase()}
         </div>
-        <span className="hidden sm:block max-w-[120px] truncate text-slate-200 text-xs font-medium">
+        <span className="hidden sm:block" style={{
+          fontSize: '0.8125rem', fontWeight: 600,
+          color: 'var(--text-primary)',
+          maxWidth: 100,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
           {user.name}
         </span>
         <ChevronDown
-          size={14}
-          className={`text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          size={12} strokeWidth={1.5} color="var(--text-disabled)"
+          style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
         />
       </button>
 
+      {/* Dropdown del perfil */}
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-40 w-52 bg-slate-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-[fadeIn_0.15s_ease]">
-            <div className="px-4 py-3 border-b border-white/10">
-              <p className="text-white text-sm font-semibold truncate">{user.name}</p>
-              <p className="text-slate-400 text-xs truncate">{user.email}</p>
-              <div className="mt-1.5">
-                <RoleBadge role={currentRole} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 30 }} onClick={() => setOpen(false)} />
+          <div
+            className="nm-flat animate-fade-in"
+            style={{
+              position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+              zIndex: 40, width: 216,
+              borderRadius: 'var(--radius-md)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Info del usuario */}
+            <div style={{
+              padding: 'var(--space-sm)',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}>
+              {/* Avatar grande */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xs)' }}>
+                <div className="nm-concave" style={{
+                  width: 40, height: 40,
+                  borderRadius: 'var(--radius-full)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '1rem', fontWeight: 800, color: 'var(--accent)',
+                  flexShrink: 0,
+                }}>
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ overflow: 'hidden' }}>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.name}
+                  </p>
+                  <p className="metric-timestamp" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.email}
+                  </p>
+                </div>
               </div>
+              <RoleBadge role={currentRole} />
             </div>
 
+            {/* Cerrar sesión */}
             <button
               id="logout-btn"
               onClick={handleLogout}
-              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-slate-300 hover:text-white hover:bg-red-500/10 transition-colors"
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center',
+                gap: 'var(--space-xs)',
+                padding: 'var(--space-sm)',
+                minHeight: 48, border: 'none',
+                background: 'transparent',
+                color: 'var(--status-red)',
+                fontSize: '0.875rem', fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              <LogOut size={15} className="text-red-400" />
+              <LogOut size={16} strokeWidth={1.5} />
               Cerrar sesión
             </button>
           </div>
@@ -238,49 +372,68 @@ export default function Navigation() {
   return (
     <nav
       style={{
-        background: 'rgba(15, 23, 42, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--bg)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        boxShadow: '0 4px 8px var(--shadow-dark)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
+        padding: 'var(--space-sm) 0',
       }}
-      className="py-2 sm:py-3 lg:py-5"
     >
-      <div className="container flex justify-between items-center px-4 md:px-8">
+      <div className="container flex justify-between items-center">
         {/* Brand */}
-        <Link to="/" className="flex items-center gap-2.5 lg:gap-3 lg:w-1/4 hover:opacity-80 transition-opacity">
-          <img src={logoUrl} alt="GreenTech" className="w-9 h-9 lg:w-11 lg:h-11 object-contain drop-shadow-md" />
-          <span className="text-white font-extrabold tracking-tight text-xl lg:text-2xl hidden sm:block drop-shadow-sm">
-            Green<span className="text-emerald-400">Tech</span>
+        <Link
+          to="/"
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', textDecoration: 'none', flex: '0 0 auto' }}
+        >
+          <img src={logoUrl} alt="GreenTech" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+          <span style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: '1.125rem', color: 'var(--text-primary)' }} className="hidden sm:block">
+            Green<span style={{ color: 'var(--accent)' }}>Tech</span>
           </span>
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden lg:flex items-center justify-center gap-8 lg:w-2/4">
+        <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 'var(--space-lg)' }}>
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`relative py-1.5 text-[13px] lg:text-[14px] uppercase tracking-widest font-bold transition-all duration-300 ${
-                  isActive
-                    ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                style={{
+                  position: 'relative',
+                  paddingBottom: 6,
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  transition: 'color 0.15s ease',
+                }}
               >
                 {item.label}
                 {isActive && (
-                  <span className="absolute -bottom-2.5 left-1/2 w-1.5 h-1.5 bg-emerald-400 rounded-full -translate-x-1/2 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                  <span style={{
+                    position: 'absolute',
+                    bottom: -2,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: 'var(--accent)',
+                    boxShadow: '0 0 8px var(--accent-glow)',
+                  }} />
                 )}
               </Link>
             );
           })}
         </div>
 
-        {/* Right side: workspace selector + user menu + mobile toggle */}
-        <div className="flex items-center justify-end gap-3 lg:w-1/4">
+        {/* Right: workspace selector + user menu + mobile toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
           {user && (
             <>
               <WorkspaceSelector />
@@ -291,19 +444,29 @@ export default function Navigation() {
           {/* Mobile menu toggle */}
           <button
             id="mobile-menu-toggle"
-            className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="mobile-menu-btn lg:hidden"
             aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
             onClick={() => setIsOpen((v) => !v)}
           >
-            {isOpen ? <X size={22} /> : <Menu size={22} />}
+            {isOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
           </button>
         </div>
       </div>
 
       {/* Mobile menu */}
       {isOpen && (
-        <div className="lg:hidden border-t border-white/10 mt-2 bg-slate-900/95 backdrop-blur-xl absolute w-full shadow-2xl">
-          <div className="container py-3 flex flex-col gap-1 px-4">
+        <div
+          className="lg:hidden"
+          style={{
+            position: 'absolute',
+            width: '100%',
+            background: 'var(--bg)',
+            borderTop: '1px solid rgba(255,255,255,0.04)',
+            boxShadow: '0 8px 16px var(--shadow-dark)',
+            zIndex: 40,
+          }}
+        >
+          <div className="container" style={{ paddingTop: 'var(--space-xs)', paddingBottom: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
             {visibleItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
@@ -312,13 +475,22 @@ export default function Navigation() {
                   key={item.path}
                   to={item.path}
                   onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all min-h-[48px] ${
-                    isActive
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-sm)',
+                    padding: 'var(--space-sm)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
+                    minHeight: 48,
+                    color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                    background: isActive ? 'rgba(16,185,129,0.08)' : 'transparent',
+                    textDecoration: 'none',
+                    transition: 'color 0.15s ease, background 0.15s ease',
+                  }}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} strokeWidth={1.5} />
                   {item.label}
                 </Link>
               );
@@ -328,9 +500,26 @@ export default function Navigation() {
               <button
                 id="mobile-logout-btn"
                 onClick={handleMobileLogout}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all min-h-[48px] mt-1 border-t border-white/10 pt-3"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-sm)',
+                  padding: 'var(--space-sm)',
+                  borderRadius: 'var(--radius-md)',
+                  minHeight: 48,
+                  color: 'var(--status-red)',
+                  background: 'transparent',
+                  border: 'none',
+                  borderTop: '1px solid rgba(255,255,255,0.04)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.9375rem',
+                  marginTop: 'var(--space-xs)',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
               >
-                <LogOut size={18} />
+                <LogOut size={20} strokeWidth={1.5} />
                 Cerrar sesión
               </button>
             )}

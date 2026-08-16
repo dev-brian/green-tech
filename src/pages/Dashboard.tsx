@@ -11,6 +11,30 @@ const mockData = [
   { time: '18:00', temp: 21, humidity: 65, ph: 6.0 },
 ];
 
+type SensorStatus = 'green' | 'yellow' | 'red' | 'offline';
+
+function SensorLED({ status, isCritical }: { status: SensorStatus; isCritical?: boolean }) {
+  const ledClass = [
+    'nm-led',
+    `nm-led--${status}`,
+    status === 'red' && isCritical ? 'nm-led--red-pulse' : '',
+  ].filter(Boolean).join(' ');
+  return (
+    <span
+      className={ledClass}
+      role="status"
+      aria-label={`Estado del sensor: ${status}`}
+    />
+  );
+}
+
+function getStatus(value: number, min: number, max: number): SensorStatus {
+  if (value < min || value > max) return 'red';
+  const buffer = (max - min) * 0.1;
+  if (value < min + buffer || value > max - buffer) return 'yellow';
+  return 'green';
+}
+
 export default function Dashboard() {
   const [currentMetrics] = useState({
     temp: 22.5,
@@ -20,71 +44,149 @@ export default function Dashboard() {
     pumpStatus: 'Activa'
   });
 
+  const tempStatus  = getStatus(currentMetrics.temp, 18, 28);
+  const humidStatus = getStatus(currentMetrics.humidity, 50, 80);
+  const phStatus    = getStatus(currentMetrics.ph, 5.5, 7.0);
+
   return (
-    <div className="container animate-fade-in">
-      <div className="flex justify-between items-center flex-col-mobile" style={{ marginBottom: '2rem' }}>
-        <h2>Dashboard - Estado Actual</h2>
-        <div className="glass-panel" style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--accent-green)', boxShadow: '0 0 10px var(--accent-green)' }}></span>
-          <span style={{ fontWeight: 600 }}>Planta: Lechuga</span>
+    <div className="container animate-fade-in" style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}>
+
+      {/* ── Header ─────────────────────────────────────── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 'var(--space-sm)',
+        marginBottom: 'var(--space-lg)',
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)' }}>
+            Estado Actual
+          </h2>
+          <p style={{ margin: 0, marginTop: 'var(--space-xs)', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Actualizado hace 3 s
+          </p>
+        </div>
+        {/* Indicador de cultivo activo */}
+        <div className="nm-flat" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-xs)',
+          padding: '0 var(--space-sm)',
+          minHeight: 40,
+          borderRadius: 'var(--radius-sm)',
+        }}>
+          <SensorLED status="green" />
+          <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+            Planta: Lechuga
+          </span>
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-metrics" style={{ marginBottom: '2rem' }}>
-        <div className="glass-panel text-center">
-          <Thermometer size={32} className="text-amber" style={{ margin: '0 auto 0.5rem' }} />
-          <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Temperatura</p>
-          <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.temp}°C</h3>
-        </div>
-        
-        <div className="glass-panel text-center">
-          <Droplets size={32} className="text-blue" style={{ margin: '0 auto 0.5rem' }} />
-          <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Humedad</p>
-          <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.humidity}%</h3>
-        </div>
-        
-        <div className="glass-panel text-center">
-          <FlaskConical size={32} className="text-green" style={{ margin: '0 auto 0.5rem' }} />
-          <p className="text-muted" style={{ marginBottom: '0.5rem' }}>pH del Agua</p>
-          <h3 style={{ fontSize: '2rem', margin: 0 }}>{currentMetrics.ph}</h3>
-        </div>
-        
-        <div className="glass-panel text-center">
-          <Sun size={32} style={{ margin: '0 auto 0.5rem', color: '#fbbf24' }} />
-          <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Luz</p>
-          <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{currentMetrics.light}</h3>
+      {/* ── Tarjetas de Métricas ──────────────────────── */}
+      <div className="metrics-grid" style={{ marginBottom: 'var(--space-lg)' }}>
+
+        {/* Temperatura */}
+        <div className="nm-flat" style={{ padding: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Thermometer size={20} strokeWidth={1.5} color="var(--status-yellow)" />
+            <SensorLED status={tempStatus} isCritical={tempStatus === 'red'} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
+            <span className="metric-value">{currentMetrics.temp}</span>
+            <span className="metric-unit">°C</span>
+          </div>
+          <span className="metric-label">Temperatura</span>
         </div>
 
-        <div className="glass-panel text-center">
-          <Power size={32} className={currentMetrics.pumpStatus === 'Activa' ? 'text-green' : 'text-red'} style={{ margin: '0 auto 0.5rem' }} />
-          <p className="text-muted" style={{ marginBottom: '0.5rem' }}>Bomba</p>
-          <h3 style={{ fontSize: '1.5rem', margin: 0 }}>{currentMetrics.pumpStatus}</h3>
+        {/* Humedad */}
+        <div className="nm-flat" style={{ padding: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Droplets size={20} strokeWidth={1.5} color="var(--status-blue)" />
+            <SensorLED status={humidStatus} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
+            <span className="metric-value">{currentMetrics.humidity}</span>
+            <span className="metric-unit">%</span>
+          </div>
+          <span className="metric-label">Humedad</span>
         </div>
+
+        {/* pH */}
+        <div className="nm-flat" style={{ padding: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <FlaskConical size={20} strokeWidth={1.5} color="var(--accent)" />
+            <SensorLED status={phStatus} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
+            <span className="metric-value">{currentMetrics.ph}</span>
+            <span className="metric-unit">pH</span>
+          </div>
+          <span className="metric-label">pH del Agua</span>
+        </div>
+
+        {/* Luz */}
+        <div className="nm-flat" style={{ padding: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Sun size={20} strokeWidth={1.5} color="#fbbf24" />
+            <SensorLED status="green" />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
+            <span className="metric-value" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>
+              {currentMetrics.light}
+            </span>
+          </div>
+          <span className="metric-label">Luminosidad</span>
+        </div>
+
+        {/* Bomba */}
+        <div className="nm-flat" style={{ padding: 'var(--space-sm)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Power size={20} strokeWidth={1.5} color={currentMetrics.pumpStatus === 'Activa' ? 'var(--status-green)' : 'var(--status-offline)'} />
+            <SensorLED status={currentMetrics.pumpStatus === 'Activa' ? 'green' : 'offline'} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
+            <span className="metric-value" style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>
+              {currentMetrics.pumpStatus}
+            </span>
+          </div>
+          <span className="metric-label">Bomba</span>
+        </div>
+
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-charts">
-        <div className="glass-panel">
-          <h3 style={{ marginBottom: '1.5rem' }}>Histórico de Temperatura y Humedad</h3>
-          <div style={{ width: '100%', height: 300 }}>
+      {/* ── Gráfica Histórica ────────────────────────── */}
+      <div className="nm-flat" style={{ padding: 'var(--space-md)' }}>
+        <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
+          Histórico — Temperatura y Humedad
+        </h3>
+        <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ width: '100%', height: 260 }}>
             <ResponsiveContainer>
-              <LineChart data={mockData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--panel-border)" />
-                <XAxis dataKey="time" stroke="var(--text-muted)" />
-                <YAxis yAxisId="left" stroke="var(--accent-amber)" />
-                <YAxis yAxisId="right" orientation="right" stroke="var(--accent-blue)" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--panel-bg)', borderColor: 'var(--panel-border)', borderRadius: '8px' }}
-                  itemStyle={{ color: '#fff' }}
+              <LineChart data={mockData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="time" stroke="var(--text-disabled)" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="left"  stroke="var(--status-yellow)" tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="right" orientation="right" stroke="var(--status-blue)" tick={{ fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--bg)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 'var(--radius-sm)',
+                    boxShadow: '4px 4px 8px var(--shadow-dark), -4px -4px 8px var(--shadow-light)',
+                  }}
+                  itemStyle={{ color: 'var(--text-primary)', fontSize: '0.8125rem' }}
+                  labelStyle={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}
                 />
-                <Line yAxisId="left" type="monotone" dataKey="temp" stroke="var(--accent-amber)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="var(--accent-blue)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line yAxisId="left"  type="monotone" dataKey="temp"     stroke="var(--status-yellow)" strokeWidth={2} dot={{ r: 3, fill: 'var(--bg)' }} activeDot={{ r: 5 }} />
+                <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="var(--status-blue)"   strokeWidth={2} dot={{ r: 3, fill: 'var(--bg)' }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
+
     </div>
   );
 }

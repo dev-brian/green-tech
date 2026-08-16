@@ -1,8 +1,8 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: white;
+  background: var(--bg-color);
+  color: var(--text-main);
 }
 
 .container {
@@ -16,8 +16,8 @@ body {
   justify-content: space-between;
   gap: 20px;
   padding: 24px 20px;
-  background: rgba(15, 23, 42, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-color);
+  box-shadow: 0 4px 6px var(--shadow-dark);
 }
 
 .header-brand {
@@ -126,7 +126,14 @@ body {
 }
 
 .card {
-  background: #1e293b;
+  background: var(--bg-color);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: 16px;
+  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import iconUrl from '../icons/icon_green-tech.svg';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -332,7 +333,7 @@ export default function Landing() {
           border: '1px solid rgba(16,185,129,0.3)',
           boxShadow: '0 0 60px rgba(16,185,129,0.12)'
         }}>
-          <Leaf size={48} style={{ color: 'var(--accent-green)', margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.5))' }} />
+          <img src={iconUrl} alt="Green Tech" style={{ width: 64, height: 64, margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.5))' }} />
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, marginBottom: '1.25rem' }}>
             Tu invernadero, sin sorpresas.
           </h2>

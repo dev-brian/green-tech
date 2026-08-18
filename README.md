@@ -40,14 +40,25 @@ Este proyecto está construido con herramientas modernas para asegurar el mejor 
    pnpm install
    ```
 
-3. Inicia el servidor de desarrollo:
+3. Configura tus variables de entorno (llaves de Firebase y OpenWeatherMap):
+   ```bash
+   cp .env.local.example .env.local
+   ```
+   Abre el `.env.local` recién creado y reemplaza cada valor vacío con la llave real.
+   **Estas llaves NO están en el repositorio** (por seguridad) — pídeselas a un
+   administrador del proyecto por un canal privado (WhatsApp, Slack, gestor de
+   contraseñas, etc.), nunca las pegues en un commit ni en un chat público.
+
+4. Inicia el servidor de desarrollo:
    ```bash
    pnpm run dev
    ```
 
-4. Abre tu navegador y visita `http://localhost:5173`
+5. Abre tu navegador y visita `http://localhost:5173`
 
 *(Nota: si tienes problemas con los scripts de construcción de dependencias con pnpm v10+, ejecuta `pnpm approve-builds` antes de iniciar el proyecto).*
+
+*(Nota: si cambias algo en `.env.local` mientras `pnpm dev` ya está corriendo, detenlo con Ctrl+C y vuelve a iniciarlo — Vite solo lee ese archivo al arrancar, no en caliente).*
 
 ## 📁 Estructura del Proyecto
 

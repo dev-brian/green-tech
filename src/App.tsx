@@ -11,6 +11,8 @@ import ControlPanel from './pages/ControlPanel';
 import PlantManagement from './pages/PlantManagement';
 import LoginPage from './pages/auth/LoginPage';
 import OnboardingWizard from './pages/OnboardingWizard';
+import AlertsPage from './pages/AlertsPage';
+
 
 // ─── Auth pages don't show the nav/alert bar ──────────────────────────────────
 
@@ -58,6 +60,14 @@ function AppShell() {
             }
           />
           <Route
+            path="/alerts"
+            element={
+              <ProtectedRoute>
+                <AlertsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/control"
             element={
               <ProtectedRoute>
@@ -73,6 +83,7 @@ function AppShell() {
               </ProtectedRoute>
             }
           />
+
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

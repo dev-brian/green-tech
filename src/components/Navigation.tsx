@@ -11,10 +11,14 @@ import {
   ChevronDown,
   ShieldCheck,
   Wrench,
-  Sprout
+  Sprout,
+  Bell,
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
+import { useAlerts } from '../hooks/useAlerts';
+import AlertBadge from './AlertBadge';
 import logoUrl from '../icons/icon_green-tech.svg';
+
 
 // ─── Nav items per role ───────────────────────────────────────────────────────
 
@@ -27,11 +31,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { path: '/',          label: 'Inicio',       icon: Home },
-  { path: '/dashboard', label: 'Dashboard',    icon: LayoutDashboard },
-  { path: '/control',   label: 'Alertas',      icon: Settings2 },
-  { path: '/plants',    label: 'Plantas',       icon: Leaf, roles: ['admin'] },
+  { path: '/',          label: 'Inicio',    icon: Home },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/alerts',    label: 'Alertas',   icon: Bell },
+  { path: '/control',   label: 'Control',   icon: Settings2 },
+  { path: '/plants',    label: 'Plantas',   icon: Leaf, roles: ['admin'] },
 ];
+
 
 // ─── Role badge ───────────────────────────────────────────────────────────────
 
@@ -355,8 +361,11 @@ function UserMenu() {
 export default function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, currentRole } = useAuth();
+  const { user, logout, currentRole, activeWorkspace } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Badge de alertas no atendidas
+  const { unattendedCount } = useAlerts(activeWorkspace?.id ?? null);
 
   async function handleMobileLogout() {
     await logout();
@@ -368,6 +377,7 @@ export default function Navigation() {
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.roles || item.roles.includes(currentRole)
   );
+
 
   return (
     <nav
@@ -397,6 +407,7 @@ export default function Navigation() {
         <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 'var(--space-lg)' }}>
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const isAlertsLink = item.path === '/alerts';
             return (
               <Link
                 key={item.path}
@@ -411,9 +422,13 @@ export default function Navigation() {
                   color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
                   textDecoration: 'none',
                   transition: 'color 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
                 {item.label}
+                {isAlertsLink && <AlertBadge count={unattendedCount} />}
                 {isActive && (
                   <span style={{
                     position: 'absolute',
@@ -431,6 +446,7 @@ export default function Navigation() {
             );
           })}
         </div>
+
 
         {/* Right: workspace selector + user menu + mobile toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
@@ -470,6 +486,7 @@ export default function Navigation() {
             {visibleItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const isAlertsLink = item.path === '/alerts';
               return (
                 <Link
                   key={item.path}
@@ -492,9 +509,14 @@ export default function Navigation() {
                 >
                   <Icon size={20} strokeWidth={1.5} />
                   {item.label}
+                  {isAlertsLink && unattendedCount > 0 && (
+                    <span style={{ flex: 1 }} />
+                  )}
+                  {isAlertsLink && <AlertBadge count={unattendedCount} />}
                 </Link>
               );
             })}
+
 
             {user && (
               <button

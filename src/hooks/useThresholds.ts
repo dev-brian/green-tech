@@ -20,7 +20,7 @@ export function useThresholds(greenhouseId: string | null) {
   // Carga inicial desde Firestore
   useEffect(() => {
     if (!greenhouseId) return;
-    setLoading(true);
+    setTimeout(() => setLoading(true), 0);
     getThresholds(greenhouseId)
       .then(setThresholds)
       .catch(() => setThresholds(DEFAULT_THRESHOLDS))

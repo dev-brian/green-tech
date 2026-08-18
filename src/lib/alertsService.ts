@@ -84,7 +84,7 @@ export function subscribeToAlerts(
   filters: AlertFilters,
   callback: (alerts: FirestoreAlert[]) => void,
 ): () => void {
-  let q = query(
+  const q = query(
     collection(db, 'alerts'),
     where('greenhouseId', '==', greenhouseId),
     orderBy('createdAt', 'desc'),

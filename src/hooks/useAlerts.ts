@@ -17,12 +17,14 @@ export function useAlerts(greenhouseId: string | null) {
 
   useEffect(() => {
     if (!greenhouseId) {
-      setAlerts([]);
-      setLoading(false);
+      setTimeout(() => {
+        setAlerts([]);
+        setLoading(false);
+      }, 0);
       return;
     }
 
-    setLoading(true);
+    setTimeout(() => setLoading(true), 0);
 
     const unsub = subscribeToAlerts(greenhouseId, filters, (data) => {
       setAlerts(data);

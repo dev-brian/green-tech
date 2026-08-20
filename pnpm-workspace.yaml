@@ -2,7 +2,9 @@ packages:
   - '.'
 
 allowBuilds:
+  '@firebase/util': true
   core-js: true
+  protobufjs: true
 
 onlyBuiltDependencies:
   - core-js

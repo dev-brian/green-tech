@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users } from 'lucide-react';
+import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import iconUrl from '../icons/icon_green-tech.svg';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ const steps = [
   {
     number: '02',
     icon: BarChart3,
-    title: 'ALGORA Analiza',
+    title: 'Palarix Analiza',
     description: 'Nuestro motor de reglas procesa los datos en tiempo real, detecta anomalías y genera predicciones de comportamiento.',
     color: 'var(--accent-blue)',
     glow: 'rgba(59, 130, 246, 0.25)',
@@ -102,7 +103,7 @@ export default function Landing() {
           marginBottom: '2rem', letterSpacing: '0.05em'
         }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)', display: 'inline-block' }} />
-          UTT · Proyecto ALGORA · Invernadero Hidropónico
+          UTT · Proyecto Palarix · Invernadero Hidropónico
         </div>
 
         {/* Headline */}
@@ -119,7 +120,7 @@ export default function Landing() {
         </h1>
 
         <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)', maxWidth: '620px', marginBottom: '3rem', lineHeight: 1.7 }}>
-          ALGORA transforma invernaderos tradicionales en sistemas inteligentes. Telemetría en tiempo real, control automático y alertas predictivas para proteger cada ciclo de cultivo.
+          Palarix transforma invernaderos tradicionales en sistemas inteligentes. Telemetría en tiempo real, control automático y alertas predictivas para proteger cada ciclo de cultivo.
         </p>
 
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -165,7 +166,7 @@ export default function Landing() {
           <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>EL PROCESO</p>
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 800, margin: 0 }}>Tres pasos. Cero pérdidas.</h2>
           <p style={{ color: 'var(--text-muted)', marginTop: '1rem', maxWidth: 520, margin: '1rem auto 0' }}>
-            Desde el sensor hasta la decisión, ALGORA cierra el ciclo de control en segundos.
+            Desde el sensor hasta la decisión, Palarix cierra el ciclo de control en segundos.
           </p>
         </div>
 
@@ -332,12 +333,12 @@ export default function Landing() {
           border: '1px solid rgba(16,185,129,0.3)',
           boxShadow: '0 0 60px rgba(16,185,129,0.12)'
         }}>
-          <Leaf size={48} style={{ color: 'var(--accent-green)', margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.5))' }} />
+          <img src={iconUrl} alt="Green Tech" style={{ width: 64, height: 64, margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.5))' }} />
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, marginBottom: '1.25rem' }}>
             Tu invernadero, sin sorpresas.
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '2.5rem' }}>
-            Accede al dashboard en vivo, explora los datos de sensores y comprueba por qué ALGORA es la solución que el campo mexicano necesita.
+            Accede al dashboard en vivo, explora los datos de sensores y comprueba por qué Palarix es la solución que el campo mexicano necesita.
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/dashboard" className="btn-primary" style={{ fontSize: '1.05rem', padding: '1rem 2.2rem' }}>
@@ -347,6 +348,35 @@ export default function Landing() {
               Ver Perfiles de Cultivo
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* ── 8. CONTACTO ─────────────────────────────────────────────────────── */}
+      <section style={{ padding: '4rem 0 6rem', textAlign: 'center' }}>
+        <div className="container flex flex-col items-center">
+          <p style={{ color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>¿TIENES DUDAS?</p>
+          <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 800, marginBottom: '2rem' }}>
+            Contáctanos
+          </h2>
+          <a
+            href="mailto:green.tech.contacto@gmail.com"
+            className="glass-panel"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20,
+              textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
+              border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 40px rgba(59,130,246,0.1)'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Mail size={28} style={{ color: 'var(--accent-blue)' }} />
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Escríbenos a</p>
+              <p style={{ fontWeight: 800, color: 'white', margin: 0, fontSize: '1.2rem', letterSpacing: '0.02em' }}>green.tech.contacto@gmail.com</p>
+            </div>
+          </a>
         </div>
       </section>
 

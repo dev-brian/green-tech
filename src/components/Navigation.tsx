@@ -17,6 +17,7 @@ import {
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
 import AlertBadge from './AlertBadge';
+import PwaInstallButton from './PwaInstallButton';
 import logoUrl from '../icons/icon_green-tech.svg';
 
 
@@ -450,6 +451,11 @@ export default function Navigation() {
 
         {/* Right: workspace selector + user menu + mobile toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+          {/* En móvil va dentro del menú para no desbordar la barra a 375px */}
+          <div className="hidden lg:flex">
+            <PwaInstallButton variant="bar" />
+          </div>
+
           {user && (
             <>
               <WorkspaceSelector />
@@ -517,6 +523,7 @@ export default function Navigation() {
               );
             })}
 
+            <PwaInstallButton variant="menu" />
 
             {user && (
               <button

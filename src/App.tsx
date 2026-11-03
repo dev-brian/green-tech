@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
+import UpdatePrompt from './components/UpdatePrompt';
 
 // Pages
 import Landing from './pages/Landing';
@@ -28,6 +29,7 @@ function AppShell() {
     <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {!isAuthPage && <Navigation />}
       {!isAuthPage && <AlertSystem />}
+      <UpdatePrompt />
 
       <main style={{ flex: 1 }}>
         <Routes>

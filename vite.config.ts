@@ -13,11 +13,21 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
       VitePWA({
-        // Registra el service worker con un script que el plugin agrega a index.html.
-        injectRegister: 'auto',
-        // La versión nueva espera a que el usuario la acepte (el aviso llega en T9.2).
+        // El registro lo hace src/components/UpdatePrompt.tsx con useRegisterSW.
+        injectRegister: false,
+        // La versión nueva espera a que el usuario la acepte desde el aviso.
         registerType: 'prompt',
-        includeAssets: ['favicon.svg', 'apple-touch-icon-180.png'],
+        workbox: {
+          // Precarga todo lo que la app necesita para abrir sin internet.
+          globPatterns: ['**/*.{js,css,html,svg,png}'],
+          // El bundle principal ya pesa ~1.3 MB; el límite por defecto (2 MB) quedaría justo.
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          navigateFallback: 'index.html',
+          cleanupOutdatedCaches: true,
+          // Firebase y otras APIs no se interceptan: solo se precargan archivos propios.
+        },
+        // globPatterns ya incluye los iconos y el plugin agrega el manifest; así no se repiten.
+        includeManifestIcons: false,
         manifest: {
           id: base,
           name: 'GreenTech — Invernadero hidropónico',

@@ -11,6 +11,16 @@ import { plantsService, type Plant } from '../lib/plantsService';
 
 type PlantStatus = 'En Espera' | 'Creciendo' | 'Óptimo' | 'Cosecha';
 
+type PlantFormData = {
+  name: string;
+  status: string;
+  tempMin: number;
+  tempMax: number;
+  humidity: number;
+  soilMoisture: number;
+  lightHours: number;
+};
+
 const STATUS_CONFIG: Record<PlantStatus, { color: string; glow: string; label: string }> = {
   'En Espera': { color: 'var(--text-disabled)',  glow: 'rgba(74,85,104,0.35)',           label: 'En Espera' },
   'Creciendo': { color: 'var(--status-blue)',    glow: 'rgba(59,130,246,0.35)',           label: 'Creciendo' },
@@ -242,8 +252,8 @@ function PlantModal({
   handleTempMaxChange,
 }: {
   editingPlant: Plant | null;
-  formData: any;
-  setFormData: (d: any) => void;
+  formData: PlantFormData;
+  setFormData: (d: PlantFormData) => void;
   isSaving: boolean;
   errorMsg: string | null;
   onClose: () => void;
@@ -507,21 +517,35 @@ export default function PlantManagement() {
   const [isSaving,    setIsSaving]    = useState(false);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PlantFormData>({
     name: '', status: 'En Espera', tempMin: 18, tempMax: 24,
     humidity: 60, soilMoisture: 50, lightHours: 12,
   });
 
-  useEffect(() => {
-    if (isAdmin && activeWorkspace) loadPlants();
-  }, [isAdmin, activeWorkspace]);
-
   const loadPlants = async () => {
     if (!activeWorkspace) return;
     try { setLoading(true); setErrorMsg(null); setPlants(await plantsService.getPlants(activeWorkspace.id)); }
-    catch (e: any) { setErrorMsg('No se pudieron cargar las plantas: ' + (e.message || 'Error desconocido')); }
+    catch (e) { setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); }
     finally { setLoading(false); }
   };
+
+  // Al cambiar de invernadero se muestra de nuevo el estado de carga
+  // (ajuste durante el render, en lugar de setState dentro del efecto).
+  const workspaceId = activeWorkspace?.id ?? null;
+  const [loadingFor, setLoadingFor] = useState(workspaceId);
+  if (loadingFor !== workspaceId) {
+    setLoadingFor(workspaceId);
+    setLoading(true); setErrorMsg(null);
+  }
+
+  // Carga inicial: los setState van en los callbacks de la promesa.
+  useEffect(() => {
+    if (!isAdmin || !activeWorkspace) return;
+    plantsService.getPlants(activeWorkspace.id)
+      .then(setPlants)
+      .catch((e) => setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')))
+      .finally(() => setLoading(false));
+  }, [isAdmin, activeWorkspace]);
 
   const handleOpenModal = (plant?: Plant) => {
     setErrorMsg(null);
@@ -546,20 +570,20 @@ export default function PlantManagement() {
       if (editingPlant) await plantsService.updatePlant(activeWorkspace.id, editingPlant.id, data);
       else await plantsService.addPlant(activeWorkspace.id, data);
       handleCloseModal(); loadPlants();
-    } catch (e: any) { setErrorMsg('Error al guardar: ' + (e.message || 'Verifica tus permisos de Firebase.')); }
+    } catch (e) { setErrorMsg('Error al guardar: ' + ((e as Error).message || 'Verifica tus permisos de Firebase.')); }
     finally { setIsSaving(false); }
   };
 
   const handleDeletePlant = async (plantId: string) => {
     if (!activeWorkspace || !window.confirm('¿Eliminar esta planta?')) return;
     try { await plantsService.deletePlant(activeWorkspace.id, plantId); loadPlants(); }
-    catch (e: any) { alert('Error al eliminar: ' + e.message); }
+    catch (e) { alert('Error al eliminar: ' + (e as Error).message); }
   };
 
   const handleSetActive = async (plantId: string) => {
     if (!activeWorkspace) return;
     try { await plantsService.setActivePlant(activeWorkspace.id, plantId, plants.map(p => p.id)); loadPlants(); }
-    catch (e: any) { alert('Error al activar: ' + e.message); }
+    catch (e) { alert('Error al activar: ' + (e as Error).message); }
   };
 
   const handleTempMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {

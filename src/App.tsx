@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
+import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 
 // Pages
 import Landing from './pages/Landing';
@@ -99,6 +100,7 @@ function App() {
       <Router>
         <AppShell />
       </Router>
+      <PwaUpdatePrompt />
     </AuthProvider>
   );
 }

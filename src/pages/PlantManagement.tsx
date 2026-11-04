@@ -541,10 +541,14 @@ export default function PlantManagement() {
   // Carga inicial: los setState van en los callbacks de la promesa.
   useEffect(() => {
     if (!isAdmin || !activeWorkspace) return;
+    // Si el usuario cambia de invernadero antes de que llegue la respuesta,
+    // se ignora la respuesta vieja para no mostrar plantas de otro invernadero.
+    let ignore = false;
     plantsService.getPlants(activeWorkspace.id)
-      .then(setPlants)
-      .catch((e) => setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')))
-      .finally(() => setLoading(false));
+      .then((list) => { if (!ignore) { setPlants(list); setErrorMsg(null); } })
+      .catch((e) => { if (!ignore) setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, [isAdmin, activeWorkspace]);
 
   const handleOpenModal = (plant?: Plant) => {

@@ -15,7 +15,8 @@ export interface PlantRequirements {
   tempMin: number;
   tempMax: number;
   humidity: number; // % Humedad Relativa
-  soilMoisture: number; // % Humedad del sustrato
+  phTarget: number; // pH óptimo de la solución nutritiva
+  ecTarget: number; // Conductividad eléctrica óptima (mS/cm)
   lightHours: number; // Fotoperiodo (horas de luz)
 }
 

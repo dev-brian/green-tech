@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Leaf, Droplets, ThermometerSun, Plus, ShieldAlert,
+  Leaf, FlaskConical, Zap, ThermometerSun, Plus, ShieldAlert,
   Pencil, Trash2, X, CloudRain, Sun
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -17,7 +17,8 @@ type PlantFormData = {
   tempMin: number;
   tempMax: number;
   humidity: number;
-  soilMoisture: number;
+  phTarget: number;
+  ecTarget: number;
   lightHours: number;
 };
 
@@ -186,7 +187,8 @@ function PlantCard({
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           <ParamRow icon={<ThermometerSun size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="Temp." value={`${plant.reqs.tempMin}–${plant.reqs.tempMax}°C`} />
           <ParamRow icon={<CloudRain      size={14} strokeWidth={1.5} color="var(--status-blue)"   />} label="HR"    value={`${plant.reqs.humidity}%`} />
-          <ParamRow icon={<Droplets       size={14} strokeWidth={1.5} color="var(--status-blue)"   />} label="Sustrato" value={`${plant.reqs.soilMoisture}%`} />
+          <ParamRow icon={<FlaskConical   size={14} strokeWidth={1.5} color="var(--accent)"        />} label="pH Solución" value={`${(plant.reqs.phTarget ?? 6.0).toFixed(1)} pH`} />
+          <ParamRow icon={<Zap            size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="EC Solución" value={`${(plant.reqs.ecTarget ?? 1.8).toFixed(1)} mS/cm`} />
           <ParamRow icon={<Sun            size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="Luz"   value={`${plant.reqs.lightHours}h`} />
         </ul>
       </div>
@@ -424,7 +426,7 @@ function PlantModal({
                 </div>
               </div>
 
-              {/* HR + Sustrato */}
+              {/* HR + pH + EC (Hidroponía) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
                 <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)' }}>
                   <LabeledSlider
@@ -436,12 +438,21 @@ function PlantModal({
                 </div>
                 <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)' }}>
                   <LabeledSlider
-                    label="Sustrato" icon={<Droplets size={14} strokeWidth={1.5} color="var(--status-blue)" />}
-                    value={formData.soilMoisture} min={0} max={100} step={5}
-                    unit="%" color="var(--status-blue)"
-                    onChange={v => setFormData({ ...formData, soilMoisture: v })}
+                    label="pH Solución" icon={<FlaskConical size={14} strokeWidth={1.5} color="var(--accent)" />}
+                    value={formData.phTarget} min={4.5} max={7.5} step={0.1}
+                    unit=" pH" color="var(--accent)"
+                    onChange={v => setFormData({ ...formData, phTarget: v })}
                   />
                 </div>
+              </div>
+
+              <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-sm)' }}>
+                <LabeledSlider
+                  label="Conductividad (EC)" icon={<Zap size={14} strokeWidth={1.5} color="var(--status-yellow)" />}
+                  value={formData.ecTarget} min={0.6} max={3.5} step={0.1}
+                  unit=" mS/cm" color="var(--status-yellow)"
+                  onChange={v => setFormData({ ...formData, ecTarget: v })}
+                />
               </div>
 
               {/* Fotoperiodo */}
@@ -519,7 +530,7 @@ export default function PlantManagement() {
 
   const [formData, setFormData] = useState<PlantFormData>({
     name: '', status: 'En Espera', tempMin: 18, tempMax: 24,
-    humidity: 60, soilMoisture: 50, lightHours: 12,
+    humidity: 60, phTarget: 6.0, ecTarget: 1.8, lightHours: 12,
   });
 
   const loadPlants = async () => {
@@ -550,10 +561,28 @@ export default function PlantManagement() {
     setErrorMsg(null);
     if (plant) {
       setEditingPlant(plant);
-      setFormData({ name: plant.name, status: plant.status, tempMin: plant.reqs.tempMin || 18, tempMax: plant.reqs.tempMax || 24, humidity: plant.reqs.humidity || 60, soilMoisture: plant.reqs.soilMoisture || 50, lightHours: plant.reqs.lightHours || 12 });
+      setFormData({
+        name: plant.name,
+        status: plant.status,
+        tempMin: plant.reqs.tempMin || 18,
+        tempMax: plant.reqs.tempMax || 24,
+        humidity: plant.reqs.humidity || 60,
+        phTarget: plant.reqs.phTarget || 6.0,
+        ecTarget: plant.reqs.ecTarget || 1.8,
+        lightHours: plant.reqs.lightHours || 12,
+      });
     } else {
       setEditingPlant(null);
-      setFormData({ name: '', status: 'En Espera', tempMin: 18, tempMax: 24, humidity: 60, soilMoisture: 50, lightHours: 12 });
+      setFormData({
+        name: '',
+        status: 'En Espera',
+        tempMin: 18,
+        tempMax: 24,
+        humidity: 60,
+        phTarget: 6.0,
+        ecTarget: 1.8,
+        lightHours: 12,
+      });
     }
     setIsModalOpen(true);
   };
@@ -565,7 +594,19 @@ export default function PlantManagement() {
     if (!activeWorkspace) return;
     try {
       setIsSaving(true); setErrorMsg(null);
-      const data = { name: formData.name, status: formData.status, active: editingPlant?.active ?? false, reqs: { tempMin: +formData.tempMin, tempMax: +formData.tempMax, humidity: +formData.humidity, soilMoisture: +formData.soilMoisture, lightHours: +formData.lightHours } };
+      const data = {
+        name: formData.name,
+        status: formData.status,
+        active: editingPlant?.active ?? false,
+        reqs: {
+          tempMin: +formData.tempMin,
+          tempMax: +formData.tempMax,
+          humidity: +formData.humidity,
+          phTarget: +formData.phTarget,
+          ecTarget: +formData.ecTarget,
+          lightHours: +formData.lightHours,
+        },
+      };
       if (editingPlant) await plantsService.updatePlant(activeWorkspace.id, editingPlant.id, data);
       else await plantsService.addPlant(activeWorkspace.id, data);
       handleCloseModal(); loadPlants();

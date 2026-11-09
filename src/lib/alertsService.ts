@@ -18,15 +18,14 @@ import { db } from './firebase';
 export type AlertSeverity = 'yellow' | 'red';
 export type AlertStatus   = 'new' | 'attended' | 'auto_resolved';
 export type AlertVariable =
-  | 'temperature'
-  | 'humidity'
-  | 'soilMoisture'
   | 'airTemp'
+  | 'humidity'
   | 'light'
   | 'ph'
   | 'ec'
   | 'solutionTemp'
-  | 'tankLevel';
+  | 'tankLevel'
+  | 'temperature';
 
 export interface FirestoreAlert {
   id: string;
@@ -82,11 +81,14 @@ function docToAlert(
   greenhouseId: string,
   data: Record<string, unknown>,
 ): FirestoreAlert {
+  const rawVariable = String(data.variable ?? 'airTemp');
+  const variable: AlertVariable =
+    rawVariable === 'temperature' ? 'airTemp' : (rawVariable as AlertVariable);
   return {
     id,
     greenhouseId:  String(data.greenhouseId ?? greenhouseId),
     sector:        String(data.zoneId ?? data.sector ?? 'zona-1'),
-    variable:      (data.variable as AlertVariable) ?? 'temperature',
+    variable,
     severity:      normalizeSeverity(data.severity),
     message:       String(data.message ?? ''),
     value:         Number(data.value ?? 0),

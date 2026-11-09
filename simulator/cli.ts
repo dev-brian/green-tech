@@ -1,17 +1,18 @@
 /**
  * Programa simulador independiente en Node (HU-02: T2.2 #38, T2.3 #39, T8.3 #69).
- * No accede directamente a Firestore: envía lecturas de las 7 variables para 3 zonas
- * únicamente por HTTP POST /ingestTelemetry con cabecera x-device-key, y consulta
- * el estado de actuadores vía GET /actuatorsState para cerrar el lazo de control.
+ * No accede directamente a Firestore desde el cliente simulador: envía lecturas
+ * de las 7 variables para 3 zonas únicamente por HTTP POST /ingestTelemetry con
+ * cabecera x-device-key, y consulta el estado de actuadores vía GET /actuatorsState.
  *
  * Uso:
  *   node simulator/cli.ts --once
- *   node simulator/cli.ts --scenario=ph-alto --once
- *   node simulator/cli.ts --scenario=ec-baja --interval=60
+ *   node simulator/cli.ts --once --scenario=ph-alto
+ *   node simulator/cli.ts --firestore --greenhouseId=<ID_INVERNADERO> --scenario=normal
  */
 
 import type { AddressInfo } from 'node:net';
 import { createIngestHttpServer } from './server.ts';
+import { FirestoreTelemetryStorage } from './core/firestoreStorage.ts';
 import {
   DEFAULT_SIMULATED_ZONES,
   createInitialReadings,
@@ -66,12 +67,17 @@ async function runCli() {
   );
   const intervalSec = Math.max(1, Number(args.interval ?? 60));
   const once = Boolean(args.once);
+  const useFirestore =
+    Boolean(args.firestore) || process.env.USE_FIRESTORE === 'true';
 
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
 
   if (!baseUrl) {
-    const { server } = createIngestHttpServer({ deviceKey });
+    const storage = useFirestore
+      ? new FirestoreTelemetryStorage(undefined, deviceKey)
+      : undefined;
+    const { server } = createIngestHttpServer({ deviceKey, storage });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;
@@ -128,7 +134,7 @@ async function runCli() {
         resolvedAlertsCount: number;
       };
       console.log(
-        `[Simulador] ${zone.zoneId} (${zone.crop}) | escenario=${scenario} | pH=${nextReading.ph} EC=${nextReading.ec} Temp=${nextReading.airTemp}°C Tanque=${nextReading.tankLevel}% | alertasNuevas=${summary.createdAlertsCount} resueltas=${summary.resolvedAlertsCount}`,
+        `[Simulador${useFirestore ? ' · Firestore' : ''}] ${zone.zoneId} (${zone.crop}) | escenario=${scenario} | pH=${nextReading.ph} EC=${nextReading.ec} Temp=${nextReading.airTemp}°C Tanque=${nextReading.tankLevel}% | alertasNuevas=${summary.createdAlertsCount} resueltas=${summary.resolvedAlertsCount}`,
       );
     }
   };

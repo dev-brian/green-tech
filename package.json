@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "seed:telemetry": "node scripts/seedTelemetry.mjs",
     "simulator": "node simulator/cli.ts",
+    "sim:firestore": "node simulator/cli.ts --firestore",
     "test": "node --test tests/sensorThresholds.test.ts tests/firestore.rules.test.ts tests/ingestAndAlerts.test.ts",
     "test:rules": "node --test tests/firestore.rules.test.ts",
     "test:emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.mjs\""

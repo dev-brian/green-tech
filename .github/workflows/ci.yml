@@ -1,0 +1,63 @@
+name: CI
+
+# Revisa cada pull request y cada push a ramas de trabajo:
+# lint, pruebas (incluyendo reglas e ingesta/alertas) y build.
+on:
+  pull_request:
+    branches: ['main', 'develop']
+  push:
+    branches: ['feature/**', 'fix/**', 'hotfix/**', 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Pruebas (Semáforo, Reglas de Firestore, Ingesta y Alertas)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Avisar a Slack (éxito)
+        if: success() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":white_check_mark: CI en verde en ${GITHUB_REF_NAME} (${GITHUB_ACTOR}): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Avisar a Slack (falla)
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":x: CI falló en ${GITHUB_REF_NAME} (${GITHUB_ACTOR}): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$SLACK_WEBHOOK_URL"

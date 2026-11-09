@@ -28,6 +28,21 @@ export interface ForecastPoint {
   description: string;
 }
 
+/** Campos que se leen de las respuestas de OpenWeatherMap (Geocoding y Forecast). */
+interface OwmGeoResult {
+  name: string;
+  state?: string;
+  country: string;
+  lat: number;
+  lon: number;
+}
+
+interface OwmForecastItem {
+  dt: number;
+  main: { temp: number; humidity: number };
+  weather?: { description: string }[];
+}
+
 function requireApiKey() {
   if (!API_KEY) {
     throw new Error('Falta configurar VITE_OPENWEATHER_API_KEY en .env.local (y reiniciar `pnpm dev`).');
@@ -47,7 +62,7 @@ export async function searchLocations(query: string): Promise<WeatherLocation[]>
     if (res.status === 401) throw new Error('API key de OpenWeatherMap inválida o aún no activada (puede tardar unos minutos en activarse tras crearla).');
     throw new Error(`No se pudo buscar la ubicación (HTTP ${res.status}).`);
   }
-  const data = (await res.json()) as any[];
+  const data = (await res.json()) as OwmGeoResult[];
   return data.map((d) => ({
     name: d.name,
     state: d.state,
@@ -89,7 +104,7 @@ export async function getForecast(lat: number, lon: number): Promise<ForecastPoi
     throw new Error(`No se pudo obtener el pronóstico (HTTP ${res.status}).`);
   }
   const data = await res.json();
-  const list = (data.list ?? []) as any[];
+  const list = (data.list ?? []) as OwmForecastItem[];
   return list.map((item) => ({
     date: new Date(item.dt * 1000),
     temperature: item.main.temp,

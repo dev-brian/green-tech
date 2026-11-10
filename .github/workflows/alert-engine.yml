@@ -1,0 +1,52 @@
+name: Motor de Alertas y Simulador (Plan B Spark)
+
+# Plan B de T11.5 (#30): Ejecución sin plan de pago Firebase Blaze usando Admin SDK.
+# Nota: En GitHub Actions el disparador `schedule` (cron) solo se ejecuta cuando este
+# archivo está en la rama por defecto (`main`). En ramas de trabajo o antes de fusionar
+# a `main`, se dispara manualmente con `workflow_dispatch` ("Run workflow").
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Escenario hidropónico (normal, ph-alto, ec-baja, tanque-bajo, solucion-caliente, ola-de-calor)'
+        required: false
+        default: 'normal'
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ejecutar ciclo de ingesta y motor de alertas en Firestore
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GREENHOUSE_ID: ${{ secrets.GREENHOUSE_ID }}
+          DEVICE_INGEST_KEY: ${{ secrets.DEVICE_INGEST_KEY }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$GREENHOUSE_ID" ] || [ -z "$DEVICE_INGEST_KEY" ]; then
+            echo "::error::Faltan secretos requeridos en GitHub (FIREBASE_SERVICE_ACCOUNT, GREENHOUSE_ID o DEVICE_INGEST_KEY)."
+            exit 1
+          fi
+          SCENARIO="${{ github.event.inputs.scenario || 'normal' }}"
+          node simulator/cli.ts --firestore --once --scenario="$SCENARIO"

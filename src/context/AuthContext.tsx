@@ -215,6 +215,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       joinedAt: new Date().toISOString()
     });
 
+    const inviteRef = doc(db, 'greenhouse_invites', code);
+    batch.set(inviteRef, {
+      greenhouseId: greenhouseRef.id,
+      createdAt: new Date().toISOString()
+    });
+
     await batch.commit();
     await fetchWorkspaces(user.uid);
     return greenhouseRef.id;
@@ -226,18 +232,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cleanCode) throw new Error('Ingresa un código de invitación válido.');
 
     try {
-      const q = query(collection(db, 'greenhouses'), where('inviteCode', '==', cleanCode));
-      const snapshot = await getDocs(q);
+      let greenhouseId: string | null = null;
+      const inviteSnap = await getDoc(doc(db, 'greenhouse_invites', cleanCode));
+      if (inviteSnap.exists()) {
+        greenhouseId = String(inviteSnap.data().greenhouseId || '');
+      } else {
+        const q = query(collection(db, 'greenhouses'), where('inviteCode', '==', cleanCode));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0];
+          greenhouseId = docSnap.id;
+          const greenhouseData = docSnap.data();
+          if (greenhouseData.memberIds && greenhouseData.memberIds.includes(user.uid)) {
+            throw new Error('Ya eres miembro de este invernadero.');
+          }
+        }
+      }
 
-      if (snapshot.empty) {
+      if (!greenhouseId) {
         throw new Error('Código de invitación no válido o inexistente. Verifica el código con tu administrador.');
       }
 
-      const docSnap = snapshot.docs[0];
-      const greenhouseId = docSnap.id;
-      const greenhouseData = docSnap.data();
-
-      if (greenhouseData.memberIds && greenhouseData.memberIds.includes(user.uid)) {
+      if (workspaces.some((w) => w.id === greenhouseId)) {
         throw new Error('Ya eres miembro de este invernadero.');
       }
 
@@ -252,7 +268,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: 'operador',
         email: user.email,
         name: user.name,
-        joinedAt: new Date().toISOString()
+        joinedAt: new Date().toISOString(),
+        inviteCode: cleanCode
       });
 
       await batch.commit();
@@ -265,16 +282,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       throw err;
     }
-  }, [user, fetchWorkspaces]);
+  }, [user, workspaces, fetchWorkspaces]);
 
   const regenerateInviteCode = useCallback(async (workspaceId: string): Promise<string> => {
     if (!user) throw new Error('Debes estar autenticado.');
     const newCode = generateInviteCode();
+    const batch = writeBatch(db);
     const greenhouseRef = doc(db, 'greenhouses', workspaceId);
-    await updateDoc(greenhouseRef, {
+    batch.update(greenhouseRef, {
       inviteCode: newCode,
       inviteCodeCreatedAt: new Date().toISOString()
     });
+    const inviteRef = doc(db, 'greenhouse_invites', newCode);
+    batch.set(inviteRef, {
+      greenhouseId: workspaceId,
+      createdAt: new Date().toISOString()
+    });
+    await batch.commit();
     return newCode;
   }, [user]);
 

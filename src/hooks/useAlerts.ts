@@ -36,10 +36,10 @@ export function useAlerts(greenhouseId: string | null) {
 
   const markAttended = useCallback(
     async (alertId: string) => {
-      if (!user) return;
-      await markAlertAttended(alertId, user.uid);
+      if (!user || !greenhouseId) return;
+      await markAlertAttended(alertId, user.uid, greenhouseId);
     },
-    [user],
+    [user, greenhouseId],
   );
 
   // Conteo de alertas no atendidas para el badge de navegación

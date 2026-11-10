@@ -2,9 +2,66 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===============================================================
+    // Assumed Data Model (GREEN TECH v0.2 Contract + Legacy Support)
+    // ===============================================================
+    //
+    // Collection: /greenhouses/{greenhouseId}
+    // Fields:
+    //   - name: string (required, 1..200 chars)
+    //   - inviteCode: string (required, 1..32 chars)
+    //   - inviteCodeCreatedAt: string | timestamp (optional)
+    //   - memberIds: list<string> (required, UIDs of members)
+    //   - thresholds: map (optional, edited only by admin)
+    //   - createdAt: string | timestamp (optional)
+    //
+    // Subcollection: /greenhouses/{greenhouseId}/members/{memberId}
+    // Fields:
+    //   - role: 'admin' | 'operador' (required)
+    //   - email: string (optional)
+    //   - name: string (optional)
+    //   - joinedAt: string | timestamp (optional)
+    //   - inviteCode: string (required when self-joining as 'operador')
+    //
+    // Subcollections: /greenhouses/{greenhouseId}/plants/{plantId},
+    //                 /greenhouses/{greenhouseId}/zones/{zoneId},
+    //                 /greenhouses/{greenhouseId}/actuators/{actuatorId}
+    //   - Read: any member of the greenhouse
+    //   - Write: only admin of the greenhouse
+    //
+    // Subcollections: /greenhouses/{greenhouseId}/readings/{readingId},
+    //                 /greenhouses/{greenhouseId}/readingsHourly/{hourId},
+    //                 /greenhouses/{greenhouseId}/state/{docId}
+    //   - Read: any member of the greenhouse
+    //   - Write: backend / Admin SDK only (false for clients)
+    //
+    // Collection: /greenhouses/{greenhouseId}/alerts/{alertId} & /alerts/{alertId}
+    //   - Read: any member of the greenhouse
+    //   - Create / Delete: backend / Admin SDK only (false for clients)
+    //   - Update: member may only acknowledge ('status' == 'attended', 'attendedBy' == request.auth.uid)
+    //
+    // Collection: /telemetry_data/{docId} (Legacy root telemetry)
+    //   - Read: any member of resource.data.greenhouseId
+    //   - Write: backend / Admin SDK only (false for clients)
+    //
+    // Collection: /greenhouse_invites/{inviteCode}
+    //   - Get: any authenticated user (to resolve inviteCode -> greenhouseId)
+    //   - List: denied (prevents enumerating invite codes)
+    //   - Create / Update / Delete: admin of the target greenhouse
+    //
+    // Collection: /users/{uid}/fcmTokens/{tokenId}
+    //   - Read / Write: owner only (request.auth.uid == uid)
+    // ===============================================================
+
+    // ─── Helper: ¿el usuario está autenticado? ───────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     // ─── Helper: ¿el usuario autenticado es miembro del invernadero? ─────────
     function isMember(greenhouseId) {
-      return request.auth != null
+      return isSignedIn()
+          && greenhouseId is string
           && exists(/databases/$(database)/documents/greenhouses/$(greenhouseId))
           && request.auth.uid in get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds;
     }
@@ -16,70 +73,206 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // ─── Invernaderos ────────────────────────────────────────────────────────
+    // ─── Helper: validación de creación de invernadero ───────────────────────
+    function isValidGreenhouseCreate() {
+      return isSignedIn()
+          && request.resource.data.memberIds is list
+          && request.resource.data.memberIds.size() == 1
+          && request.auth.uid in request.resource.data.memberIds
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 200
+          && request.resource.data.inviteCode is string
+          && request.resource.data.inviteCode.size() > 0
+          && request.resource.data.inviteCode.size() <= 32;
+    }
+
+    // ─── Helper: unión de operador mediante código de invitación válido ──────
+    function isJoiningWithValidInvite(greenhouseId) {
+      return isSignedIn()
+          && !(request.auth.uid in resource.data.memberIds)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'inviteCode'])
+          && request.resource.data.memberIds is list
+          && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+          && request.auth.uid in request.resource.data.memberIds
+          && resource.data.inviteCode is string
+          && resource.data.inviteCode.size() > 0
+          && (
+            request.resource.data.inviteCode == resource.data.inviteCode
+            || (
+              existsAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid))
+              && getAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid)).data.get('inviteCode', '') == resource.data.inviteCode
+            )
+          );
+    }
+
+    // ─── Helper: miembro abandonando el invernadero ──────────────────────────
+    function isLeavingGreenhouse() {
+      return isSignedIn()
+          && request.auth.uid in resource.data.memberIds
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds is list
+          && resource.data.memberIds.hasAll(request.resource.data.memberIds)
+          && request.resource.data.memberIds.size() == resource.data.memberIds.size() - 1
+          && !(request.auth.uid in request.resource.data.memberIds);
+    }
+
+    // ─── Helper: creador registrándose como admin inicial ────────────────────
+    function isCreatorBecomingAdmin(greenhouseId, memberId) {
+      return isSignedIn()
+          && memberId == request.auth.uid
+          && request.resource.data.role == 'admin'
+          && (
+            (
+              !exists(/databases/$(database)/documents/greenhouses/$(greenhouseId))
+              && existsAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId))
+              && getAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds is list
+              && getAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds.size() == 1
+              && request.auth.uid in getAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds
+            )
+            || (
+              exists(/databases/$(database)/documents/greenhouses/$(greenhouseId))
+              && !exists(/databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid))
+              && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds is list
+              && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds.size() == 1
+              && request.auth.uid in get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds
+            )
+          );
+    }
+
+    // ─── Helper: usuario uniéndose como operador con inviteCode válido ───────
+    function isSelfJoiningAsOperator(greenhouseId, memberId) {
+      return isSignedIn()
+          && memberId == request.auth.uid
+          && request.resource.data.role == 'operador'
+          && exists(/databases/$(database)/documents/greenhouses/$(greenhouseId))
+          && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.inviteCode is string
+          && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.inviteCode.size() > 0
+          && request.resource.data.get('inviteCode', '') == get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.inviteCode;
+    }
+
+    // ─── Helper: acuse de recibo ("attended") de una alerta ──────────────────
+    function isValidAlertAcknowledge() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'attendedBy', 'attendedAt'])
+          && request.resource.data.status == 'attended'
+          && request.resource.data.attendedBy == request.auth.uid;
+    }
+
+    // ─── Índice de códigos de invitación (/greenhouse_invites/{inviteCode}) ──
+    match /greenhouse_invites/{inviteCode} {
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create, update: if isSignedIn()
+                            && request.resource.data.greenhouseId is string
+                            && (
+                              isAdmin(request.resource.data.greenhouseId)
+                              || (
+                                !exists(/databases/$(database)/documents/greenhouses/$(request.resource.data.greenhouseId))
+                                && existsAfter(/databases/$(database)/documents/greenhouses/$(request.resource.data.greenhouseId))
+                                && request.auth.uid in getAfter(/databases/$(database)/documents/greenhouses/$(request.resource.data.greenhouseId)).data.memberIds
+                              )
+                            );
+
+      allow delete: if isSignedIn() && isAdmin(resource.data.greenhouseId);
+    }
+
+    // ─── Invernaderos (/greenhouses/{greenhouseId}) ──────────────────────────
     match /greenhouses/{greenhouseId} {
 
-      // Cualquier usuario autenticado puede leer para buscar por inviteCode al unirse.
-      allow read: if request.auth != null;
+      // Solo miembros del invernadero pueden leerlo.
+      allow read: if isSignedIn() && request.auth.uid in resource.data.memberIds;
 
-      // Solo usuarios autenticados pueden crear un nuevo invernadero.
-      // El creador debe incluirse en memberIds.
-      allow create: if request.auth != null
-                    && request.auth.uid in request.resource.data.memberIds;
+      // Solo usuarios autenticados pueden crear un invernadero incluyéndose como único miembro inicial.
+      allow create: if isValidGreenhouseCreate();
 
-      // Actualización permitida a miembros (unirse via inviteCode, regenerar código).
-      allow update: if request.auth != null;
+      // Actualización permitida a:
+      // 1. Admin del invernadero (umbrales, nombre, regeneración de inviteCode, gestión de miembros)
+      // 2. Usuario que se une con código de invitación válido
+      // 3. Miembro que abandona el invernadero
+      allow update: if isAdmin(greenhouseId)
+                    || isJoiningWithValidInvite(greenhouseId)
+                    || isLeavingGreenhouse();
 
       // Solo el admin del invernadero puede eliminarlo.
       allow delete: if isAdmin(greenhouseId);
 
       // ─── Subcolección de Miembros ─────────────────────────────────────────
       match /members/{memberId} {
-        // Miembros del invernadero pueden leer la lista de miembros.
         allow read: if isMember(greenhouseId);
 
-        // Escritura permitida a usuarios autenticados (para join/leave/remove).
-        allow write: if request.auth != null;
+        allow create: if isAdmin(greenhouseId)
+                      || isCreatorBecomingAdmin(greenhouseId, memberId)
+                      || isSelfJoiningAsOperator(greenhouseId, memberId);
+
+        // Solo el admin puede cambiar roles o actualizar documentos de miembros.
+        allow update: if isAdmin(greenhouseId)
+                      && request.resource.data.role in ['admin', 'operador'];
+
+        // El admin puede expulsar miembros, o el propio miembro puede salir.
+        allow delete: if isAdmin(greenhouseId)
+                      || (isMember(greenhouseId) && memberId == request.auth.uid);
       }
 
-      // ─── Subcolección de Plantas ──────────────────────────────────────────
+      // ─── Subcolecciones de Configuración (Plantas, Zonas, Actuadores) ─────
       match /plants/{plantId} {
         allow read:  if isMember(greenhouseId);
-        allow write: if isMember(greenhouseId);
+        allow write: if isAdmin(greenhouseId);
+      }
+
+      match /zones/{zoneId} {
+        allow read:  if isMember(greenhouseId);
+        allow write: if isAdmin(greenhouseId);
+      }
+
+      match /actuators/{actuatorId} {
+        allow read:  if isMember(greenhouseId);
+        allow write: if isAdmin(greenhouseId);
+      }
+
+      // ─── Subcolecciones de Telemetría y Estado (v0.2 Data Contract) ───────
+      match /readings/{readingId} {
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
+      }
+
+      match /readingsHourly/{hourId} {
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
+      }
+
+      match /state/{docId} {
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
+      }
+
+      // ─── Subcolección de Alertas (v0.2 Data Contract) ─────────────────────
+      match /alerts/{alertId} {
+        allow read:           if isMember(greenhouseId);
+        allow create, delete: if false;
+        allow update:         if isMember(greenhouseId) && isValidAlertAcknowledge();
       }
     }
 
-    // ─── Telemetría de Sensores ──────────────────────────────────────────────
-    // Solo miembros del invernadero al que pertenece la lectura pueden acceder.
+    // ─── Telemetría de Sensores (Colección raíz legacy) ──────────────────────
     match /telemetry_data/{docId} {
-      allow read: if request.auth != null
-                  && isMember(resource.data.greenhouseId);
-
-      // Creación permitida a miembros. Append-only: no se permite update ni delete.
-      allow create: if request.auth != null
-                    && isMember(request.resource.data.greenhouseId);
-
-      allow update, delete: if false;
+      allow read: if isSignedIn() && isMember(resource.data.greenhouseId);
+      allow write: if false;
     }
 
-    // ─── Alertas ─────────────────────────────────────────────────────────────
+    // ─── Alertas (Colección raíz legacy) ─────────────────────────────────────
     match /alerts/{alertId} {
-      // Solo miembros del invernadero pueden leer sus alertas.
-      allow read: if request.auth != null
-                  && isMember(resource.data.greenhouseId);
-
-      // Creación: miembros (cliente detecta umbral fuera de rango).
-      allow create: if request.auth != null
-                    && isMember(request.resource.data.greenhouseId);
-
-      // Actualización: miembros pueden marcar como "atendida".
-      // No se permite cambiar greenhouseId ni datos originales de la alerta.
-      allow update: if request.auth != null
+      allow read: if isSignedIn() && isMember(resource.data.greenhouseId);
+      allow create, delete: if false;
+      allow update: if isSignedIn()
                     && isMember(resource.data.greenhouseId)
-                    && request.resource.data.greenhouseId == resource.data.greenhouseId;
+                    && isValidAlertAcknowledge();
+    }
 
-      // No se eliminan alertas (inmutabilidad para auditoría).
-      allow delete: if false;
+    // ─── Tokens FCM por Usuario ──────────────────────────────────────────────
+    match /users/{uid}/fcmTokens/{tokenId} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
   }

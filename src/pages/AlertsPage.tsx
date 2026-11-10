@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-  Bell, BellOff, Thermometer, Droplets, Sprout,
+  Bell, BellOff, Thermometer, Droplets, Sun, FlaskConical, Zap, Waves,
   CheckCircle2, Clock, AlertTriangle, ChevronDown,
   ChevronUp, RotateCcw, Save, Filter, X,
 } from 'lucide-react';
@@ -21,22 +21,37 @@ function relativeTime(date: Date): string {
 }
 
 const VARIABLE_LABELS: Record<string, string> = {
-  temperature: 'Temperatura',
+  airTemp: 'Temperatura del Aire',
+  temperature: 'Temperatura del Aire',
   humidity: 'Humedad Relativa',
-  soilMoisture: 'Humedad de Suelo',
+  light: 'Luz Ambiental',
+  ph: 'pH de la Solución',
+  ec: 'Conductividad (EC)',
+  solutionTemp: 'Temp. de la Solución',
+  tankLevel: 'Nivel del Tanque',
 };
 
 const VARIABLE_UNITS: Record<string, string> = {
+  airTemp: '°C',
   temperature: '°C',
   humidity: '%',
-  soilMoisture: '%',
+  light: ' lux',
+  ph: ' pH',
+  ec: ' mS/cm',
+  solutionTemp: '°C',
+  tankLevel: '%',
 };
 
 function VariableIcon({ variable, color }: { variable: string; color: string }) {
   const props = { size: 18, strokeWidth: 1.5, color };
-  if (variable === 'temperature') return <Thermometer {...props} />;
-  if (variable === 'humidity')    return <Droplets    {...props} />;
-  return                                  <Sprout     {...props} />;
+  if (variable === 'airTemp' || variable === 'temperature' || variable === 'solutionTemp') {
+    return <Thermometer {...props} />;
+  }
+  if (variable === 'humidity') return <Droplets {...props} />;
+  if (variable === 'light')    return <Sun {...props} />;
+  if (variable === 'ph')       return <FlaskConical {...props} />;
+  if (variable === 'ec')       return <Zap {...props} />;
+  return <Waves {...props} />;
 }
 
 // ─── Componente: ítem de alerta ───────────────────────────────────────────────
@@ -291,12 +306,30 @@ function FilterBar({
 
 // ─── Componente: configuración de umbrales ────────────────────────────────────
 
-type Variable = 'temperature' | 'humidity' | 'soilMoisture';
+type Variable =
+  | 'airTemp'
+  | 'humidity'
+  | 'light'
+  | 'ph'
+  | 'ec'
+  | 'solutionTemp'
+  | 'tankLevel';
 
-const VARIABLE_CONFIG: { key: Variable; label: string; unit: string; min: number; max: number }[] = [
-  { key: 'temperature',  label: 'Temperatura',         unit: '°C', min: -10, max: 60 },
-  { key: 'humidity',     label: 'Humedad Relativa',     unit: '%',  min: 0,   max: 100 },
-  { key: 'soilMoisture', label: 'Humedad de Suelo',     unit: '%',  min: 0,   max: 100 },
+const VARIABLE_CONFIG: {
+  key: Variable;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+}[] = [
+  { key: 'airTemp',      label: 'Temperatura del Aire', unit: '°C',    min: -5,  max: 50,    step: 1 },
+  { key: 'humidity',     label: 'Humedad Relativa',     unit: '%',     min: 0,   max: 100,   step: 1 },
+  { key: 'light',        label: 'Luz Ambiental',        unit: ' lux',  min: 0,   max: 50000, step: 500 },
+  { key: 'ph',           label: 'pH de la Solución',    unit: ' pH',   min: 3.5, max: 8.5,   step: 0.1 },
+  { key: 'ec',           label: 'Conductividad (EC)',   unit: ' mS/cm',min: 0.2, max: 4.5,   step: 0.1 },
+  { key: 'solutionTemp', label: 'Temp. de la Solución', unit: '°C',    min: 5,   max: 40,    step: 1 },
+  { key: 'tankLevel',    label: 'Nivel del Tanque',     unit: '%',     min: 0,   max: 100,   step: 1 },
 ];
 
 function ThresholdBlock({
@@ -305,6 +338,7 @@ function ThresholdBlock({
   unit,
   min,
   max,
+  step,
   values,
   onChange,
   disabled,
@@ -314,11 +348,12 @@ function ThresholdBlock({
   unit: string;
   min: number;
   max: number;
+  step: number;
   values: { redMin: number; yellowMin: number; yellowMax: number; redMax: number };
   onChange: (key: Variable, field: string, value: number) => void;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(varKey === 'airTemp' || varKey === 'ph');
 
   const sliders: { field: string; label: string; color: string; description: string }[] = [
     { field: 'redMin',    label: 'Crítico mínimo',   color: 'var(--status-red)',    description: `Por debajo → 🔴 Rojo` },
@@ -377,7 +412,7 @@ function ThresholdBlock({
                   type="range"
                   min={min}
                   max={max}
-                  step={1}
+                  step={step}
                   value={currentVal}
                   disabled={disabled}
                   onChange={(e) => onChange(varKey, field, Number(e.target.value))}
@@ -474,7 +509,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
       )}
 
       {/* Bloques por variable */}
-      {VARIABLE_CONFIG.map(({ key, label, unit, min, max }) => (
+      {VARIABLE_CONFIG.map(({ key, label, unit, min, max, step }) => (
         <ThresholdBlock
           key={key}
           varKey={key}
@@ -482,6 +517,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
           unit={unit}
           min={min}
           max={max}
+          step={step}
           values={current[key]}
           onChange={handleChange}
           disabled={saving}

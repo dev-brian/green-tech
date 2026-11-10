@@ -37,7 +37,7 @@ import type {
   ZoneLatestState,
 } from './alertAndActuatorEngine.ts';
 
-function loadEnvLocal(): void {
+export function loadEnvLocal(): void {
   if (existsSync('.env.local')) {
     for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
       const m = line.match(/^([A-Z0-9_]+)=(.*)$/);

@@ -12,7 +12,7 @@
 
 import type { AddressInfo } from 'node:net';
 import { createIngestHttpServer } from './server.ts';
-import { FirestoreTelemetryStorage } from './core/firestoreStorage.ts';
+import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
 import {
   DEFAULT_SIMULATED_ZONES,
   createInitialReadings,
@@ -53,6 +53,8 @@ function parseArgs(argv: string[]) {
 }
 
 async function runCli() {
+  // Cargar .env.local antes de leer GREENHOUSE_ID, DEVICE_INGEST_KEY, etc. (#90)
+  loadEnvLocal();
   const args = parseArgs(process.argv.slice(2));
   const rawScenario = String(args.scenario ?? 'normal') as SimulatorScenario;
   const scenario: SimulatorScenario = VALID_SCENARIOS.has(rawScenario)

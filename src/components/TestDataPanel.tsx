@@ -87,8 +87,8 @@ export default function TestDataPanel({ greenhouseId }: { greenhouseId: string |
       if (results.length === 0) {
         setWeatherError('No se encontraron lugares con ese nombre. Prueba agregando el estado, ej. "Apizaco, Tlaxcala, MX".');
       }
-    } catch (err: any) {
-      setWeatherError(err.message || 'Error al buscar la ubicación.');
+    } catch (err) {
+      setWeatherError((err as Error).message || 'Error al buscar la ubicación.');
       setLocationResults([]);
     } finally {
       setWeatherBusy(false);
@@ -105,8 +105,8 @@ export default function TestDataPanel({ greenhouseId }: { greenhouseId: string |
       setTemperature(weather.temperature);
       setLocationResults([]);
       setLocationQuery(`${loc.name}${loc.state ? ', ' + loc.state : ''}`);
-    } catch (err: any) {
-      setWeatherError(err.message || 'Error al obtener el clima.');
+    } catch (err) {
+      setWeatherError((err as Error).message || 'Error al obtener el clima.');
     } finally {
       setWeatherBusy(false);
     }
@@ -122,8 +122,8 @@ export default function TestDataPanel({ greenhouseId }: { greenhouseId: string |
         soilMoisture,
       });
       showFeedback('ok', 'Lectura enviada — el Dashboard se actualiza al instante.');
-    } catch (e: any) {
-      showFeedback('error', 'Error al guardar localmente: ' + (e.message || 'desconocido.'));
+    } catch (e) {
+      showFeedback('error', 'Error al guardar localmente: ' + ((e as Error).message || 'desconocido.'));
     }
   };
 
@@ -182,8 +182,8 @@ export default function TestDataPanel({ greenhouseId }: { greenhouseId: string |
           return base + dayPhase * amplitude + noise;
         };
       }
-    } catch (err: any) {
-      showFeedback('error', 'No se pudo traer el pronóstico real (' + (err.message || 'error') + '); se usaron datos sintéticos en su lugar.');
+    } catch (err) {
+      showFeedback('error', 'No se pudo traer el pronóstico real (' + ((err as Error).message || 'error') + '); se usaron datos sintéticos en su lugar.');
     } finally {
       setGenerating(false);
     }
@@ -233,8 +233,8 @@ export default function TestDataPanel({ greenhouseId }: { greenhouseId: string |
             ? `${readings.length} lecturas de 24h generadas, ancladas a los ${currentWeather.temperature}°C reales de ${currentWeather.locationLabel}.`
             : `${readings.length} lecturas de 24h generadas (reemplazaron los datos anteriores). Busca una ubicación arriba para usar temperatura real.`
       );
-    } catch (e: any) {
-      showFeedback('error', 'Error al generar: ' + (e.message || 'desconocido.'));
+    } catch (e) {
+      showFeedback('error', 'Error al generar: ' + ((e as Error).message || 'desconocido.'));
     }
   };
 

@@ -239,7 +239,7 @@ describe('T2.2 (#38), T2.3 (#39) y T8.3 (#69) — Simulador hidropónico, escena
   });
 });
 
-describe('T11.4 (#29) y T6.2 (#49) — Eliminación de datos locales y alertas en el navegador', () => {
+describe('T11.4 (#29) y T6.2 (#49) — Eliminación de datos locales, alertas en el navegador y claves expuestas', () => {
   it('useTelemetrySource.ts tiene USE_LOCAL_DEMO_DATA = false y ya no llama a createAlert', () => {
     const src = readFileSync(
       resolve(process.cwd(), 'src/hooks/useTelemetrySource.ts'),
@@ -247,5 +247,21 @@ describe('T11.4 (#29) y T6.2 (#49) — Eliminación de datos locales y alertas e
     );
     assert.match(src, /export const USE_LOCAL_DEMO_DATA = false;/);
     assert.doesNotMatch(src, /createAlert\(/);
+  });
+
+  it('firestore.rules y firestoreStorage.ts usan Admin SDK sin exponer ingestKey ni claves por defecto', () => {
+    const rules = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8');
+    assert.doesNotMatch(rules, /gt-dev-device-key-2026/);
+    assert.doesNotMatch(rules, /isValidBackendIngest/);
+    assert.doesNotMatch(rules, /ingestKey/);
+    assert.doesNotMatch(rules, /deviceKey/);
+
+    const storageSrc = readFileSync(
+      resolve(process.cwd(), 'simulator/core/firestoreStorage.ts'),
+      'utf8',
+    );
+    assert.match(storageSrc, /firebase-admin\/firestore/);
+    assert.doesNotMatch(storageSrc, /ingestKey/);
+    assert.doesNotMatch(storageSrc, /gt-dev-device-key-2026/);
   });
 });

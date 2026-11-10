@@ -75,7 +75,7 @@ async function runCli() {
 
   if (!baseUrl) {
     const storage = useFirestore
-      ? new FirestoreTelemetryStorage(undefined, deviceKey)
+      ? new FirestoreTelemetryStorage()
       : undefined;
     const { server } = createIngestHttpServer({ deviceKey, storage });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

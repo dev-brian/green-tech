@@ -36,14 +36,25 @@ jobs:
           node-version: 24
           cache: 'pnpm'
 
+      - name: Setup Java (para Firebase Firestore Emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
 
-      - name: Pruebas (Semáforo, Reglas de Firestore, Ingesta y Alertas)
+      - name: Pruebas unitarias (Semáforo, Ingesta, Alertas y Simulador)
         run: pnpm test
+
+      - name: Pruebas de reglas de Firestore con Firebase Emulator
+        run: |
+          npm install -g firebase-tools
+          pnpm test:rules
 
       - name: Build
         run: pnpm build

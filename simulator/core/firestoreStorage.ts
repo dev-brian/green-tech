@@ -1,6 +1,7 @@
 /**
  * Adaptador de persistencia real en Firebase Firestore para el motor
- * de ingesta, estado latest, alertas y actuadores (Plan B Spark sin Blaze).
+ * de ingesta, estado latest, alertas y actuadores usando Firebase Admin SDK
+ * (Plan Spark gratuito con cuenta de servicio; salta firestore.rules como backend real).
  * Escribe en:
  * - greenhouses/{id}/readings/{readingId}
  * - greenhouses/{id}/state/latest
@@ -9,22 +10,19 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import {
+  initializeApp,
+  getApps,
+  cert,
+  applicationDefault,
+  type App,
+  type ServiceAccount,
+} from 'firebase-admin/app';
 import {
   getFirestore,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  addDoc,
-  updateDoc,
-  query,
-  where,
-  limit,
   Timestamp,
   type Firestore,
-} from 'firebase/firestore';
+} from 'firebase-admin/firestore';
 import {
   DEFAULT_CROP_THRESHOLDS,
   type CropThresholds,
@@ -50,44 +48,46 @@ function loadEnvLocal(): void {
   }
 }
 
-export function initFirestoreClient(): Firestore {
+export function initFirestoreAdmin(): Firestore {
   loadEnvLocal();
-  const firebaseConfig = {
-    apiKey: process.env.VITE_FIREBASE_API_KEY,
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.VITE_FIREBASE_APP_ID,
-  };
+  const existing = getApps();
+  if (existing.length > 0) {
+    return getFirestore(existing[0]);
+  }
 
-  if (!firebaseConfig.projectId) {
+  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let app: App;
+
+  if (rawServiceAccount) {
+    const parsed = JSON.parse(rawServiceAccount) as ServiceAccount;
+    app = initializeApp({
+      credential: cert(parsed),
+    });
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    app = initializeApp({
+      credential: applicationDefault(),
+    });
+  } else {
     throw new Error(
-      'Falta VITE_FIREBASE_PROJECT_ID en .env.local o variables de entorno para conectar a Firestore.',
+      'Falta FIREBASE_SERVICE_ACCOUNT (JSON) o GOOGLE_APPLICATION_CREDENTIALS para conectar el backend a Firestore con Admin SDK.',
     );
   }
 
-  const existing = getApps();
-  const app: FirebaseApp =
-    existing.length > 0 ? existing[0] : initializeApp(firebaseConfig);
   return getFirestore(app);
 }
 
 export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
   private db: Firestore;
-  private ingestKey: string;
 
-  constructor(db?: Firestore, ingestKey?: string) {
-    this.db = db ?? initFirestoreClient();
-    this.ingestKey =
-      ingestKey ?? process.env.DEVICE_INGEST_KEY ?? 'gt-dev-device-key-2026';
+  constructor(db?: Firestore) {
+    this.db = db ?? initFirestoreAdmin();
   }
 
   async getThresholds(greenhouseId: string, crop: CropType): Promise<CropThresholds> {
     try {
-      const snap = await getDoc(doc(this.db, 'greenhouses', greenhouseId));
-      if (!snap.exists()) return DEFAULT_CROP_THRESHOLDS[crop];
-      const data = snap.data();
+      const snap = await this.db.collection('greenhouses').doc(greenhouseId).get();
+      if (!snap.exists) return DEFAULT_CROP_THRESHOLDS[crop];
+      const data = snap.data() ?? {};
       const stored = data.thresholds as Partial<CropThresholds> | undefined;
       if (!stored) return DEFAULT_CROP_THRESHOLDS[crop];
       const base = DEFAULT_CROP_THRESHOLDS[crop];
@@ -114,13 +114,15 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
       readings: HydroponicReadings;
     },
   ): Promise<string> {
-    const colRef = collection(this.db, 'greenhouses', greenhouseId, 'readings');
-    const docRef = await addDoc(colRef, {
+    const colRef = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('readings');
+    const docRef = await colRef.add({
       zoneId: reading.zoneId,
       crop: reading.crop,
       timestamp: Timestamp.fromDate(new Date(reading.timestamp)),
       ...reading.readings,
-      ingestKey: this.ingestKey,
     });
     return docRef.id;
   }
@@ -130,15 +132,17 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     zoneId: string,
     zoneState: ZoneLatestState,
   ): Promise<void> {
-    const latestRef = doc(this.db, 'greenhouses', greenhouseId, 'state', 'latest');
-    await setDoc(
-      latestRef,
+    const latestRef = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('state')
+      .doc('latest');
+    await latestRef.set(
       {
         [zoneId]: {
           ...zoneState,
           timestamp: Timestamp.fromDate(new Date(zoneState.timestamp)),
         },
-        ingestKey: this.ingestKey,
       },
       { merge: true },
     );
@@ -149,14 +153,16 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     zoneId: string,
     variable: HydroponicVariable,
   ): Promise<AlertRecord | null> {
-    const q = query(
-      collection(this.db, 'greenhouses', greenhouseId, 'alerts'),
-      where('zoneId', '==', zoneId),
-      where('variable', '==', variable),
-      where('status', '==', 'new'),
-      limit(1),
-    );
-    const snap = await getDocs(q);
+    const snap = await this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('alerts')
+      .where('zoneId', '==', zoneId)
+      .where('variable', '==', variable)
+      .where('status', '==', 'new')
+      .limit(1)
+      .get();
+
     if (snap.empty) return null;
     const d = snap.docs[0];
     const data = d.data();
@@ -182,11 +188,13 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     greenhouseId: string,
     alert: Omit<AlertRecord, 'id'>,
   ): Promise<AlertRecord> {
-    const colRef = collection(this.db, 'greenhouses', greenhouseId, 'alerts');
-    const docRef = await addDoc(colRef, {
+    const colRef = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('alerts');
+    const docRef = await colRef.add({
       ...alert,
       createdAt: Timestamp.fromDate(new Date(alert.createdAt)),
-      ingestKey: this.ingestKey,
     });
     return { id: docRef.id, ...alert };
   }
@@ -196,15 +204,18 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     alertId: string,
     patch: Partial<AlertRecord>,
   ): Promise<void> {
-    const ref = doc(this.db, 'greenhouses', greenhouseId, 'alerts', alertId);
+    const ref = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('alerts')
+      .doc(alertId);
     const firestorePatch: Record<string, unknown> = {
       ...patch,
-      ingestKey: this.ingestKey,
     };
     if (typeof patch.resolvedAt === 'string') {
       firestorePatch.resolvedAt = Timestamp.fromDate(new Date(patch.resolvedAt));
     }
-    await updateDoc(ref, firestorePatch);
+    await ref.update(firestorePatch);
   }
 
   async getActuatorsState(
@@ -221,10 +232,14 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
       updatedAt: now,
     };
     try {
-      const ref = doc(this.db, 'greenhouses', greenhouseId, 'actuators', zoneId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return fallback;
-      const d = snap.data();
+      const ref = this.db
+        .collection('greenhouses')
+        .doc(greenhouseId)
+        .collection('actuators')
+        .doc(zoneId);
+      const snap = await ref.get();
+      if (!snap.exists) return fallback;
+      const d = snap.data() ?? {};
       return {
         zoneId,
         recirculationPump: d.recirculationPump ?? fallback.recirculationPump,
@@ -243,10 +258,13 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     zoneId: string,
     state: ZoneActuatorsState,
   ): Promise<void> {
-    const ref = doc(this.db, 'greenhouses', greenhouseId, 'actuators', zoneId);
-    await setDoc(ref, {
+    const ref = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('actuators')
+      .doc(zoneId);
+    await ref.set({
       ...state,
-      ingestKey: this.ingestKey,
     });
   }
 }

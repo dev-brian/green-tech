@@ -159,15 +159,6 @@ service cloud.firestore {
           && request.resource.data.attendedBy == request.auth.uid;
     }
 
-    // ─── Helper: ingesta autorizada del backend / simulador (Spark Tier) ─────
-    function isValidBackendIngest(greenhouseId) {
-      return exists(/databases/$(database)/documents/greenhouses/$(greenhouseId))
-          && request.resource.data.get('ingestKey', '') is string
-          && request.resource.data.get('ingestKey', '').size() >= 16
-          && request.resource.data.get('ingestKey', '') ==
-             get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.get('deviceKey', 'gt-dev-device-key-2026');
-    }
-
     // ─── Índice de códigos de invitación (/greenhouse_invites/{inviteCode}) ──
     match /greenhouse_invites/{inviteCode} {
       allow get: if isSignedIn();
@@ -237,35 +228,30 @@ service cloud.firestore {
 
       match /actuators/{actuatorId} {
         allow read:  if isMember(greenhouseId);
-        allow write: if isAdmin(greenhouseId) || isValidBackendIngest(greenhouseId);
+        allow write: if isAdmin(greenhouseId);
       }
 
       // ─── Subcolecciones de Telemetría y Estado (v0.2 Data Contract) ───────
       match /readings/{readingId} {
-        allow read:           if isMember(greenhouseId);
-        allow create:         if isValidBackendIngest(greenhouseId);
-        allow update, delete: if false;
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
       }
 
       match /readingsHourly/{hourId} {
-        allow read:           if isMember(greenhouseId);
-        allow create, update: if isValidBackendIngest(greenhouseId);
-        allow delete:         if false;
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
       }
 
       match /state/{docId} {
-        allow read:           if isMember(greenhouseId);
-        allow create, update: if isValidBackendIngest(greenhouseId);
-        allow delete:         if false;
+        allow read:  if isMember(greenhouseId);
+        allow write: if false;
       }
 
       // ─── Subcolección de Alertas (v0.2 Data Contract) ─────────────────────
       match /alerts/{alertId} {
-        allow read:   if isMember(greenhouseId);
-        allow create: if isValidBackendIngest(greenhouseId);
-        allow update: if (isMember(greenhouseId) && isValidAlertAcknowledge())
-                      || isValidBackendIngest(greenhouseId);
-        allow delete: if false;
+        allow read:           if isMember(greenhouseId);
+        allow create, delete: if false;
+        allow update:         if isMember(greenhouseId) && isValidAlertAcknowledge();
       }
     }
 

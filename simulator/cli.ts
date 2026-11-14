@@ -64,9 +64,12 @@ async function runCli() {
   const greenhouseId = String(
     args.greenhouseId ?? process.env.GREENHOUSE_ID ?? 'demo-greenhouse',
   );
-  const deviceKey = String(
-    args.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? 'gt-dev-device-key-2026',
-  );
+  const deviceKey = String(args.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? '').trim();
+  if (!deviceKey) {
+    throw new Error(
+      'Falta la clave de dispositivo: define DEVICE_INGEST_KEY en .env.local o usa --deviceKey=<clave>.',
+    );
+  }
   const intervalSec = Math.max(1, Number(args.interval ?? 60));
   const once = Boolean(args.once);
   const useFirestore =

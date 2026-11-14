@@ -128,7 +128,7 @@ Solo el propio usuario puede leer y escribir sus tokens.
 
 ### 2.7 Ingesta y Actuadores Virtuales (Endpoints HTTP)
 
-- **`POST /ingestTelemetry`**: cabecera `x-device-key`. La llama el simulador (`simulator/cli.ts`) cada minuto por zona. Valida la clave, las unidades y los rangos físicos de 2.1; guarda la lectura en `readings`, actualiza `state/latest`, evalúa alertas (`alerts`) y actualiza los actuadores virtuales (`actuators`).
+- **`POST /ingestTelemetry`**: cabecera `x-device-key`. La llaman el simulador interactivo (`greenhouse-sim/`), el simulador de línea de comandos (`simulator/cli.ts`) y, más adelante, los sensores reales: una lectura por minuto por zona. Valida la clave, las unidades y los rangos físicos de 2.1; guarda la lectura en `readings`, actualiza `state/latest`, evalúa alertas (`alerts`) y actualiza los actuadores virtuales (`actuators`).
 
 ```json
 {
@@ -148,3 +148,7 @@ Solo el propio usuario puede leer y escribir sus tokens.
 - Solo el admin edita el invernadero y sus miembros; un usuario solo puede unirse a sí mismo como operador con un código válido (`T11.1 #26`).
 - `readings`, `readingsHourly`, `state` y `alerts`: lectura para miembros; escritura solo del backend, salvo atender alertas (2.5).
 - `users/{uid}/fcmTokens`: solo el propio usuario.
+
+### 2.9 Quién publica
+
+Cualquier dispositivo que envíe el cuerpo de 2.7 con una `x-device-key` válida. Hoy es el simulador interactivo (`greenhouse-sim/`, ver su README), que no escribe en Firestore ni calcula semáforos: solo publica por HTTP. La ingesta se levanta como servicio propio con `pnpm ingest` (memoria) o `pnpm ingest:firestore`. No existe clave por defecto: sin `DEVICE_INGEST_KEY` la ingesta no arranca.

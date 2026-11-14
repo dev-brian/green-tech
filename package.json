@@ -11,7 +11,11 @@
     "seed:telemetry": "node scripts/seedTelemetry.mjs",
     "simulator": "node simulator/cli.ts",
     "sim:firestore": "node simulator/cli.ts --firestore",
-    "test": "node --test tests/sensorThresholds.test.ts tests/ingestAndAlerts.test.ts",
+    "ingest": "node simulator/serve.ts",
+    "ingest:firestore": "node simulator/serve.ts --firestore",
+    "sim": "node greenhouse-sim/server.ts",
+    "sim:demo": "node greenhouse-sim/demo.ts",
+    "test": "node --test tests/sensorThresholds.test.ts tests/ingestAndAlerts.test.ts tests/greenhouseSim.test.ts",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.mjs\"",
     "test:emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.mjs\""
   },

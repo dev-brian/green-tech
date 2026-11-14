@@ -44,8 +44,13 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
   server: Server;
   storage: TelemetryStorageAdapter;
 } {
-  const expectedKey =
-    options.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? 'gt-dev-device-key-2026';
+  // Sin clave por defecto: una clave conocida en el repo equivale a no tener clave.
+  const expectedKey = (options.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? '').trim();
+  if (!expectedKey) {
+    throw new Error(
+      'Falta la clave de dispositivo: define DEVICE_INGEST_KEY (en .env.local o en el entorno) o pasa deviceKey.',
+    );
+  }
   const storage = options.storage ?? new InMemoryTelemetryStorage();
 
   const server = createServer(async (req, res) => {

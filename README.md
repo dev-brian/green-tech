@@ -60,6 +60,16 @@ Este proyecto está construido con herramientas modernas para asegurar el mejor 
 
 *(Nota: si cambias algo en `.env.local` mientras `pnpm dev` ya está corriendo, detenlo con Ctrl+C y vuelve a iniciarlo — Vite solo lee ese archivo al arrancar, no en caliente).*
 
+## 🧪 Simulador interactivo de invernadero
+
+Para probar la PWA sin sensores hay un invernadero simulado con interfaz visual y escenarios ("sube el pH", "falla una bomba", "corte de luz"). Publica por el mismo endpoint que usarán los sensores reales.
+
+```bash
+pnpm sim:demo   # demo local, sin tocar Firestore: http://localhost:4100
+```
+
+Detalles y uso con Firestore en [`greenhouse-sim/README.md`](greenhouse-sim/README.md).
+
 ## 📁 Estructura del Proyecto
 
 ```text

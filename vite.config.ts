@@ -26,8 +26,8 @@ export default defineConfig(({ mode }) => ({
         start_url: PAGES_BASE,
         scope: PAGES_BASE,
         display: 'standalone',
-        background_color: '#1e222b',
-        theme_color: '#1e222b',
+        background_color: '#EEF1EA',
+        theme_color: '#0A0909',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

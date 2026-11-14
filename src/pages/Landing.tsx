@@ -9,7 +9,7 @@ const stats = [
   { value: '40%', label: 'Reducción de pérdidas de cultivo', icon: TrendingDown, color: 'var(--accent-green)' },
   { value: '60%', label: 'Ahorro en consumo de agua', icon: Droplets, color: 'var(--accent-blue)' },
   { value: '24/7', label: 'Monitoreo continuo sin interrupciones', icon: Clock, color: 'var(--accent-amber)' },
-  { value: '3x', label: 'Mayor rendimiento por ciclo de cultivo', icon: Activity, color: '#a78bfa' },
+  { value: '3x', label: 'Mayor rendimiento por ciclo de cultivo', icon: Activity, color: 'var(--status-blue)' },
 ];
 
 const steps = [
@@ -19,7 +19,7 @@ const steps = [
     title: 'Sensores Capturan',
     description: 'Nodos IoT distribuidos en el invernadero miden temperatura, humedad relativa y pH del agua en ciclos de 5 segundos.',
     color: 'var(--accent-green)',
-    glow: 'rgba(16, 185, 129, 0.25)',
+    glow: 'var(--leaf)',
   },
   {
     number: '02',
@@ -27,7 +27,7 @@ const steps = [
     title: 'Palarix Analiza',
     description: 'Nuestro motor de reglas procesa los datos en tiempo real, detecta anomalías y genera predicciones de comportamiento.',
     color: 'var(--accent-blue)',
-    glow: 'rgba(59, 130, 246, 0.25)',
+    glow: 'var(--status-blue)',
   },
   {
     number: '03',
@@ -35,7 +35,7 @@ const steps = [
     title: 'Sistema Actúa',
     description: 'Las actualizaciones se envían a la interfaz web al instante. El riego y la ventilación se ajustan automáticamente.',
     color: 'var(--accent-amber)',
-    glow: 'rgba(245, 158, 11, 0.25)',
+    glow: 'var(--status-warn)',
   },
 ];
 
@@ -59,7 +59,7 @@ const benefits = [
     title: 'Datos para tomar decisiones',
     description: 'Históricos de cada sensor con gráficas exportables. Información precisa para justificar inversiones y optimizar protocolos.',
     audience: 'Gestión',
-    color: '#a78bfa',
+    color: 'var(--status-blue)',
   },
   {
     icon: Shield,
@@ -74,7 +74,7 @@ const techStack = [
   { name: 'Temperatura', sensor: 'DHT22', precision: '±0.5°C', icon: Thermometer, color: 'var(--accent-amber)' },
   { name: 'Humedad', sensor: 'DHT22', precision: '±2% RH', icon: Droplets, color: 'var(--accent-blue)' },
   { name: 'pH del Agua', sensor: 'Sonda analógica', precision: '±0.1 pH', icon: FlaskConical, color: 'var(--accent-green)' },
-  { name: 'Luminosidad', sensor: 'BH1750', precision: '±5% lux', icon: Sun, color: '#fbbf24' },
+  { name: 'Luminosidad', sensor: 'BH1750', precision: '±5% lux', icon: Sun, color: 'var(--status-warn-text)' },
 ];
 
 const trustItems = [
@@ -99,7 +99,7 @@ export default function Landing() {
           display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
           padding: '0.4rem 1rem', background: 'var(--accent-green-glow)',
           borderRadius: '999px', color: 'var(--accent-green)', fontWeight: 700,
-          fontSize: '0.85rem', border: '1px solid rgba(16,185,129,0.3)',
+          fontSize: '0.85rem', border: '1px solid var(--leaf)',
           marginBottom: '2rem', letterSpacing: '0.05em'
         }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)', display: 'inline-block' }} />
@@ -110,11 +110,10 @@ export default function Landing() {
         <h1 className="hero-title" style={{
           fontSize: 'clamp(2.8rem, 6vw, 5rem)', fontWeight: 900,
           lineHeight: 1.1, marginBottom: '1.5rem',
-          background: 'linear-gradient(135deg, #fff 30%, #94a3b8 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+          color: 'var(--text-primary)', letterSpacing: '-0.03em',
         }}>
           El Invernadero que<br />
-          <span style={{ background: 'linear-gradient(135deg, #10b981, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span style={{ color: 'var(--leaf-ink)' }}>
             piensa por sí solo.
           </span>
         </h1>
@@ -135,12 +134,12 @@ export default function Landing() {
         {/* Subtle grid graphic */}
         <div style={{
           marginTop: '5rem', width: '100%', maxWidth: 800, height: 2,
-          background: 'linear-gradient(to right, transparent, rgba(16,185,129,0.4), rgba(59,130,246,0.4), transparent)'
+          background: 'linear-gradient(to right, transparent, var(--leaf), var(--status-blue), transparent)'
         }} />
       </section>
 
       {/* ── 2. STATS BANNER ─────────────────────────────────────────────────── */}
-      <section style={{ background: 'rgba(15,23,42,0.6)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '3rem 0' }}>
+      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '3rem 0' }}>
         <div className="container">
           <div className="grid grid-metrics" style={{ gap: '0' }}>
             {stats.map((s, i) => {
@@ -175,7 +174,7 @@ export default function Landing() {
           {steps.map((step, i) => (
             <button key={i} onClick={() => setActiveStep(i)} style={{
               background: activeStep === i ? step.color : 'transparent',
-              color: activeStep === i ? '#fff' : 'var(--text-muted)',
+              color: activeStep === i ? 'var(--text-on-ink)' : 'var(--text-muted)',
               border: `1px solid ${activeStep === i ? step.color : 'var(--panel-border)'}`,
               padding: '0.6rem 1.25rem', borderRadius: '999px', cursor: 'pointer',
               fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.3s ease',
@@ -223,7 +222,7 @@ export default function Landing() {
       </section>
 
       {/* ── 4. BENEFICIOS ───────────────────────────────────────────────────── */}
-      <section style={{ background: 'rgba(15,23,42,0.5)', borderTop: '1px solid var(--panel-border)', padding: '6rem 0' }}>
+      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', padding: '6rem 0' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
             <p style={{ color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>IMPACTO REAL</p>
@@ -294,7 +293,7 @@ export default function Landing() {
       </section>
 
       {/* ── 6. CONFIANZA ────────────────────────────────────────────────────── */}
-      <section style={{ background: 'rgba(15,23,42,0.6)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '5rem 0' }}>
+      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '5rem 0' }}>
         <div className="container" style={{ textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
             <Users size={24} style={{ color: 'var(--accent-green)' }} />
@@ -329,11 +328,11 @@ export default function Landing() {
       <section className="container animate-fade-in" style={{ padding: '8rem 0', textAlign: 'center' }}>
         <div className="glass-panel" style={{
           maxWidth: 700, margin: '0 auto', padding: '4rem 3rem',
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(59,130,246,0.08))',
-          border: '1px solid rgba(16,185,129,0.3)',
-          boxShadow: '0 0 60px rgba(16,185,129,0.12)'
+          background: 'linear-gradient(135deg, var(--status-ok-soft), var(--status-blue-glow))',
+          border: '1px solid var(--leaf)',
+          boxShadow: '0 0 60px var(--status-ok-soft)'
         }}>
-          <img src={iconUrl} alt="Green Tech" style={{ width: 64, height: 64, margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.5))' }} />
+          <img src={iconUrl} alt="Green Tech" style={{ width: 64, height: 64, margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px var(--leaf))' }} />
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, marginBottom: '1.25rem' }}>
             Tu invernadero, sin sorpresas.
           </h2>
@@ -364,12 +363,12 @@ export default function Landing() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20,
               textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
-              border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 40px rgba(59,130,246,0.1)'
+              border: '1px solid var(--status-blue)', boxShadow: '0 0 40px var(--status-blue-glow)'
             }}
             onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--status-blue-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Mail size={28} style={{ color: 'var(--accent-blue)' }} />
             </div>
             <div style={{ textAlign: 'left' }}>

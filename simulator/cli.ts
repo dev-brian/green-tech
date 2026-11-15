@@ -78,21 +78,24 @@ async function runCli() {
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
 
-  if (prune && baseUrl) {
-    console.warn('[Simulador] --prune se ignora con --ingestUrl: la purga necesita acceso directo a Firestore.');
+  // Purga de lecturas de más de 7 días y promedios de más de 30 (T7.1 #75)
+  if (prune) {
+    if (useFirestore && !baseUrl) {
+      const { readingsDeleted, hourlyDeleted } =
+        await new FirestoreTelemetryStorage().pruneExpired(greenhouseId);
+      console.log(
+        `[Simulador] Purga: ${readingsDeleted} lecturas y ${hourlyDeleted} promedios por hora vencidos borrados.`,
+      );
+    } else {
+      console.warn('[Simulador] --prune solo funciona con --firestore y sin --ingestUrl; se omite.');
+    }
   }
 
   if (!baseUrl) {
-    const { server, storage } = createIngestHttpServer({
-      deviceKey,
-      storage: useFirestore ? new FirestoreTelemetryStorage() : undefined,
-    });
-    if (prune) {
-      const { readingsDeleted, hourlyDeleted } = await storage.pruneExpired(greenhouseId);
-      console.log(
-        `[Simulador] Purga: ${readingsDeleted} lecturas de más de 7 días y ${hourlyDeleted} promedios por hora de más de 30 días borrados.`,
-      );
-    }
+    const storage = useFirestore
+      ? new FirestoreTelemetryStorage()
+      : undefined;
+    const { server } = createIngestHttpServer({ deviceKey, storage });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;

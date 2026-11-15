@@ -5,6 +5,12 @@
  */
 
 import {
+  hourlyDocId,
+  mergeIntoHourly,
+  retentionCutoffs,
+  type HourlyAggregate,
+} from './hourlyAggregation.ts';
+import {
   DEFAULT_CROP_THRESHOLDS,
   HYDROPONIC_VARIABLES,
   VARIABLE_KEYS,
@@ -16,12 +22,6 @@ import {
   type HydroponicVariable,
   type IngestTelemetryRequest,
 } from './hydroponicModel.ts';
-import {
-  hourlyDocId,
-  mergeIntoHourly,
-  retentionCutoffs,
-  type HourlyAggregate,
-} from './hourlyAggregation.ts';
 
 export interface ZoneVariableState {
   value: number;

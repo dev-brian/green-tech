@@ -17,6 +17,8 @@ import {
   Waves,
   RefreshCw,
 } from 'lucide-react';
+import { useZones } from '../hooks/useZones';
+import { zoneLabel } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
@@ -42,18 +44,6 @@ const STATUS_PRIORITY: Record<SensorStatus, number> = {
   green: 2,
   offline: 3,
 };
-
-const ZONE_LABELS: Record<string, string> = {
-  'zona-1': 'Zona 1 · Lechuga NFT',
-  'zona-2': 'Zona 2 · Jitomate DWC',
-  'zona-3': 'Zona 3 · Hierbas Aromáticas',
-};
-
-function formatZoneLabel(zoneId: string, crop?: string): string {
-  if (ZONE_LABELS[zoneId]) return ZONE_LABELS[zoneId];
-  if (crop) return `${zoneId} · ${crop}`;
-  return zoneId;
-}
 
 function SensorLED({ status, isCritical }: { status: SensorStatus; isCritical?: boolean }) {
   const ledClass = [
@@ -178,6 +168,8 @@ function MetricCard({
 export default function Dashboard() {
   const { activeWorkspace } = useAuth();
   const { readings, zonesById, loading } = useTelemetrySource(activeWorkspace?.id ?? null);
+  // Nombres y cultivo de cada zona registrada por el admin (T4.2 #65).
+  const { zonesById: registeredZones } = useZones(activeWorkspace?.id ?? null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
 
   // Ordenar las zonas con peor estado primero (T4.1 / T4.2)
@@ -265,7 +257,7 @@ export default function Dashboard() {
               isCritical={activeZone.overallStatus === 'red'}
             />
             <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
-              {formatZoneLabel(activeZone.zoneId, activeZone.crop)}
+              {zoneLabel(activeZone.zoneId, registeredZones, activeZone.crop)}
             </span>
           </div>
         )}
@@ -310,7 +302,7 @@ export default function Dashboard() {
                   status={zone.overallStatus}
                   isCritical={zone.overallStatus === 'red'}
                 />
-                <span>{formatZoneLabel(zone.zoneId, zone.crop)}</span>
+                <span>{zoneLabel(zone.zoneId, registeredZones, zone.crop)}</span>
               </button>
             );
           })}

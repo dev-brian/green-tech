@@ -60,7 +60,11 @@ export class FcmPushNotifier implements AlertPushNotifier {
           data: content.data,
           android: {
             priority: 'high',
-            notification: { tag: `alert-${alert.zoneId}-${alert.variable}` },
+            notification: {
+              // Canal que crea la app Android (green-tech-app, feature/app-push-fcm)
+              channelId: 'greentech_critico',
+              tag: `alert-${alert.zoneId}-${alert.variable}`,
+            },
           },
           webpush: {
             headers: { Urgency: 'high' },

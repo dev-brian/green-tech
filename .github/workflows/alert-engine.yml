@@ -43,6 +43,8 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GREENHOUSE_ID: ${{ secrets.GREENHOUSE_ID }}
           DEVICE_INGEST_KEY: ${{ secrets.DEVICE_INGEST_KEY }}
+          # Al tocar un push de alerta crítica se abre la bandeja de la PWA publicada
+          PWA_URL: https://dev-brian.github.io/green-tech/
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$GREENHOUSE_ID" ] || [ -z "$DEVICE_INGEST_KEY" ]; then
             echo "::error::Faltan secretos requeridos en GitHub (FIREBASE_SERVICE_ACCOUNT, GREENHOUSE_ID o DEVICE_INGEST_KEY)."

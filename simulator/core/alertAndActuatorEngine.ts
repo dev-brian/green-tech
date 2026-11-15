@@ -16,6 +16,7 @@ import {
   type HydroponicVariable,
   type IngestTelemetryRequest,
 } from './hydroponicModel.ts';
+import type { AlertPushNotifier } from './pushNotifier.ts';
 
 export interface ZoneVariableState {
   value: number;
@@ -223,10 +224,12 @@ export interface IngestProcessResult {
  * 2. Evalúa las 7 variables con los umbrales del cultivo y escribe greenhouses/{id}/state/latest
  * 3. Crea alertas sin duplicados (status === 'new') y resuelve automáticamente las que vuelven a 'ok'
  * 4. Actualiza los 4 actuadores virtuales según las reglas de HU-08
+ * 5. Envía push FCM a los miembros cuando una alerta se crea o sube a `critical` (T6.5 #52)
  */
 export async function processIngestedReading(
   input: Required<IngestTelemetryRequest>,
   storage: TelemetryStorageAdapter,
+  notifier?: AlertPushNotifier,
 ): Promise<IngestProcessResult> {
   const { greenhouseId, zoneId, crop, timestamp, readings } = input;
   const thresholds = await storage.getThresholds(greenhouseId, crop);
@@ -245,6 +248,7 @@ export async function processIngestedReading(
 
   const createdAlerts: AlertRecord[] = [];
   const resolvedAlertIds: string[] = [];
+  const criticalToNotify: AlertRecord[] = [];
 
   for (const key of VARIABLE_KEYS) {
     const value = readings[key];
@@ -273,12 +277,14 @@ export async function processIngestedReading(
           resolvedAt: null,
         });
         createdAlerts.push(created);
+        if (created.severity === 'critical') criticalToNotify.push(created);
       } else if (existingActive.severity === 'warn' && level === 'critical') {
         await storage.updateAlert(greenhouseId, existingActive.id, {
           severity: 'critical',
           value,
           message,
         });
+        criticalToNotify.push({ ...existingActive, severity: 'critical', value, message });
       }
     } else if (level === 'ok' && existingActive) {
       await storage.updateAlert(greenhouseId, existingActive.id, {
@@ -313,6 +319,17 @@ export async function processIngestedReading(
   };
 
   await storage.saveActuatorsState(greenhouseId, zoneId, updatedActuators);
+
+  // El push va al final para no retrasar ni romper la escritura de lecturas y alertas.
+  if (notifier) {
+    for (const alert of criticalToNotify) {
+      try {
+        await notifier.notifyCriticalAlert(greenhouseId, alert);
+      } catch {
+        // Un fallo de FCM no debe tumbar la ingesta.
+      }
+    }
+  }
 
   return {
     readingId,

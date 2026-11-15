@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
 import { validateThresholds, hasThresholdErrors } from '../lib/thresholdValidation';
+import { CROP_OPTIONS, type CropType } from '../lib/cropProfiles';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -326,7 +327,9 @@ const VARIABLE_CONFIG: {
 }[] = [
   { key: 'airTemp',      label: 'Temperatura del Aire', unit: '°C',    min: -5,  max: 50,    step: 1 },
   { key: 'humidity',     label: 'Humedad Relativa',     unit: '%',     min: 0,   max: 100,   step: 1 },
-  { key: 'light',        label: 'Luz Ambiental',        unit: ' lux',  min: 0,   max: 50000, step: 500 },
+  // El máximo de luz sube a 150000 (rango físico del contrato) porque el
+  // perfil de jitomate llega a 75000 lux (T5.2 #45).
+  { key: 'light',        label: 'Luz Ambiental',        unit: ' lux',  min: 0,   max: 150000, step: 500 },
   { key: 'ph',           label: 'pH de la Solución',    unit: ' pH',   min: 3.5, max: 8.5,   step: 0.1 },
   { key: 'ec',           label: 'Conductividad (EC)',   unit: ' mS/cm',min: 0.2, max: 4.5,   step: 0.1 },
   { key: 'solutionTemp', label: 'Temp. de la Solución', unit: '°C',    min: 5,   max: 40,    step: 1 },
@@ -458,7 +461,9 @@ function ThresholdBlock({
 }
 
 function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; canEdit: boolean }) {
-  const { thresholds, loading, saving, error, successMsg, save, reset } = useThresholds(greenhouseId);
+  // T5.2 (#45): perfil de valores por defecto (jitomate / lechuga)
+  const [crop, setCrop] = useState<CropType>('jitomate');
+  const { thresholds, loading, saving, error, successMsg, save, reset } = useThresholds(greenhouseId, crop);
   const [draft, setDraft] = useState<GreenhouseThresholds | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -468,6 +473,14 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
   // T5.3 (#46): los rangos se validan en cada cambio; si hay error no se guarda.
   const validationErrors = validateThresholds(current);
   const invalid = hasThresholdErrors(validationErrors);
+
+  // Cambiar de cultivo descarta el borrador sin guardar y recarga los
+  // valores por defecto de ese cultivo desde useThresholds.
+  const handleCropChange = (next: CropType) => {
+    if (next === crop || saving) return;
+    setDraft(null);
+    setCrop(next);
+  };
 
   const handleChange = useCallback((varKey: Variable, field: string, value: number) => {
     setDraft((prev) => {
@@ -538,6 +551,59 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
           {error}
         </div>
       )}
+
+      {/* T5.2 (#45): selector de perfil por cultivo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Perfil de valores por defecto:
+        </span>
+        <div
+          role="group"
+          aria-label="Perfil de cultivo"
+          style={{
+            display: 'flex',
+            gap: 4,
+            padding: 4,
+            borderRadius: 'var(--radius-sm)',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          {CROP_OPTIONS.map((option) => {
+            const active = option === crop;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => handleCropChange(option)}
+                disabled={saving}
+                aria-pressed={active}
+                style={{
+                  padding: '6px 14px',
+                  minHeight: 36,
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  opacity: saving ? 0.6 : 1,
+                  transition: 'background 0.15s ease, color 0.15s ease',
+                }}
+              >
+                {option === 'jitomate' ? '🍅 Jitomate' : '🥬 Lechuga'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
+        Los umbrales guardados aplican a todo el invernadero; el perfil define
+        con qué valores por defecto se carga el formulario y con qué se
+        restaura. Son un punto de partida a validar con un agrónomo o docente.
+      </p>
 
       {/* Bloques por variable */}
       {VARIABLE_CONFIG.map(({ key, label, unit, min, max, step }) => (

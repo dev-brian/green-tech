@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
 import ExportCsvButton from '../components/ExportCsvButton';
+import ExportPdfButton from '../components/ExportPdfButton';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
 import type { SensorStatus } from '../lib/sensorThresholds';
 
@@ -459,71 +460,80 @@ export default function Dashboard() {
             >
               Histórico — {formatZoneLabel(activeZone.zoneId, activeZone.crop)}
             </h3>
-            <ExportCsvButton
-              readings={zoneReadings}
-              zoneLabel={formatZoneLabel(activeZone.zoneId, activeZone.crop)}
-            />
-          </div>
-
-          {/* Gráfica 1: Ambiente */}
-          <div className="nm-flat" style={{ padding: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
-            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
-              Histórico — Temperatura del Aire y Humedad
-            </h3>
-            <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ width: '100%', height: 260 }}>
-                <ResponsiveContainer>
-                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
-                    <YAxis yAxisId="left" stroke={CHART_COLORS.yellow} tick={{ fontSize: 11, fill: CHART_COLORS.yellow }} />
-                    <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: CHART_COLORS.bg,
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                        boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
-                      }}
-                      itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
-                      labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
-                    />
-                    <Line yAxisId="left" type="monotone" dataKey="airTemp" name="Temp. Aire (°C)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="right" type="monotone" dataKey="humidity" name="Humedad (%)" stroke={CHART_COLORS.blue} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+              <ExportCsvButton
+                readings={zoneReadings}
+                zoneLabel={formatZoneLabel(activeZone.zoneId, activeZone.crop)}
+              />
+              <ExportPdfButton
+                readings={zoneReadings}
+                zoneLabel={formatZoneLabel(activeZone.zoneId, activeZone.crop)}
+                chartContainerId="historico-charts"
+              />
             </div>
           </div>
 
-          {/* Gráfica 2: Solución Nutritiva */}
-          <div className="nm-flat" style={{ padding: 'var(--space-md)' }}>
-            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
-              Histórico — Solución Nutritiva (pH, EC y Nivel del Tanque)
-            </h3>
-            <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ width: '100%', height: 220 }}>
-                <ResponsiveContainer>
-                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
-                    <YAxis yAxisId="left" stroke={CHART_COLORS.accent} tick={{ fontSize: 11, fill: CHART_COLORS.accent }} domain={[0, 10]} />
-                    <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        background: CHART_COLORS.bg,
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                        boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
-                      }}
-                      itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
-                      labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
-                    />
-                    <Line yAxisId="left" type="monotone" dataKey="ph" name="pH" stroke={CHART_COLORS.accent} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.accent, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="left" type="monotone" dataKey="ec" name="EC (mS/cm)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="right" type="monotone" dataKey="tankLevel" name="Tanque (%)" stroke={CHART_COLORS.blue} strokeWidth={2} dot={{ r: 2, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 4 }} isAnimationActive={false} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
+          {/* Contenedor de las gráficas: el PDF (T7.4) captura sus <svg> */}
+          <div id="historico-charts">
+            <div className="nm-flat" style={{ padding: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
+              <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
+                Histórico — Temperatura del Aire y Humedad
+              </h3>
+              <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ width: '100%', height: 260 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
+                      <YAxis yAxisId="left" stroke={CHART_COLORS.yellow} tick={{ fontSize: 11, fill: CHART_COLORS.yellow }} />
+                      <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} />
+                      <Tooltip
+                        contentStyle={{
+                          background: CHART_COLORS.bg,
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: 8,
+                          boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
+                        }}
+                        itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
+                        labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
+                      />
+                      <Line yAxisId="left" type="monotone" dataKey="airTemp" name="Temp. Aire (°C)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
+                      <Line yAxisId="right" type="monotone" dataKey="humidity" name="Humedad (%)" stroke={CHART_COLORS.blue} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Gráfica 2: Solución Nutritiva */}
+            <div className="nm-flat" style={{ padding: 'var(--space-md)' }}>
+              <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
+                Histórico — Solución Nutritiva (pH, EC y Nivel del Tanque)
+              </h3>
+              <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ width: '100%', height: 220 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
+                      <YAxis yAxisId="left" stroke={CHART_COLORS.accent} tick={{ fontSize: 11, fill: CHART_COLORS.accent }} domain={[0, 10]} />
+                      <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{
+                          background: CHART_COLORS.bg,
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: 8,
+                          boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
+                        }}
+                        itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
+                        labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
+                      />
+                      <Line yAxisId="left" type="monotone" dataKey="ph" name="pH" stroke={CHART_COLORS.accent} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.accent, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
+                      <Line yAxisId="left" type="monotone" dataKey="ec" name="EC (mS/cm)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
+                      <Line yAxisId="right" type="monotone" dataKey="tankLevel" name="Tanque (%)" stroke={CHART_COLORS.blue} strokeWidth={2} dot={{ r: 2, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 4 }} isAnimationActive={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>

@@ -51,10 +51,10 @@ jobs:
       - name: Pruebas unitarias (Semáforo, Ingesta, Alertas y Simulador)
         run: pnpm test
 
-      - name: Pruebas de reglas de Firestore con Firebase Emulator
+      - name: Pruebas con Firebase Emulator (reglas, zonas y latencia de alertas)
         run: |
           npm install -g firebase-tools
-          pnpm test:rules
+          pnpm test:emulator
 
       - name: Build
         run: pnpm build

@@ -16,6 +16,12 @@ import {
   type HydroponicVariable,
   type IngestTelemetryRequest,
 } from './hydroponicModel.ts';
+import {
+  hourlyDocId,
+  mergeIntoHourly,
+  retentionCutoffs,
+  type HourlyAggregate,
+} from './hourlyAggregation.ts';
 
 export interface ZoneVariableState {
   value: number;
@@ -97,6 +103,20 @@ export interface TelemetryStorageAdapter {
     zoneId: string,
     state: ZoneActuatorsState,
   ): Promise<void>;
+  /** Suma la lectura al promedio de su hora en readingsHourly (T7.1 #75). */
+  upsertHourly(
+    greenhouseId: string,
+    zoneId: string,
+    timestamp: string,
+    readings: HydroponicReadings,
+  ): Promise<HourlyAggregate>;
+  /** Borra lecturas de más de 7 días y promedios de más de 30 (T7.1 #75). */
+  pruneExpired(greenhouseId: string, now?: Date): Promise<PruneResult>;
+}
+
+export interface PruneResult {
+  readingsDeleted: number;
+  hourlyDeleted: number;
 }
 
 /**
@@ -109,6 +129,7 @@ export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
   public alerts: Record<string, AlertRecord[]> = {};
   public actuators: Record<string, Record<string, ZoneActuatorsState>> = {};
   public customThresholds: Record<string, Partial<Record<CropType, CropThresholds>>> = {};
+  public hourly: Record<string, Record<string, HourlyAggregate>> = {};
   private seq = 1;
 
   async getThresholds(greenhouseId: string, crop: CropType): Promise<CropThresholds> {
@@ -207,6 +228,36 @@ export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
     if (!this.actuators[greenhouseId]) this.actuators[greenhouseId] = {};
     this.actuators[greenhouseId][zoneId] = state;
   }
+
+  async upsertHourly(
+    greenhouseId: string,
+    zoneId: string,
+    timestamp: string,
+    readings: HydroponicReadings,
+  ): Promise<HourlyAggregate> {
+    if (!this.hourly[greenhouseId]) this.hourly[greenhouseId] = {};
+    const id = hourlyDocId(zoneId, timestamp);
+    const next = mergeIntoHourly(this.hourly[greenhouseId][id] ?? null, zoneId, timestamp, readings);
+    this.hourly[greenhouseId][id] = next;
+    return next;
+  }
+
+  async pruneExpired(greenhouseId: string, now: Date = new Date()): Promise<PruneResult> {
+    const { readingsBefore, hourlyBefore } = retentionCutoffs(now);
+    const readings = this.readings[greenhouseId] ?? [];
+    const keptReadings = readings.filter((r) => new Date(r.timestamp) >= readingsBefore);
+    this.readings[greenhouseId] = keptReadings;
+
+    const hourly = this.hourly[greenhouseId] ?? {};
+    let hourlyDeleted = 0;
+    for (const [id, agg] of Object.entries(hourly)) {
+      if (new Date(agg.hour) < hourlyBefore) {
+        delete hourly[id];
+        hourlyDeleted++;
+      }
+    }
+    return { readingsDeleted: readings.length - keptReadings.length, hourlyDeleted };
+  }
 }
 
 export interface IngestProcessResult {
@@ -219,7 +270,7 @@ export interface IngestProcessResult {
 
 /**
  * Procesa una lectura validada de telemetría (T2.1 + T6.1 + T6.3 + T8.3):
- * 1. Guarda en greenhouses/{id}/readings
+ * 1. Guarda en greenhouses/{id}/readings y suma la lectura a readingsHourly (T7.1)
  * 2. Evalúa las 7 variables con los umbrales del cultivo y escribe greenhouses/{id}/state/latest
  * 3. Crea alertas sin duplicados (status === 'new') y resuelve automáticamente las que vuelven a 'ok'
  * 4. Actualiza los 4 actuadores virtuales según las reglas de HU-08
@@ -237,6 +288,7 @@ export async function processIngestedReading(
     timestamp,
     readings,
   });
+  await storage.upsertHourly(greenhouseId, zoneId, timestamp, readings);
 
   const zoneState = {
     timestamp,

@@ -4,6 +4,7 @@
  * (Plan Spark gratuito con cuenta de servicio; salta firestore.rules como backend real).
  * Escribe en:
  * - greenhouses/{id}/readings/{readingId}
+ * - greenhouses/{id}/readingsHourly/{zoneId}_{yyyyMMddHH}
  * - greenhouses/{id}/state/latest
  * - greenhouses/{id}/alerts/{alertId}
  * - greenhouses/{id}/actuators/{zoneId}
@@ -21,6 +22,7 @@ import {
 import {
   getFirestore,
   Timestamp,
+  type CollectionReference,
   type Firestore,
 } from 'firebase-admin/firestore';
 import {
@@ -29,9 +31,18 @@ import {
   type CropType,
   type HydroponicReadings,
   type HydroponicVariable,
+  VARIABLE_KEYS,
 } from './hydroponicModel.ts';
+import {
+  hourlyDocId,
+  mergeIntoHourly,
+  retentionCutoffs,
+  type HourlyAggregate,
+  type VariableStats,
+} from './hourlyAggregation.ts';
 import type {
   AlertRecord,
+  PruneResult,
   TelemetryStorageAdapter,
   ZoneActuatorsState,
   ZoneLatestState,
@@ -267,4 +278,125 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
       ...state,
     });
   }
+
+  /**
+   * Suma la lectura a su documento de readingsHourly dentro de una transacción,
+   * para que dos lecturas de la misma hora no se pisen el promedio.
+   */
+  async upsertHourly(
+    greenhouseId: string,
+    zoneId: string,
+    timestamp: string,
+    readings: HydroponicReadings,
+  ): Promise<HourlyAggregate> {
+    const ref = this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('readingsHourly')
+      .doc(hourlyDocId(zoneId, timestamp));
+
+    return this.db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const prev = snap.exists ? hourlyFromFirestore(snap.data() ?? {}, zoneId) : null;
+      const next = mergeIntoHourly(prev, zoneId, timestamp, readings);
+      tx.set(ref, { ...next, hour: Timestamp.fromDate(new Date(next.hour)) });
+      return next;
+    });
+  }
+
+  async pruneExpired(greenhouseId: string, now: Date = new Date()): Promise<PruneResult> {
+    const gh = this.db.collection('greenhouses').doc(greenhouseId);
+    const { readingsBefore, hourlyBefore } = retentionCutoffs(now);
+    const readingsDeleted = await deleteOlderThan(gh.collection('readings'), 'timestamp', readingsBefore);
+    const hourlyDeleted = await deleteOlderThan(gh.collection('readingsHourly'), 'hour', hourlyBefore);
+    return { readingsDeleted, hourlyDeleted };
+  }
+
+  /** Lecturas crudas desde una fecha, para rellenar readingsHourly. */
+  async listReadingsSince(
+    greenhouseId: string,
+    since: Date,
+  ): Promise<Array<{ zoneId: string; timestamp: string } & HydroponicReadings>> {
+    const snap = await this.db
+      .collection('greenhouses')
+      .doc(greenhouseId)
+      .collection('readings')
+      .where('timestamp', '>=', Timestamp.fromDate(since))
+      .orderBy('timestamp')
+      .get();
+    const out: Array<{ zoneId: string; timestamp: string } & HydroponicReadings> = [];
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (!(data.timestamp instanceof Timestamp) || typeof data.zoneId !== 'string') continue;
+      const row = { zoneId: data.zoneId, timestamp: data.timestamp.toDate().toISOString() } as {
+        zoneId: string;
+        timestamp: string;
+      } & HydroponicReadings;
+      let complete = true;
+      for (const key of VARIABLE_KEYS) {
+        const v = Number(data[key]);
+        if (!Number.isFinite(v)) complete = false;
+        row[key] = v;
+      }
+      if (complete) out.push(row);
+    }
+    return out;
+  }
+
+  /** Sobrescribe documentos de readingsHourly ya calculados (relleno). */
+  async writeHourly(greenhouseId: string, aggregates: Map<string, HourlyAggregate>): Promise<void> {
+    const col = this.db.collection('greenhouses').doc(greenhouseId).collection('readingsHourly');
+    let batch = this.db.batch();
+    let pending = 0;
+    for (const [id, agg] of aggregates) {
+      batch.set(col.doc(id), { ...agg, hour: Timestamp.fromDate(new Date(agg.hour)) });
+      if (++pending === BATCH_LIMIT) {
+        await batch.commit();
+        batch = this.db.batch();
+        pending = 0;
+      }
+    }
+    if (pending > 0) await batch.commit();
+  }
+}
+
+/** Firestore admite hasta 500 escrituras por lote; se deja margen. */
+const BATCH_LIMIT = 400;
+
+async function deleteOlderThan(
+  col: CollectionReference,
+  field: 'timestamp' | 'hour',
+  before: Date,
+): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const snap = await col.where(field, '<', Timestamp.fromDate(before)).limit(BATCH_LIMIT).get();
+    if (snap.empty) return deleted;
+    const batch = col.firestore.batch();
+    for (const d of snap.docs) batch.delete(d.ref);
+    await batch.commit();
+    deleted += snap.size;
+    if (snap.size < BATCH_LIMIT) return deleted;
+  }
+}
+
+function hourlyFromFirestore(data: Record<string, unknown>, zoneId: string): HourlyAggregate | null {
+  const count = Number(data.count);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  const hour =
+    data.hour instanceof Timestamp ? data.hour.toDate().toISOString() : String(data.hour ?? '');
+  const agg = { zoneId, hour, count } as HourlyAggregate;
+  for (const key of VARIABLE_KEYS) {
+    const stats = data[key] as Partial<VariableStats> | undefined;
+    if (
+      !stats ||
+      !Number.isFinite(stats.avg) ||
+      !Number.isFinite(stats.min) ||
+      !Number.isFinite(stats.max)
+    ) {
+      return null;
+    }
+    agg[key] = { avg: stats.avg!, min: stats.min!, max: stats.max! };
+  }
+  return agg;
 }

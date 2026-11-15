@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
+import { validateThresholds, hasThresholdErrors } from '../lib/thresholdValidation';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -342,6 +343,7 @@ function ThresholdBlock({
   values,
   onChange,
   disabled,
+  error,
 }: {
   varKey: Variable;
   label: string;
@@ -352,8 +354,10 @@ function ThresholdBlock({
   values: { redMin: number; yellowMin: number; yellowMax: number; redMax: number };
   onChange: (key: Variable, field: string, value: number) => void;
   disabled: boolean;
+  /** Mensaje de validación (T5.3); si existe, el bloque queda abierto y marcado. */
+  error?: string | null;
 }) {
-  const [open, setOpen] = useState(varKey === 'airTemp' || varKey === 'ph');
+  const [open, setOpen] = useState(varKey === 'airTemp' || varKey === 'ph' || !!error);
 
   const sliders: { field: string; label: string; color: string; description: string }[] = [
     { field: 'redMin',    label: 'Crítico mínimo',   color: 'var(--status-red)',    description: `Por debajo → 🔴 Rojo` },
@@ -389,6 +393,26 @@ function ThresholdBlock({
           {open ? <ChevronUp size={14} strokeWidth={1.5} color="var(--text-disabled)" /> : <ChevronDown size={14} strokeWidth={1.5} color="var(--text-disabled)" />}
         </div>
       </button>
+
+      {/* Error de validación (T5.3): visible aunque el bloque esté cerrado */}
+      {error && (
+        <p
+          role="alert"
+          style={{
+            margin: 0,
+            padding: '0 var(--space-sm) var(--space-sm)',
+            color: 'var(--status-red)',
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <AlertTriangle size={13} strokeWidth={2} />
+          {error}
+        </p>
+      )}
 
       {/* Sliders expandibles */}
       {open && (
@@ -433,13 +457,17 @@ function ThresholdBlock({
   );
 }
 
-function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
+function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; canEdit: boolean }) {
   const { thresholds, loading, saving, error, successMsg, save, reset } = useThresholds(greenhouseId);
   const [draft, setDraft] = useState<GreenhouseThresholds | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Sincronizar draft cuando cargan los thresholds desde Firestore
   const current = draft ?? thresholds;
+
+  // T5.3 (#46): los rangos se validan en cada cambio; si hay error no se guarda.
+  const validationErrors = validateThresholds(current);
+  const invalid = hasThresholdErrors(validationErrors);
 
   const handleChange = useCallback((varKey: Variable, field: string, value: number) => {
     setDraft((prev) => {
@@ -452,11 +480,14 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
   }, [thresholds]);
 
   const handleSave = async () => {
+    // Regla de solo admin + validación: nada de esto debería llegar a guardar.
+    if (!canEdit || invalid) return;
     await save(current);
     setDraft(null);
   };
 
   const handleReset = async () => {
+    if (!canEdit) return;
     await reset();
     setDraft(null);
     setShowResetConfirm(false);
@@ -520,116 +551,155 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
           step={step}
           values={current[key]}
           onChange={handleChange}
-          disabled={saving}
+          disabled={saving || !canEdit}
+          error={validationErrors[key]}
         />
       ))}
 
-      {/* Acciones */}
-      <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        {/* Dialog confirmación de reset */}
-        {showResetConfirm ? (
-          <div
-            className="nm-concave animate-fade-in"
-            style={{
-              width: '100%',
-              padding: 'var(--space-sm)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 'var(--space-sm)',
-            }}
-          >
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
-              ¿Seguro que deseas restaurar los umbrales de fábrica? Esta acción no se puede deshacer.
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-xs)', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  background: 'rgba(255,255,255,0.06)',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  minHeight: 36,
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleReset}
-                disabled={saving}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  background: 'rgba(239,68,68,0.15)',
-                  color: 'var(--status-red)',
-                  fontSize: '0.875rem',
-                  fontWeight: 700,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  minHeight: 36,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                <RotateCcw size={14} strokeWidth={1.5} />
-                Sí, restaurar
-              </button>
+      {/* T5.3 (#46): los rangos inválidos bloquean el guardado */}
+      {canEdit && invalid && (
+        <div
+          role="alert"
+          style={{
+            padding: 'var(--space-sm)',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239,68,68,0.10)',
+            border: '1px solid rgba(239,68,68,0.25)',
+            color: 'var(--status-red)',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+          }}
+        >
+          Corrige los rangos marcados antes de guardar: el mínimo siempre debe
+          ser menor que el máximo.
+        </div>
+      )}
+
+      {/* T5.3 (#46): el operador ve los umbrales, pero solo el admin los edita */}
+      {!canEdit && (
+        <div
+          style={{
+            padding: 'var(--space-sm)',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: 'var(--text-secondary)',
+            fontSize: '0.875rem',
+          }}
+        >
+          Solo los administradores pueden editar estos valores.
+        </div>
+      )}
+
+      {/* Acciones (solo admin) */}
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {/* Dialog confirmación de reset */}
+          {showResetConfirm ? (
+            <div
+              className="nm-concave animate-fade-in"
+              style={{
+                width: '100%',
+                padding: 'var(--space-sm)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-sm)',
+              }}
+            >
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                ¿Seguro que deseas restaurar los umbrales de fábrica? Esta acción no se puede deshacer.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-xs)', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: 'rgba(255,255,255,0.06)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minHeight: 36,
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={saving}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: 'rgba(239,68,68,0.15)',
+                    color: 'var(--status-red)',
+                    fontSize: '0.875rem',
+                    fontWeight: 700,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    minHeight: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    opacity: saving ? 0.6 : 1,
+                  }}
+                >
+                  <RotateCcw size={14} strokeWidth={1.5} />
+                  Sí, restaurar
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
+          ) : (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={saving}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: saving ? 'not-allowed' : 'pointer',
+                minHeight: 36,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <RotateCcw size={14} strokeWidth={1.5} />
+              Restaurar valores de fábrica
+            </button>
+          )}
+
           <button
-            onClick={() => setShowResetConfirm(true)}
-            disabled={saving}
+            onClick={handleSave}
+            disabled={saving || !draft || invalid}
             style={{
-              padding: '8px 16px',
+              padding: '8px 20px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: 'rgba(255,255,255,0.04)',
-              color: 'var(--text-secondary)',
+              background: draft && !saving && !invalid ? 'var(--accent)' : 'rgba(16,185,129,0.2)',
+              color: draft && !saving && !invalid ? '#fff' : 'var(--text-disabled)',
               fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
+              fontWeight: 700,
+              cursor: (saving || !draft || invalid) ? 'not-allowed' : 'pointer',
               minHeight: 36,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
+              transition: 'background 0.15s ease, color 0.15s ease',
             }}
+            title={invalid ? 'Corrige los rangos marcados antes de guardar' : undefined}
           >
-            <RotateCcw size={14} strokeWidth={1.5} />
-            Restaurar valores de fábrica
+            <Save size={14} strokeWidth={1.5} />
+            {saving ? 'Guardando...' : 'Guardar configuración'}
           </button>
-        )}
-
-        <button
-          onClick={handleSave}
-          disabled={saving || !draft}
-          style={{
-            padding: '8px 20px',
-            borderRadius: 'var(--radius-sm)',
-            border: 'none',
-            background: draft && !saving ? 'var(--accent)' : 'rgba(16,185,129,0.2)',
-            color: draft && !saving ? '#fff' : 'var(--text-disabled)',
-            fontSize: '0.875rem',
-            fontWeight: 700,
-            cursor: (saving || !draft) ? 'not-allowed' : 'pointer',
-            minHeight: 36,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            transition: 'background 0.15s ease, color 0.15s ease',
-          }}
-        >
-          <Save size={14} strokeWidth={1.5} />
-          {saving ? 'Guardando...' : 'Guardar configuración'}
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -720,15 +790,15 @@ export default function AlertsPage() {
             )}
           </section>
 
-          {/* ─── Sección 2: Configuración de umbrales (solo admin) ── */}
-          {isAdmin && (
-            <section>
-              <h3 style={{ margin: 0, marginBottom: 'var(--space-sm)', fontSize: '1rem' }}>
-                Configuración de umbrales
-              </h3>
-              <ThresholdsSection greenhouseId={greenhouseId!} />
-            </section>
-          )}
+          {/* ─── Sección 2: Configuración de umbrales (HU-05) ──────
+               El operador los ve en modo solo-lectura; solo el admin
+               los edita (T5.3 #46 + reglas de Firestore en T11.1). */}
+          <section>
+            <h3 style={{ margin: 0, marginBottom: 'var(--space-sm)', fontSize: '1rem' }}>
+              Configuración de umbrales
+            </h3>
+            <ThresholdsSection greenhouseId={greenhouseId!} canEdit={isAdmin} />
+          </section>
         </div>
       )}
     </div>

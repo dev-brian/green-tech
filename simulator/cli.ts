@@ -8,6 +8,8 @@
  *   node simulator/cli.ts --once
  *   node simulator/cli.ts --once --scenario=ph-alto
  *   node simulator/cli.ts --firestore --greenhouseId=<ID_INVERNADERO> --scenario=normal
+ *   node simulator/cli.ts --firestore --once --prune   (además borra lecturas de más de 7 días
+ *                                                       y promedios por hora de más de 30, T7.1 #75)
  */
 
 import type { AddressInfo } from 'node:net';
@@ -71,15 +73,26 @@ async function runCli() {
   const once = Boolean(args.once);
   const useFirestore =
     Boolean(args.firestore) || process.env.USE_FIRESTORE === 'true';
+  const prune = Boolean(args.prune);
 
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
 
+  if (prune && baseUrl) {
+    console.warn('[Simulador] --prune se ignora con --ingestUrl: la purga necesita acceso directo a Firestore.');
+  }
+
   if (!baseUrl) {
-    const storage = useFirestore
-      ? new FirestoreTelemetryStorage()
-      : undefined;
-    const { server } = createIngestHttpServer({ deviceKey, storage });
+    const { server, storage } = createIngestHttpServer({
+      deviceKey,
+      storage: useFirestore ? new FirestoreTelemetryStorage() : undefined,
+    });
+    if (prune) {
+      const { readingsDeleted, hourlyDeleted } = await storage.pruneExpired(greenhouseId);
+      console.log(
+        `[Simulador] Purga: ${readingsDeleted} lecturas de más de 7 días y ${hourlyDeleted} promedios por hora de más de 30 días borrados.`,
+      );
+    }
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;

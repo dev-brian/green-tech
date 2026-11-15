@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
+import PushNotificationsToggle from '../components/PushNotificationsToggle';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -676,6 +677,9 @@ export default function AlertsPage() {
           {activeWorkspace ? `Invernadero: ${activeWorkspace.name}` : 'Selecciona un invernadero'}
         </p>
       </div>
+
+      {/* ─── Push FCM de alertas críticas (T6.4 #51) ─────────────── */}
+      {activeWorkspace && <PushNotificationsToggle />}
 
       {!activeWorkspace ? (
         <div className="nm-concave" style={{ padding: 'var(--space-2xl)', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>

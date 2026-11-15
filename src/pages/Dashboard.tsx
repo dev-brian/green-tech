@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
+import ExportCsvButton from '../components/ExportCsvButton';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
 import type { SensorStatus } from '../lib/sensorThresholds';
 
@@ -212,6 +213,13 @@ export default function Dashboard() {
       ec: r.ec,
       tankLevel: r.tankLevel,
     }));
+  }, [readings, activeZone]);
+
+  // Lecturas crudas de la zona activa para la exportación CSV (T7.3)
+  const zoneReadings = useMemo(() => {
+    if (!activeZone) return [];
+    const filtered = readings.filter((r: TelemetryReading) => r.zoneId === activeZone.zoneId);
+    return filtered.length > 0 ? filtered : readings;
   }, [readings, activeZone]);
 
   return (
@@ -427,6 +435,33 @@ export default function Dashboard() {
               unit="%"
               status={activeZone.tankLevel.status}
               isCritical={activeZone.tankLevel.status === 'red'}
+            />
+          </div>
+
+          {/* Barra del histórico: título de zona + exportación CSV (T7.3, solo admin) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 'var(--space-sm)',
+              marginBottom: 'var(--space-sm)',
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: '0.9375rem',
+                color: 'var(--text-secondary)',
+                fontWeight: 700,
+              }}
+            >
+              Histórico — {formatZoneLabel(activeZone.zoneId, activeZone.crop)}
+            </h3>
+            <ExportCsvButton
+              readings={zoneReadings}
+              zoneLabel={formatZoneLabel(activeZone.zoneId, activeZone.crop)}
             />
           </div>
 

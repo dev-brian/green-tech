@@ -25,3 +25,6 @@ dist-ssr
 
 # Escenarios propios del simulador interactivo (locales)
 greenhouse-sim/data/
+
+# Llaves de producción: nunca se suben
+.env.production

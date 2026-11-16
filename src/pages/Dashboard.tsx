@@ -24,6 +24,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useZones } from '../hooks/useZones';
+import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
 import { useThresholds } from '../hooks/useThresholds';
@@ -54,20 +56,6 @@ import GreenhouseIllustration from '../components/GreenhouseIllustration';
  */
 
 const STATUS_PRIORITY: Record<SensorStatus, number> = { red: 0, yellow: 1, offline: 2, green: 3 };
-
-const ZONE_NAMES: Record<string, { name: string; crop: string }> = {
-  'zona-1': { name: 'Zona 1', crop: 'Lechuga' },
-  'zona-2': { name: 'Zona 2', crop: 'Jitomate' },
-  'zona-3': { name: 'Zona 3', crop: 'Hierbas' },
-};
-
-function zoneName(zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) {
-  const known = ZONE_NAMES[zone.zoneId];
-  return {
-    name: known?.name ?? zone.zoneId.replace(/^zona-/, 'Zona '),
-    crop: zone.crop ?? known?.crop,
-  };
-}
 
 const ICONS: Record<HydroponicVariable, typeof Thermometer> = {
   airTemp: Thermometer,
@@ -183,6 +171,12 @@ export default function Dashboard() {
   const { readings, zonesById, loading } = useTelemetrySource(greenhouseId);
   const { thresholds } = useThresholds(greenhouseId);
   const { alerts, markAttended } = useAlerts(greenhouseId);
+  // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
+  const { zonesById: registeredZones } = useZones(greenhouseId);
+  const zoneName = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => ({
+    name: zoneDisplayName(zone.zoneId, registeredZones),
+    crop: cropLabel(registeredZones[zone.zoneId]?.crop ?? zone.crop),
+  });
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const readingsRef = useRef<HTMLElement>(null);
 

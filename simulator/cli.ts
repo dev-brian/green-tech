@@ -8,6 +8,8 @@
  *   node simulator/cli.ts --once
  *   node simulator/cli.ts --once --scenario=ph-alto
  *   node simulator/cli.ts --firestore --greenhouseId=<ID_INVERNADERO> --scenario=normal
+ *   node simulator/cli.ts --firestore --once --prune   (además borra lecturas de más de 7 días
+ *                                                       y promedios por hora de más de 30, T7.1 #75)
  */
 
 import type { AddressInfo } from 'node:net';
@@ -72,9 +74,23 @@ async function runCli() {
   const once = Boolean(args.once);
   const useFirestore =
     Boolean(args.firestore) || process.env.USE_FIRESTORE === 'true';
+  const prune = Boolean(args.prune);
 
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
+
+  // Purga de lecturas de más de 7 días y promedios de más de 30 (T7.1 #75)
+  if (prune) {
+    if (useFirestore && !baseUrl) {
+      const { readingsDeleted, hourlyDeleted } =
+        await new FirestoreTelemetryStorage().pruneExpired(greenhouseId);
+      console.log(
+        `[Simulador] Purga: ${readingsDeleted} lecturas y ${hourlyDeleted} promedios por hora vencidos borrados.`,
+      );
+    } else {
+      console.warn('[Simulador] --prune solo funciona con --firestore y sin --ingestUrl; se omite.');
+    }
+  }
 
   if (!baseUrl) {
     const storage = useFirestore

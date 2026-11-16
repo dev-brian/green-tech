@@ -80,6 +80,12 @@ beforeEach(async () => {
       solutionTemp: 21.0,
       tankLevel: 85,
     });
+    await setDoc(doc(adminDb, 'greenhouses', GREENHOUSE_ID, 'readingsHourly', 'zona-1_2026111512'), {
+      zoneId: 'zona-1',
+      hour: Timestamp.now(),
+      count: 1,
+      ph: { avg: 6.0, min: 6.0, max: 6.0 },
+    });
     await setDoc(doc(adminDb, 'greenhouses', GREENHOUSE_ID, 'state', 'latest'), {
       'zona-1': {
         zoneId: 'zona-1',
@@ -113,6 +119,7 @@ describe('Firebase Emulator — Reglas de Firestore (HU-11 y Seguridad Backend)'
     await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID)));
     await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID, 'members', 'uid-admin')));
     await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID, 'readings', 'reading-1')));
+    await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID, 'readingsHourly', 'zona-1_2026111512')));
     await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID, 'state', 'latest')));
     await assertFails(getDoc(doc(outsiderDb, 'greenhouses', GREENHOUSE_ID, 'alerts', 'alert-sub-1')));
     await assertFails(
@@ -197,6 +204,14 @@ describe('Firebase Emulator — Reglas de Firestore (HU-11 y Seguridad Backend)'
         zoneId: 'zona-1',
         ph: 7.5,
         ingestKey: 'gt-dev-device-key-2026',
+      }),
+    );
+    // Los promedios por hora (T7.1 #75) los lee cualquier miembro y solo los escribe el backend
+    await assertSucceeds(getDoc(doc(operatorDb, 'greenhouses', GREENHOUSE_ID, 'readingsHourly', 'zona-1_2026111512')));
+    await assertFails(
+      setDoc(doc(adminDb, 'greenhouses', GREENHOUSE_ID, 'readingsHourly', 'zona-1_2026111512'), {
+        zoneId: 'zona-1',
+        count: 999,
       }),
     );
     await assertFails(

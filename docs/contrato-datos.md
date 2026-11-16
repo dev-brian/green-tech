@@ -69,7 +69,7 @@ Todo cuelga del invernadero, para que las reglas se resuelvan con `isMember(gree
 
 ### 2.2 `greenhouses/{greenhouseId}/readings/{readingId}`
 
-Una lectura **por minuto por zona**. Se conservan **7 días**; una tarea programada borra las más viejas.
+Una lectura **por minuto por zona**. Se conservan **7 días**; el workflow `alert-engine.yml` borra las más viejas en cada corrida (`simulator/cli.ts --prune`, T7.1 #75).
 
 | Campo | Tipo | Notas |
 | --- | --- | --- |
@@ -77,11 +77,15 @@ Una lectura **por minuto por zona**. Se conservan **7 días**; una tarea program
 | `timestamp` | Timestamp | Hora de la medición |
 | `airTemp` … `tankLevel` | number | Las 7 variables de 2.1 |
 
-Consulta del histórico de 24 h: `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp`. Necesita el índice compuesto `zoneId ASC, timestamp ASC`.
+Consulta del histórico de 24 h: `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp`. Necesita el índice compuesto `zoneId ASC, timestamp ASC`, declarado en `firestore.indexes.json`.
 
 ### 2.3 `greenhouses/{greenhouseId}/readingsHourly/{zoneId}_{yyyyMMddHH}`
 
 Promedios por hora, para las gráficas de 7 y 30 días sin leer miles de lecturas. Se conservan **30 días**.
+
+- La hora del id (`yyyyMMddHH`) y el campo `hour` van en **UTC**. Ejemplo: la lectura de `2026-11-15T04:37Z` de `zona-1` entra en `zona-1_2026111504`.
+- Los escribe la ingesta: cada lectura que entra por `POST /ingestTelemetry` actualiza el documento de su zona y hora en una transacción (`simulator/core/hourlyAggregation.ts`). Para las lecturas que ya existían antes de este cambio, `pnpm backfill:hourly` rellena la colección una vez.
+- Consulta de 7 y 30 días: `where zoneId == Z`, `where hour >= desde`, `orderBy hour`. Necesita el índice compuesto `zoneId ASC, hour ASC`, declarado en `firestore.indexes.json`.
 
 | Campo | Tipo | Notas |
 | --- | --- | --- |
@@ -89,6 +93,10 @@ Promedios por hora, para las gráficas de 7 y 30 días sin leer miles de lectura
 | `hour` | Timestamp | Inicio de la hora |
 | `count` | number | Lecturas que entraron en el promedio |
 | `airTemp` … `tankLevel` | map | `{ avg, min, max }` por variable |
+
+### 2.3.1 Índices compuestos
+
+Viven en `firestore.indexes.json` (referenciado desde `firebase.json`) y se publican con `firebase deploy --only firestore:indexes`. Sin ellos, Firestore rechaza las consultas de histórico con `failed-precondition`.
 
 ### 2.4 `greenhouses/{greenhouseId}/state/latest`
 

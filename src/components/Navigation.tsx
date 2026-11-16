@@ -14,6 +14,7 @@ import {
   Sprout,
   Bell,
   MapPin,
+  History as HistoryIcon,
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
@@ -37,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/',          label: 'Inicio',    icon: Home },
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/alerts',    label: 'Alertas',   icon: Bell },
+  { path: '/history',   label: 'Histórico', icon: HistoryIcon },
   { path: '/control',   label: 'Control',   icon: Settings2 },
   { path: '/zones',     label: 'Zonas',     icon: MapPin },
   { path: '/plants',    label: 'Plantas',   icon: Leaf, roles: ['admin'] },

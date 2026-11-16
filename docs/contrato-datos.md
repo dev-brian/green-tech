@@ -77,7 +77,7 @@ Una lectura **por minuto por zona**. Se conservan **7 días**; el workflow `aler
 | `timestamp` | Timestamp | Hora de la medición |
 | `airTemp` … `tankLevel` | number | Las 7 variables de 2.1 |
 
-Consulta del histórico de 24 h: `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp`. Necesita el índice compuesto `zoneId ASC, timestamp ASC`, declarado en `firestore.indexes.json`.
+Consulta del histórico de 24 h (página Histórico, T7.2 #76): `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp desc`, `limit 1500`. Se ordena de la más nueva a la más vieja para que el tope corte las lecturas antiguas. Usa el índice compuesto `zoneId ASC, timestamp DESC`; `zoneId ASC, timestamp ASC` queda para las consultas en orden ascendente. Los dos están en `firestore.indexes.json`.
 
 ### 2.3 `greenhouses/{greenhouseId}/readingsHourly/{zoneId}_{yyyyMMddHH}`
 

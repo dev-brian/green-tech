@@ -35,6 +35,20 @@ Convenciones: nombres de campos en `camelCase` inglés; fechas como `Timestamp` 
 | `reqs` | map | `{ tempMin, tempMax, humidity, soilMoisture, lightHours }` |
 | `createdAt` | string ISO | Obligatorio: `getPlants` ordena por este campo |
 
+### `greenhouses/{greenhouseId}/zones/{zoneId}` (HU-04, T4.1 #64)
+
+Zonas de cultivo. El `zoneId` es el **mismo** que manda el sensor en `POST /ingestTelemetry` (`zona-1`, `zona-2`…), así `readings`, `state/latest` y `alerts` se unen a la zona sin migrar nada. Solo `[a-z0-9-]`, 1 a 40 caracteres.
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `name` | string | 1 a 60 caracteres. Se muestra en el dashboard, el filtro de alertas y el texto de la alerta |
+| `crop` | `"jitomate"` \| `"lechuga"` | Cultivo asignado |
+| `createdAt`, `updatedAt` | Timestamp | |
+
+- Lectura: cualquier miembro. Crear, editar y borrar: solo el admin; las reglas rechazan otros campos u otros cultivos.
+- **Umbrales por cultivo:** al llegar una lectura, el backend lee la zona y, si tiene `crop`, evalúa con los umbrales de ese cultivo aunque el sensor mande otro. Si la zona no está registrada, usa el `crop` del sensor.
+- Borrar una zona no borra sus lecturas ni alertas; si el sensor sigue mandando datos, la PWA la muestra como "sin registrar".
+
 ## 2. Esquema v1 (hidropónico)
 
 Todo cuelga del invernadero, para que las reglas se resuelvan con `isMember(greenhouseId)`. Las lecturas, el último estado y las alertas los escribe **solo el backend** (proceso Node en servidor/GitHub Actions bajo el Plan B gratuito Spark, o Cloud Functions). Las apps leen; lo único que escriben los clientes es atender una alerta y su propio token de push.

@@ -13,10 +13,13 @@ import {
   processIngestedReading,
   type TelemetryStorageAdapter,
 } from './core/alertAndActuatorEngine.ts';
+import type { AlertPushNotifier } from './core/pushNotifier.ts';
 
 export interface IngestServerOptions {
   deviceKey?: string;
   storage?: TelemetryStorageAdapter;
+  /** Envío de push de alertas críticas (T6.5 #52); sin él no se notifica. */
+  notifier?: AlertPushNotifier;
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -103,7 +106,7 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
           return;
         }
 
-        const result = await processIngestedReading(validation.data, storage);
+        const result = await processIngestedReading(validation.data, storage, options.notifier);
         sendJson(res, 201, {
           ok: true,
           readingId: result.readingId,

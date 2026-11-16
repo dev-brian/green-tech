@@ -34,6 +34,7 @@ import type {
   AlertRecord,
   TelemetryStorageAdapter,
   ZoneActuatorsState,
+  ZoneConfig,
   ZoneLatestState,
 } from './alertAndActuatorEngine.ts';
 
@@ -102,6 +103,26 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
       };
     } catch {
       return DEFAULT_CROP_THRESHOLDS[crop];
+    }
+  }
+
+  async getZoneConfig(greenhouseId: string, zoneId: string): Promise<ZoneConfig | null> {
+    try {
+      const snap = await this.db
+        .collection('greenhouses')
+        .doc(greenhouseId)
+        .collection('zones')
+        .doc(zoneId)
+        .get();
+      if (!snap.exists) return null;
+      const data = snap.data() ?? {};
+      return {
+        name: typeof data.name === 'string' && data.name.trim() ? data.name.trim() : undefined,
+        crop: data.crop === 'jitomate' || data.crop === 'lechuga' ? data.crop : undefined,
+      };
+    } catch {
+      // Si no se puede leer la zona, se usa el cultivo que manda el sensor.
+      return null;
     }
   }
 

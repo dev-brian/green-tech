@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -15,189 +15,215 @@ import {
   FlaskConical,
   Zap,
   Waves,
+  Gauge,
   RefreshCw,
+  CircleCheck,
+  TriangleAlert,
+  OctagonAlert,
+  WifiOff,
+  ChevronRight,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useZones } from '../hooks/useZones';
-import { zoneLabel } from '../lib/zones';
+import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
+import { useThresholds } from '../hooks/useThresholds';
+import { useAlerts } from '../hooks/useAlerts';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
-import type { SensorStatus } from '../lib/sensorThresholds';
+import type { HydroponicVariable, SensorStatus } from '../lib/sensorThresholds';
+import {
+  VARIABLES,
+  VARIABLE_ORDER,
+  GROUP_LABEL,
+  STATUS_WORD,
+  STATUS_CLASS,
+  adviceFor,
+  formatValue,
+  gaugeGeometry,
+  idealText,
+  type VariableGroup,
+} from '../lib/plainLanguage';
+import GreenhouseIllustration from '../components/GreenhouseIllustration';
 
 /**
- * Colores en HEX literal para Recharts (coinciden con las variables de index.css).
+ * Inicio "sencillo primero" (SKILL.md):
+ * 1. La frase: ¿está todo bien?
+ * 2. Qué hacer ahora: una tarjeta por problema, en lenguaje de productor.
+ * 3. Tus zonas y las lecturas de la zona elegida con medidores de rango.
+ * Las gráficas quedan plegadas al final. El estado de cada variable lo
+ * manda el backend; aquí solo se pinta.
  */
-const CHART_COLORS = {
-  bg: '#1e222b',
-  textSecondary: '#94a3b8',
-  textDisabled: '#4a5568',
-  shadowDark: '#15181f',
-  shadowLight: '#272d3a',
-  accent: '#10b981',
-  yellow: '#f59e0b',
-  blue: '#3b82f6',
+
+const STATUS_PRIORITY: Record<SensorStatus, number> = { red: 0, yellow: 1, offline: 2, green: 3 };
+
+const ICONS: Record<HydroponicVariable, typeof Thermometer> = {
+  airTemp: Thermometer,
+  humidity: Droplets,
+  light: Sun,
+  ph: FlaskConical,
+  ec: Zap,
+  solutionTemp: Waves,
+  tankLevel: Gauge,
 };
 
-const STATUS_PRIORITY: Record<SensorStatus, number> = {
-  red: 0,
-  yellow: 1,
-  green: 2,
-  offline: 3,
+const STATUS_ICON: Record<SensorStatus, typeof CircleCheck> = {
+  green: CircleCheck,
+  yellow: TriangleAlert,
+  red: OctagonAlert,
+  offline: WifiOff,
 };
 
-function SensorLED({ status, isCritical }: { status: SensorStatus; isCritical?: boolean }) {
-  const ledClass = [
-    'nm-led',
-    `nm-led--${status}`,
-    status === 'red' && isCritical ? 'nm-led--red-pulse' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+interface Problem {
+  zone: ZoneLatestState;
+  variable: HydroponicVariable;
+  status: 'red' | 'yellow';
+}
+
+function timeAgo(date: Date | undefined): string {
+  if (!date) return 'sin datos';
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return `hace ${Math.max(0, seconds)} s`;
+  if (seconds < 3600) return `hace ${Math.floor(seconds / 60)} min`;
+  return `a las ${date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
+function StatusChip({ status, label }: { status: SensorStatus; label?: string }) {
+  const Icon = STATUS_ICON[status];
   return (
-    <span
-      className={ledClass}
-      role="status"
-      aria-label={`Estado del sensor: ${status}`}
-    />
+    <span className={`chip chip--${STATUS_CLASS[status]}`}>
+      <Icon size={16} strokeWidth={2} aria-hidden="true" />
+      {label ?? STATUS_WORD[status]}
+    </span>
   );
 }
 
-function timeAgo(date: Date | undefined, isStale?: boolean): string {
-  if (!date) return 'sin datos';
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  const base =
-    seconds < 60
-      ? `hace ${Math.max(0, seconds)}s`
-      : seconds < 3600
-        ? `hace ${Math.floor(seconds / 60)} min`
-        : `hace ${Math.floor(seconds / 3600)} h`;
-  return isStale ? `sin datos recientes (${base})` : `Actualizado ${base}`;
-}
-
-function formatChartTime(d: Date) {
-  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+function RangeGauge({
+  variable,
+  value,
+  status,
+  thresholds,
+  showEnds,
+}: {
+  variable: HydroponicVariable;
+  value: number;
+  status: SensorStatus;
+  thresholds: ReturnType<typeof useThresholds>['thresholds'];
+  showEnds?: boolean;
+}) {
+  const t = thresholds[variable];
+  const g = gaugeGeometry(variable, value, t);
+  const ends = VARIABLES[variable].ends;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span
+        className="gauge"
+        role="img"
+        aria-label={`${formatValue(variable, value)}. ${idealText(variable, t)}.`}
+      >
+        <span className="gauge__band" style={{ left: `${g.bandLeft}%`, width: `${g.bandWidth}%` }} />
+        <span className={`gauge__mark gauge__mark--${STATUS_CLASS[status]}`} style={{ left: `${g.mark}%` }} />
+      </span>
+      {showEnds && (
+        <span className="metric-label" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }} aria-hidden="true">
+          <span>{ends[0]}</span>
+          <span>{ends[1]}</span>
+        </span>
+      )}
+    </div>
+  );
 }
 
 function EmptyState() {
   return (
     <div
-      className="nm-concave animate-fade-in"
+      className="glass animate-fade-in"
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         textAlign: 'center',
         padding: 'var(--space-2xl) var(--space-md)',
-        borderRadius: 'var(--radius-lg)',
         gap: 'var(--space-sm)',
       }}
     >
-      <div
-        className="nm-flat"
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 'var(--radius-full)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <RefreshCw size={26} strokeWidth={1.5} color="var(--text-disabled)" />
-      </div>
-      <h3 style={{ margin: 0, fontSize: '1.15rem' }}>Todavía no hay lecturas</h3>
-      <p
-        style={{
-          margin: 0,
-          maxWidth: 460,
-          fontSize: '0.875rem',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.6,
-        }}
-      >
-        Esperando telemetría hidropónica en{' '}
-        <strong style={{ color: 'var(--text-primary)' }}>
-          greenhouses/&#123;id&#125;/state/latest
-        </strong>
-        . Ejecuta el simulador con{' '}
-        <code style={{ color: 'var(--accent)' }}>pnpm sim:firestore --ticks=6</code> para
-        enviar las 7 variables por zona en tiempo real.
+      <span className="icon-well icon-well--offline" style={{ width: 56, height: 56 }}>
+        <RefreshCw size={24} strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <h2 style={{ fontSize: '1.25rem' }}>Todavía no llegan lecturas</h2>
+      <p style={{ maxWidth: 460, fontSize: '0.9375rem' }}>
+        En cuanto los sensores (o el simulador) manden datos, aquí verás si tu invernadero está en orden.
       </p>
     </div>
   );
 }
 
-function MetricCard({
-  icon,
-  label,
-  value,
-  unit,
-  status,
-  isCritical,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  unit?: string;
-  status: SensorStatus;
-  isCritical?: boolean;
-}) {
-  return (
-    <div
-      className="nm-flat"
-      style={{
-        padding: 'var(--space-sm)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-xs)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {icon}
-        <SensorLED status={status} isCritical={isCritical} />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 'var(--space-xs)' }}>
-        <span className="metric-value">{value}</span>
-        {unit && <span className="metric-unit">{unit}</span>}
-      </div>
-      <span className="metric-label">{label}</span>
-    </div>
-  );
-}
-
 export default function Dashboard() {
-  const { activeWorkspace } = useAuth();
-  const { readings, zonesById, loading } = useTelemetrySource(activeWorkspace?.id ?? null);
-  // Nombres y cultivo de cada zona registrada por el admin (T4.2 #65).
-  const { zonesById: registeredZones } = useZones(activeWorkspace?.id ?? null);
+  const { activeWorkspace, user } = useAuth();
+  const greenhouseId = activeWorkspace?.id ?? null;
+  const { readings, zonesById, loading } = useTelemetrySource(greenhouseId);
+  const { thresholds } = useThresholds(greenhouseId);
+  const { alerts, markAttended } = useAlerts(greenhouseId);
+  // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
+  const { zonesById: registeredZones } = useZones(greenhouseId);
+  const zoneName = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => ({
+    name: zoneDisplayName(zone.zoneId, registeredZones),
+    crop: cropLabel(registeredZones[zone.zoneId]?.crop ?? zone.crop),
+  });
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const readingsRef = useRef<HTMLElement>(null);
 
-  // Ordenar las zonas con peor estado primero (T4.1 / T4.2)
-  const sortedZones: ZoneLatestState[] = useMemo(() => {
-    return Object.values(zonesById).sort((a, b) => {
-      const diff = STATUS_PRIORITY[a.overallStatus] - STATUS_PRIORITY[b.overallStatus];
-      if (diff !== 0) return diff;
-      return a.zoneId.localeCompare(b.zoneId);
-    });
-  }, [zonesById]);
+  const sortedZones: ZoneLatestState[] = useMemo(
+    () =>
+      Object.values(zonesById).sort((a, b) => {
+        const diff = STATUS_PRIORITY[a.overallStatus] - STATUS_PRIORITY[b.overallStatus];
+        return diff !== 0 ? diff : a.zoneId.localeCompare(b.zoneId);
+      }),
+    [zonesById],
+  );
 
-  const activeZone: ZoneLatestState | null = useMemo(() => {
-    if (sortedZones.length === 0) return null;
-    if (selectedZoneId && zonesById[selectedZoneId]) {
-      return zonesById[selectedZoneId];
+  // Las zonas en el orden físico (zona-1, zona-2…) para la ilustración.
+  const physicalZones = useMemo(
+    () => [...sortedZones].sort((a, b) => a.zoneId.localeCompare(b.zoneId)),
+    [sortedZones],
+  );
+
+  const problems: Problem[] = useMemo(() => {
+    const list: Problem[] = [];
+    for (const zone of sortedZones) {
+      if (zone.isStale) continue;
+      for (const v of VARIABLE_ORDER) {
+        const s = zone[v].status;
+        if (s === 'red' || s === 'yellow') list.push({ zone, variable: v, status: s });
+      }
     }
-    return sortedZones[0];
-  }, [sortedZones, selectedZoneId, zonesById]);
+    return list.sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]);
+  }, [sortedZones]);
 
-  // Filtrar lecturas históricas de la zona activa
+  const staleZones = sortedZones.filter((z) => z.isStale);
+  const critCount = problems.filter((p) => p.status === 'red').length;
+  const warnCount = problems.length - critCount;
+  const totalReadings = sortedZones.filter((z) => !z.isStale).length * VARIABLE_ORDER.length;
+  const okReadings = totalReadings - problems.length;
+  const latest = sortedZones.reduce<Date | undefined>(
+    (acc, z) => (!acc || z.timestamp > acc ? z.timestamp : acc),
+    undefined,
+  );
+
+  const activeZone =
+    (selectedZoneId && zonesById[selectedZoneId]) || sortedZones[0] || null;
+
   const chartData = useMemo(() => {
-    const filtered = activeZone
-      ? readings.filter((r: TelemetryReading) => r.zoneId === activeZone.zoneId)
-      : readings;
-    const source = filtered.length > 0 ? filtered : readings;
-
-    return source.map((r: TelemetryReading) => ({
-      time: formatChartTime(r.timestamp),
+    const filtered = activeZone ? readings.filter((r: TelemetryReading) => r.zoneId === activeZone.zoneId) : readings;
+    return (filtered.length > 0 ? filtered : readings).map((r: TelemetryReading) => ({
+      time: r.timestamp.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
       airTemp: r.airTemp,
       humidity: r.humidity,
       ph: r.ph,
@@ -206,286 +232,356 @@ export default function Dashboard() {
     }));
   }, [readings, activeZone]);
 
+  const openZone = (zoneId: string) => {
+    setSelectedZoneId(zoneId);
+    readingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const alertFor = (p: Problem) =>
+    alerts.find((a) => a.status === 'new' && a.sector === p.zone.zoneId && a.variable === p.variable);
+
+  // ── La frase ────────────────────────────────────────────────────────────
+  let headline: string;
+  let subline: string;
+  const top = problems[0];
+  if (top) {
+    const n = problems.length;
+    headline = n === 1 ? 'Hay 1 cosa por revisar' : `Hay ${n} cosas por revisar`;
+    const advice = adviceFor(top.variable, top.zone[top.variable].value, thresholds[top.variable]);
+    subline = `${n > 1 ? 'La más urgente: ' : ''}${advice.title.charAt(0).toLowerCase()}${advice.title.slice(1)} en la ${zoneName(top.zone).name}.`;
+  } else if (staleZones.length > 0) {
+    headline = 'No llegan datos de una zona';
+    subline = `${staleZones.map((z) => zoneName(z).name).join(', ')}: última lectura ${timeAgo(staleZones[0].timestamp)}. Revisa la conexión del sensor.`;
+  } else {
+    headline = 'Todo en orden';
+    subline = `${sortedZones.length === 1 ? 'La zona está' : `Las ${sortedZones.length} zonas están`} dentro de rango. Última lectura ${timeAgo(latest)}.`;
+  }
+
+  const firstName = user?.name?.split(' ')[0];
+  const topValue = top ? top.zone[top.variable].value : 0;
+
   return (
     <div
       className="container animate-fade-in"
-      style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}
+      style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
     >
-      {/* Encabezado y estado de la zona activa */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 'var(--space-sm)',
-          marginBottom: 'var(--space-md)',
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)' }}>
-            Estado Actual Hidropónico
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              marginTop: 'var(--space-xs)',
-              color: activeZone?.isStale ? 'var(--status-yellow)' : 'var(--text-secondary)',
-              fontSize: '0.875rem',
-            }}
-          >
-            {activeWorkspace
-              ? timeAgo(activeZone?.timestamp, activeZone?.isStale)
-              : 'Selecciona un invernadero'}
-          </p>
-        </div>
-
-        {activeZone && (
-          <div
-            className="nm-flat"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-xs)',
-              padding: '0 var(--space-sm)',
-              minHeight: 48,
-              borderRadius: 'var(--radius-sm)',
-            }}
-          >
-            <SensorLED
-              status={activeZone.overallStatus}
-              isCritical={activeZone.overallStatus === 'red'}
-            />
-            <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
-              {zoneLabel(activeZone.zoneId, registeredZones, activeZone.crop)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Selector de zonas (peor estado primero) */}
-      {sortedZones.length > 1 && (
-        <div
-          role="tablist"
-          aria-label="Zonas del invernadero"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 'var(--space-xs)',
-            marginBottom: 'var(--space-lg)',
-          }}
-        >
-          {sortedZones.map((zone) => {
-            const isSelected = activeZone?.zoneId === zone.zoneId;
-            return (
-              <button
-                key={zone.zoneId}
-                role="tab"
-                aria-selected={isSelected}
-                onClick={() => setSelectedZoneId(zone.zoneId)}
-                className={isSelected ? 'nm-concave' : 'nm-flat'}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-xs)',
-                  padding: '0 var(--space-sm)',
-                  minHeight: 48,
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                  color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  fontWeight: isSelected ? 700 : 600,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <SensorLED
-                  status={zone.overallStatus}
-                  isCritical={zone.overallStatus === 'red'}
-                />
-                <span>{zoneLabel(zone.zoneId, registeredZones, zone.crop)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {loading ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 'var(--space-sm)',
-            padding: 'var(--space-2xl) 0',
-            color: 'var(--text-disabled)',
-          }}
-        >
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              border: '2px solid var(--text-disabled)',
-              borderTopColor: 'var(--accent)',
-              borderRadius: '50%',
-              animation: 'spin 0.7s linear infinite',
-            }}
-          />
-          <span>Cargando lecturas...</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)', padding: 'var(--space-2xl) 0', color: 'var(--text-secondary)' }}>
+          <span style={{ width: 20, height: 20, border: '2px solid var(--track)', borderTopColor: 'var(--leaf)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          <span>Cargando lecturas…</span>
         </div>
-      ) : !activeZone ? (
+      ) : sortedZones.length === 0 ? (
         <EmptyState />
       ) : (
         <>
-          {/* Sección 1: Ambiente (3 variables) */}
-          <h3
-            style={{
-              margin: 0,
-              marginBottom: 'var(--space-xs)',
-              fontSize: '0.9375rem',
-              color: 'var(--text-secondary)',
-              fontWeight: 700,
-            }}
-          >
-            Ambiente
-          </h3>
-          <div className="metrics-grid" style={{ marginBottom: 'var(--space-lg)' }}>
-            <MetricCard
-              icon={<Thermometer size={20} strokeWidth={1.5} color="var(--status-yellow)" />}
-              label="Temperatura del Aire"
-              value={String(activeZone.airTemp.value)}
-              unit="°C"
-              status={activeZone.airTemp.status}
-              isCritical={activeZone.airTemp.status === 'red'}
-            />
-            <MetricCard
-              icon={<Droplets size={20} strokeWidth={1.5} color="var(--status-blue)" />}
-              label="Humedad Relativa"
-              value={String(activeZone.humidity.value)}
-              unit="%"
-              status={activeZone.humidity.status}
-              isCritical={activeZone.humidity.status === 'red'}
-            />
-            <MetricCard
-              icon={<Sun size={20} strokeWidth={1.5} color="var(--status-yellow)" />}
-              label="Luz Ambiental"
-              value={activeZone.light.value.toLocaleString('es-MX')}
-              unit="lux"
-              status={activeZone.light.status}
-              isCritical={activeZone.light.status === 'red'}
-            />
-          </div>
-
-          {/* Sección 2: Solución Nutritiva (4 variables) */}
-          <h3
-            style={{
-              margin: 0,
-              marginBottom: 'var(--space-xs)',
-              fontSize: '0.9375rem',
-              color: 'var(--text-secondary)',
-              fontWeight: 700,
-            }}
-          >
-            Solución Nutritiva
-          </h3>
-          <div className="metrics-grid" style={{ marginBottom: 'var(--space-lg)' }}>
-            <MetricCard
-              icon={<FlaskConical size={20} strokeWidth={1.5} color="var(--accent)" />}
-              label="pH de la Solución"
-              value={activeZone.ph.value.toFixed(2)}
-              unit="pH"
-              status={activeZone.ph.status}
-              isCritical={activeZone.ph.status === 'red'}
-            />
-            <MetricCard
-              icon={<Zap size={20} strokeWidth={1.5} color="var(--status-yellow)" />}
-              label="Conductividad (EC)"
-              value={activeZone.ec.value.toFixed(2)}
-              unit="mS/cm"
-              status={activeZone.ec.status}
-              isCritical={activeZone.ec.status === 'red'}
-            />
-            <MetricCard
-              icon={<Thermometer size={20} strokeWidth={1.5} color="var(--status-blue)" />}
-              label="Temp. de la Solución"
-              value={String(activeZone.solutionTemp.value)}
-              unit="°C"
-              status={activeZone.solutionTemp.status}
-              isCritical={activeZone.solutionTemp.status === 'red'}
-            />
-            <MetricCard
-              icon={<Waves size={20} strokeWidth={1.5} color="var(--accent)" />}
-              label="Nivel del Tanque"
-              value={String(activeZone.tankLevel.value)}
-              unit="%"
-              status={activeZone.tankLevel.status}
-              isCritical={activeZone.tankLevel.status === 'red'}
-            />
-          </div>
-
-          {/* Gráfica 1: Ambiente */}
-          <div className="nm-flat" style={{ padding: 'var(--space-md)', marginBottom: 'var(--space-lg)' }}>
-            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
-              Histórico — Temperatura del Aire y Humedad
-            </h3>
-            <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ width: '100%', height: 260 }}>
-                <ResponsiveContainer>
-                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
-                    <YAxis yAxisId="left" stroke={CHART_COLORS.yellow} tick={{ fontSize: 11, fill: CHART_COLORS.yellow }} />
-                    <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: CHART_COLORS.bg,
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                        boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
-                      }}
-                      itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
-                      labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
-                    />
-                    <Line yAxisId="left" type="monotone" dataKey="airTemp" name="Temp. Aire (°C)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="right" type="monotone" dataKey="humidity" name="Humedad (%)" stroke={CHART_COLORS.blue} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
+          {/* 1. La frase */}
+          <section className="glass" aria-labelledby="estado-titulo" style={{ padding: 'clamp(20px, 4vw, 32px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
+            <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <span className="metric-label" style={{ fontSize: '0.9375rem' }}>
+                {greeting()}{firstName ? `, ${firstName}` : ''}
+              </span>
+              <h1 id="estado-titulo" className="display">{headline}</h1>
+              <p style={{ fontSize: '1.0625rem', maxWidth: 480 }}>{subline}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {critCount > 0 && <StatusChip status="red" label={critCount === 1 ? '1 crítica' : `${critCount} críticas`} />}
+                {warnCount > 0 && <StatusChip status="yellow" label={warnCount === 1 ? '1 en atención' : `${warnCount} en atención`} />}
+                {staleZones.length > 0 && <StatusChip status="offline" label={`${staleZones.length} sin datos`} />}
+                {totalReadings > 0 && <StatusChip status="green" label={`${okReadings} de ${totalReadings} lecturas bien`} />}
               </div>
             </div>
-          </div>
-
-          {/* Gráfica 2: Solución Nutritiva */}
-          <div className="nm-flat" style={{ padding: 'var(--space-md)' }}>
-            <h3 style={{ margin: 0, marginBottom: 'var(--space-md)', fontSize: '1rem', fontWeight: 700 }}>
-              Histórico — Solución Nutritiva (pH, EC y Nivel del Tanque)
-            </h3>
-            <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ width: '100%', height: 220 }}>
-                <ResponsiveContainer>
-                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" stroke={CHART_COLORS.textDisabled} tick={{ fontSize: 11, fill: CHART_COLORS.textDisabled }} />
-                    <YAxis yAxisId="left" stroke={CHART_COLORS.accent} tick={{ fontSize: 11, fill: CHART_COLORS.accent }} domain={[0, 10]} />
-                    <YAxis yAxisId="right" orientation="right" stroke={CHART_COLORS.blue} tick={{ fontSize: 11, fill: CHART_COLORS.blue }} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        background: CHART_COLORS.bg,
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
-                        boxShadow: `4px 4px 8px ${CHART_COLORS.shadowDark}, -4px -4px 8px ${CHART_COLORS.shadowLight}`,
-                      }}
-                      itemStyle={{ color: '#f1f5f9', fontSize: '0.8125rem' }}
-                      labelStyle={{ color: CHART_COLORS.textSecondary, fontSize: '0.75rem' }}
-                    />
-                    <Line yAxisId="left" type="monotone" dataKey="ph" name="pH" stroke={CHART_COLORS.accent} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.accent, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="left" type="monotone" dataKey="ec" name="EC (mS/cm)" stroke={CHART_COLORS.yellow} strokeWidth={2.5} dot={{ r: 3, fill: CHART_COLORS.bg, stroke: CHART_COLORS.yellow, strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
-                    <Line yAxisId="right" type="monotone" dataKey="tankLevel" name="Tanque (%)" stroke={CHART_COLORS.blue} strokeWidth={2} dot={{ r: 2, fill: CHART_COLORS.bg, stroke: CHART_COLORS.blue, strokeWidth: 2 }} activeDot={{ r: 4 }} isAnimationActive={false} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            <div style={{ flex: '1 1 380px', minWidth: 0, maxWidth: 560, margin: '0 auto' }}>
+              <GreenhouseIllustration
+                zones={physicalZones.map((z) => ({ zoneId: z.zoneId, label: zoneName(z).name, status: z.overallStatus }))}
+                callout={
+                  top
+                    ? {
+                        zoneId: top.zone.zoneId,
+                        title: `${zoneName(top.zone).name} · ${VARIABLES[top.variable].name}`,
+                        value: `${VARIABLES[top.variable].technical ? `${VARIABLES[top.variable].technical} ` : ''}${formatValue(top.variable, topValue)}${VARIABLES[top.variable].unit && !VARIABLES[top.variable].technical ? ` ${VARIABLES[top.variable].unit}` : ''}`,
+                        status: top.status,
+                      }
+                    : undefined
+                }
+              />
             </div>
-          </div>
+          </section>
+
+          {/* 2. Qué hacer ahora */}
+          {problems.length > 0 && (
+            <section aria-labelledby="hacer-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              <h2 id="hacer-titulo" className="section-title">Qué hacer ahora</h2>
+              <div className="grid-cards">
+                {problems.slice(0, 4).map((p) => {
+                  const info = VARIABLES[p.variable];
+                  const t = thresholds[p.variable];
+                  const value = p.zone[p.variable].value;
+                  const advice = adviceFor(p.variable, value, t);
+                  const Icon = ICONS[p.variable];
+                  const alert = alertFor(p);
+                  const z = zoneName(p.zone);
+                  return (
+                    <article key={`${p.zone.zoneId}-${p.variable}`} className="glass" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                        <span className={`icon-well icon-well--${STATUS_CLASS[p.status]}`} style={{ width: 48, height: 48 }}>
+                          <Icon size={24} strokeWidth={1.75} aria-hidden="true" />
+                        </span>
+                        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <h3 style={{ fontSize: '1.1875rem' }}>{advice.title}</h3>
+                          <span className="metric-label">
+                            {z.name}{z.crop ? ` · ${z.crop}` : ''} · {timeAgo(p.zone.timestamp)}
+                          </span>
+                        </div>
+                        <StatusChip status={p.status} />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                          <span className="tnum" style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                            {formatValue(p.variable, value)}{' '}
+                            <span className="metric-unit">{info.technical ?? info.unit}</span>
+                          </span>
+                          <span className="metric-label">{idealText(p.variable, t)}</span>
+                        </div>
+                        <RangeGauge variable={p.variable} value={value} status={p.status} thresholds={thresholds} showEnds />
+                      </div>
+
+                      <div className="well" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.9375rem', lineHeight: 1.5 }}>
+                        <p style={{ margin: 0 }}><strong style={{ color: 'var(--text-primary)' }}>Qué significa.</strong> {advice.meaning}</p>
+                        {advice.system && (
+                          <p style={{ margin: 0 }}><strong style={{ color: 'var(--text-primary)' }}>Qué hace el sistema.</strong> {advice.system}</p>
+                        )}
+                        <p style={{ margin: 0 }}><strong style={{ color: 'var(--text-primary)' }}>Qué haces tú.</strong> {advice.action}</p>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {alert && (
+                          <button type="button" className="btn-primary" onClick={() => markAttended(alert.id)}>
+                            Ya lo revisé
+                          </button>
+                        )}
+                        <button type="button" className="btn-secondary" onClick={() => openZone(p.zone.zoneId)}>
+                          Ver la {z.name}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              {problems.length > 4 && (
+                <Link to="/alerts" style={{ minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                  Ver las {problems.length - 4} restantes en Alertas <ChevronRight size={16} aria-hidden="true" />
+                </Link>
+              )}
+            </section>
+          )}
+
+          {/* 3. Tus zonas */}
+          <section aria-labelledby="zonas-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            <h2 id="zonas-titulo" className="section-title">Tus zonas</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-sm)' }}>
+              {sortedZones.map((zone) => {
+                const z = zoneName(zone);
+                const bad = VARIABLE_ORDER.filter((v) => zone[v].status === 'red' || zone[v].status === 'yellow');
+                const okCount = zone.isStale ? 0 : VARIABLE_ORDER.length - bad.length;
+                let sentence = 'Todo en orden.';
+                if (zone.isStale) sentence = `No llegan datos desde ${timeAgo(zone.timestamp)}.`;
+                else if (bad.length === 1) {
+                  const a = adviceFor(bad[0], zone[bad[0]].value, thresholds[bad[0]]);
+                  sentence = `${a.title}. Lo demás, bien.`;
+                } else if (bad.length > 1) sentence = `${bad.length} lecturas por revisar.`;
+                const selected = activeZone?.zoneId === zone.zoneId;
+                return (
+                  <button
+                    key={zone.zoneId}
+                    type="button"
+                    className="glass"
+                    onClick={() => openZone(zone.zoneId)}
+                    aria-pressed={selected}
+                    style={{
+                      textAlign: 'left',
+                      padding: 20,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      color: 'var(--text-primary)',
+                      font: 'inherit',
+                      cursor: 'pointer',
+                      outline: selected ? '2px solid var(--ink-block)' : undefined,
+                      outlineOffset: selected ? 2 : undefined,
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%' }}>
+                      <span style={{ fontSize: '1.125rem', fontWeight: 700 }}>
+                        {z.name}
+                        {z.crop && <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}> · {z.crop}</span>}
+                      </span>
+                      <StatusChip status={zone.overallStatus} />
+                    </span>
+                    <span style={{ fontSize: '0.9375rem' }}>{sentence}</span>
+                    {!zone.isStale && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {VARIABLE_ORDER.map((v) => (
+                          <span key={v} className={`dot dot--${STATUS_CLASS[zone[v].status]}`} aria-hidden="true" />
+                        ))}
+                        <span className="metric-label" style={{ marginLeft: 6 }}>{okCount} de 7 bien</span>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 4. Lecturas de la zona elegida */}
+          {activeZone && (
+            <section ref={readingsRef} aria-labelledby="lecturas-titulo" className="glass" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 96 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <h2 id="lecturas-titulo" className="section-title">Lecturas de la {zoneName(activeZone).name}</h2>
+                <span className="metric-label">
+                  {activeZone.isStale ? `Sin datos recientes · última lectura ${timeAgo(activeZone.timestamp)}` : `Actualizado ${timeAgo(activeZone.timestamp)}`}
+                </span>
+              </div>
+              {(['aire', 'agua'] as VariableGroup[]).map((group) => (
+                <div key={group} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <h3 className="metric-label" style={{ fontSize: '0.875rem', fontWeight: 600 }}>{GROUP_LABEL[group]}</h3>
+                  <div className="well" style={{ display: 'flex', flexDirection: 'column', borderRadius: 16 }}>
+                    {VARIABLE_ORDER.filter((v) => VARIABLES[v].group === group).map((v, i) => {
+                      const info = VARIABLES[v];
+                      const { value, status } = activeZone[v];
+                      const Icon = ICONS[v];
+                      const sc = STATUS_CLASS[status];
+                      const isProblem = status === 'red' || status === 'yellow';
+                      return (
+                        <div
+                          key={v}
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            alignItems: 'center',
+                            gap: 14,
+                            padding: '14px 16px',
+                            borderTop: i === 0 ? 'none' : '1px solid var(--line)',
+                            background: isProblem ? `var(--status-${sc}-soft)` : undefined,
+                          }}
+                        >
+                          <span className={`icon-well icon-well--${sc}`}>
+                            <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+                          </span>
+                          <span style={{ flex: '1 1 180px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.9375rem', fontWeight: 600 }}>
+                              {info.name}
+                              {info.technical && ` (${info.technical})`}
+                              {status !== 'green' && <span style={{ color: `var(--status-${sc}-text)` }}> · {STATUS_WORD[status]}</span>}
+                            </span>
+                            <span className="metric-label">
+                              {info.hint ? `${info.hint} · ` : ''}{idealText(v, thresholds[v])}
+                            </span>
+                          </span>
+                          <span style={{ flex: '1 1 160px', minWidth: 120 }}>
+                            <RangeGauge variable={v} value={value} status={status} thresholds={thresholds} />
+                          </span>
+                          <span
+                            className="tnum"
+                            style={{
+                              minWidth: 96,
+                              textAlign: 'right',
+                              fontSize: '1.25rem',
+                              fontWeight: isProblem ? 700 : 600,
+                              color: status === 'offline' ? 'var(--status-offline-text)' : isProblem ? `var(--status-${sc}-text)` : undefined,
+                            }}
+                          >
+                            {formatValue(v, value)}
+                            {info.unit && <span className="metric-label"> {info.unit}</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <span className="metric-label">La barra verde marca el rango ideal; el círculo es la lectura de ahora.</span>
+            </section>
+          )}
+
+          {/* Gráficas: a un toque, no en primer plano */}
+          {chartData.length > 0 && (
+            <details className="glass" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
+              <summary style={{ minHeight: 48, display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: 600 }}>
+                Ver cómo han cambiado las lecturas
+              </summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', paddingBottom: 'var(--space-sm)' }}>
+                <TrendChart
+                  title="Temperatura del aire y humedad"
+                  data={chartData}
+                  lines={[
+                    { key: 'airTemp', name: 'Temperatura (°C)', color: 'var(--status-warn)', axis: 'left' },
+                    { key: 'humidity', name: 'Humedad (%)', color: 'var(--status-blue)', axis: 'right' },
+                  ]}
+                />
+                <TrendChart
+                  title="pH, nutrientes (EC) y agua en el tanque"
+                  data={chartData}
+                  lines={[
+                    { key: 'ph', name: 'pH', color: 'var(--leaf)', axis: 'left' },
+                    { key: 'ec', name: 'EC (mS/cm)', color: 'var(--status-warn)', axis: 'left' },
+                    { key: 'tankLevel', name: 'Tanque (%)', color: 'var(--status-blue)', axis: 'right' },
+                  ]}
+                />
+              </div>
+            </details>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function TrendChart({
+  title,
+  data,
+  lines,
+}: {
+  title: string;
+  data: Record<string, number | string>[];
+  lines: { key: string; name: string; color: string; axis: 'left' | 'right' }[];
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h3 style={{ fontSize: '1rem' }}>{title}</h3>
+      <div className="well" style={{ padding: 12, height: 240 }}>
+        <ResponsiveContainer>
+          <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="var(--line)" />
+            <XAxis dataKey="time" stroke="var(--text-secondary)" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
+            <YAxis yAxisId="left" stroke="var(--text-secondary)" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
+            <YAxis yAxisId="right" orientation="right" stroke="var(--text-secondary)" tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--surface-strong)',
+                border: '1px solid var(--line)',
+                borderRadius: 12,
+                boxShadow: 'var(--shadow-card)',
+              }}
+              itemStyle={{ color: 'var(--text-primary)', fontSize: '0.8125rem' }}
+              labelStyle={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}
+            />
+            {lines.map((l) => (
+              <Line
+                key={l.key}
+                yAxisId={l.axis}
+                type="monotone"
+                dataKey={l.key}
+                name={l.name}
+                stroke={l.color}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

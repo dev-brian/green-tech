@@ -28,9 +28,9 @@ function RoleBadge({ role }: { role: 'admin' | 'operador' }) {
       display: 'inline-flex',
       alignItems: 'center',
       gap: 4,
-      background: isAdmin ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+      background: isAdmin ? 'var(--status-ok-soft)' : 'var(--status-blue-glow)',
       color: isAdmin ? 'var(--status-green)' : 'var(--status-blue)',
-      border: `1px solid ${isAdmin ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}`,
+      border: `1px solid ${isAdmin ? 'var(--leaf)' : 'var(--status-blue)'}`,
       borderRadius: 'var(--radius-full)',
       padding: '2px 8px',
       fontSize: '0.625rem',
@@ -189,7 +189,7 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
           justifyContent: 'space-between',
           gap: 'var(--space-sm)',
           padding: 'var(--space-md)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid var(--line)',
           flexShrink: 0,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -408,7 +408,7 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
           justifyContent: 'space-between',
           gap: 'var(--space-sm)',
           padding: 'var(--space-md)',
-          borderTop: '1px solid rgba(255,255,255,0.04)',
+          borderTop: '1px solid var(--line)',
           flexShrink: 0,
         }}>
           {/* Abandonar invernadero */}
@@ -420,7 +420,7 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
               gap: 'var(--space-xs)',
               minHeight: 48,
               padding: '0 var(--space-md)',
-              border: '1px solid rgba(239,68,68,0.2)',
+              border: '1px solid var(--status-crit)',
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
               fontWeight: 600,

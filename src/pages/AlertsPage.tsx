@@ -73,9 +73,9 @@ function AlertItem({
     : 'var(--status-yellow)';
 
   const statusConfig = {
-    new:           { label: 'Nueva',     bg: 'rgba(239,68,68,0.12)',   text: 'var(--status-red)'    },
-    attended:      { label: 'Atendida',  bg: 'rgba(16,185,129,0.12)',  text: 'var(--status-green)'  },
-    auto_resolved: { label: 'Resuelta',  bg: 'rgba(148,163,184,0.12)', text: 'var(--text-secondary)' },
+    new:           { label: 'Nueva',     bg: 'var(--status-crit-soft)',   text: 'var(--status-red)'    },
+    attended:      { label: 'Atendida',  bg: 'var(--status-ok-soft)',  text: 'var(--status-green)'  },
+    auto_resolved: { label: 'Resuelta',  bg: 'var(--status-offline-soft)', text: 'var(--text-secondary)' },
   }[alert.status];
 
   return (
@@ -148,8 +148,8 @@ function AlertItem({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: 'rgba(16,185,129,0.08)',
-              border: '1px solid rgba(16,185,129,0.2)',
+              background: 'var(--status-ok-soft)',
+              border: '1px solid var(--leaf)',
               color: 'var(--accent)',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 12px',
@@ -159,8 +159,8 @@ function AlertItem({
               minHeight: 36,
               transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
           >
             <CheckCircle2 size={14} strokeWidth={1.5} />
             Marcar como atendida
@@ -223,8 +223,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.severity === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.severity === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -249,8 +249,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.status === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.status === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -275,8 +275,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.sector === s
-              ? 'rgba(59,130,246,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-blue-glow)'
+              : 'var(--line)',
             color: filters.sector === s
               ? 'var(--status-blue)'
               : 'var(--text-secondary)',
@@ -299,7 +299,7 @@ function FilterBar({
             border: 'none',
             cursor: 'pointer',
             minHeight: 30,
-            background: 'rgba(239,68,68,0.08)',
+            background: 'var(--status-crit-soft)',
             color: 'var(--status-red)',
           }}
         >
@@ -486,8 +486,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
           style={{
             padding: 'var(--space-sm)',
             borderRadius: 'var(--radius-md)',
-            background: 'rgba(16,185,129,0.10)',
-            border: '1px solid rgba(16,185,129,0.25)',
+            background: 'var(--status-ok-soft)',
+            border: '1px solid var(--leaf)',
             color: 'var(--status-green)',
             fontSize: '0.875rem',
             fontWeight: 600,
@@ -506,8 +506,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
         <div style={{
           padding: 'var(--space-sm)',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(239,68,68,0.10)',
-          border: '1px solid rgba(239,68,68,0.25)',
+          background: 'var(--status-crit-soft)',
+          border: '1px solid var(--status-crit)',
           color: 'var(--status-red)',
           fontSize: '0.875rem',
         }}>
@@ -556,7 +556,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
                   padding: '8px 16px',
                   borderRadius: 'var(--radius-sm)',
                   border: 'none',
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--line)',
                   color: 'var(--text-secondary)',
                   fontSize: '0.875rem',
                   fontWeight: 600,
@@ -573,7 +573,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
                   padding: '8px 16px',
                   borderRadius: 'var(--radius-sm)',
                   border: 'none',
-                  background: 'rgba(239,68,68,0.15)',
+                  background: 'var(--status-crit-soft)',
                   color: 'var(--status-red)',
                   fontSize: '0.875rem',
                   fontWeight: 700,
@@ -598,7 +598,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
               padding: '8px 16px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: 'rgba(255,255,255,0.04)',
+              background: 'var(--line)',
               color: 'var(--text-secondary)',
               fontSize: '0.875rem',
               fontWeight: 600,
@@ -621,8 +621,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
             padding: '8px 20px',
             borderRadius: 'var(--radius-sm)',
             border: 'none',
-            background: draft && !saving ? 'var(--accent)' : 'rgba(16,185,129,0.2)',
-            color: draft && !saving ? '#fff' : 'var(--text-disabled)',
+            background: draft && !saving ? 'var(--ink-block)' : 'var(--track)',
+            color: draft && !saving ? 'var(--text-on-ink)' : 'var(--text-secondary)',
             fontSize: '0.875rem',
             fontWeight: 700,
             cursor: (saving || !draft) ? 'not-allowed' : 'pointer',
@@ -671,9 +671,9 @@ export default function AlertsPage() {
           {unattendedCount > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(239,68,68,0.12)',
+              background: 'var(--status-crit-soft)',
               color: 'var(--status-red)',
-              border: '1px solid rgba(239,68,68,0.25)',
+              border: '1px solid var(--status-crit)',
               borderRadius: 'var(--radius-full)',
               padding: '2px 10px',
               fontSize: '0.6875rem',

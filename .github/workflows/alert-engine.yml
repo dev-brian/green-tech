@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ejecutar ciclo de ingesta y motor de alertas en Firestore
+      - name: Ejecutar ciclo de ingesta, motor de alertas y purga (7 y 30 días) en Firestore
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GREENHOUSE_ID: ${{ secrets.GREENHOUSE_ID }}
@@ -51,4 +51,4 @@ jobs:
             exit 1
           fi
           SCENARIO="${{ github.event.inputs.scenario || 'normal' }}"
-          node simulator/cli.ts --firestore --once --scenario="$SCENARIO"
+          node simulator/cli.ts --firestore --once --prune --scenario="$SCENARIO"

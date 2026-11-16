@@ -11,6 +11,7 @@
     "seed:telemetry": "node scripts/seedTelemetry.mjs",
     "simulator": "node simulator/cli.ts",
     "sim:firestore": "node simulator/cli.ts --firestore",
+    "backfill:hourly": "node simulator/backfillHourly.ts",
     "ingest": "node simulator/serve.ts",
     "ingest:firestore": "node simulator/serve.ts --firestore",
     "sim": "node greenhouse-sim/server.ts",

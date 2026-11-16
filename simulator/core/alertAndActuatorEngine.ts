@@ -22,6 +22,7 @@ import {
   type HydroponicVariable,
   type IngestTelemetryRequest,
 } from './hydroponicModel.ts';
+import type { AlertPushNotifier } from './pushNotifier.ts';
 
 export interface ZoneVariableState {
   value: number;
@@ -64,8 +65,19 @@ export interface ZoneActuatorsState {
   updatedAt: string;
 }
 
+/** Lo que el admin registró en greenhouses/{id}/zones/{zoneId} (T4.1 #64). */
+export interface ZoneConfig {
+  name?: string;
+  crop?: CropType;
+}
+
 export interface TelemetryStorageAdapter {
   getThresholds(greenhouseId: string, crop: CropType): Promise<CropThresholds>;
+  /**
+   * Zona registrada por el admin, o null si no existe. Si la zona tiene
+   * cultivo asignado, manda sobre el `crop` que envía el sensor (HU-04 #63).
+   */
+  getZoneConfig?(greenhouseId: string, zoneId: string): Promise<ZoneConfig | null>;
   saveReading(
     greenhouseId: string,
     reading: {
@@ -124,6 +136,8 @@ export interface PruneResult {
  * modo local del servidor HTTP y ejecuciones aisladas.
  */
 export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
+  /** Zonas registradas por invernadero (HU-04 #63). */
+  public zones: Record<string, Record<string, ZoneConfig>> = {};
   public readings: Record<string, Array<{ id: string; zoneId: string; timestamp: string } & HydroponicReadings>> = {};
   public latestState: Record<string, Record<string, ZoneLatestState>> = {};
   public alerts: Record<string, AlertRecord[]> = {};
@@ -134,6 +148,10 @@ export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
 
   async getThresholds(greenhouseId: string, crop: CropType): Promise<CropThresholds> {
     return this.customThresholds[greenhouseId]?.[crop] ?? DEFAULT_CROP_THRESHOLDS[crop];
+  }
+
+  async getZoneConfig(greenhouseId: string, zoneId: string): Promise<ZoneConfig | null> {
+    return this.zones[greenhouseId]?.[zoneId] ?? null;
   }
 
   async saveReading(
@@ -274,12 +292,18 @@ export interface IngestProcessResult {
  * 2. Evalúa las 7 variables con los umbrales del cultivo y escribe greenhouses/{id}/state/latest
  * 3. Crea alertas sin duplicados (status === 'new') y resuelve automáticamente las que vuelven a 'ok'
  * 4. Actualiza los 4 actuadores virtuales según las reglas de HU-08
+ * 5. Envía push FCM a los miembros cuando una alerta se crea o sube a `critical` (T6.5 #52)
  */
 export async function processIngestedReading(
   input: Required<IngestTelemetryRequest>,
   storage: TelemetryStorageAdapter,
+  notifier?: AlertPushNotifier,
 ): Promise<IngestProcessResult> {
-  const { greenhouseId, zoneId, crop, timestamp, readings } = input;
+  const { greenhouseId, zoneId, timestamp, readings } = input;
+  // HU-04 (#63): la zona usa los umbrales del cultivo que le asignó el admin.
+  const zone = (await storage.getZoneConfig?.(greenhouseId, zoneId)) ?? null;
+  const crop: CropType = zone?.crop ?? input.crop;
+  const zoneName = zone?.name ?? zoneId;
   const thresholds = await storage.getThresholds(greenhouseId, crop);
 
   const readingId = await storage.saveReading(greenhouseId, {
@@ -297,6 +321,7 @@ export async function processIngestedReading(
 
   const createdAlerts: AlertRecord[] = [];
   const resolvedAlertIds: string[] = [];
+  const criticalToNotify: AlertRecord[] = [];
 
   for (const key of VARIABLE_KEYS) {
     const value = readings[key];
@@ -309,7 +334,7 @@ export async function processIngestedReading(
 
     if (level === 'warn' || level === 'critical') {
       const severityLabel = level === 'critical' ? 'crítico' : 'en precaución';
-      const message = `${meta.label} ${severityLabel} en ${zoneId}: ${value} ${meta.unit}`;
+      const message = `${meta.label} ${severityLabel} en ${zoneName}: ${value} ${meta.unit}`;
 
       if (!existingActive) {
         const created = await storage.createAlert(greenhouseId, {
@@ -325,12 +350,14 @@ export async function processIngestedReading(
           resolvedAt: null,
         });
         createdAlerts.push(created);
+        if (created.severity === 'critical') criticalToNotify.push(created);
       } else if (existingActive.severity === 'warn' && level === 'critical') {
         await storage.updateAlert(greenhouseId, existingActive.id, {
           severity: 'critical',
           value,
           message,
         });
+        criticalToNotify.push({ ...existingActive, severity: 'critical', value, message });
       }
     } else if (level === 'ok' && existingActive) {
       await storage.updateAlert(greenhouseId, existingActive.id, {
@@ -365,6 +392,17 @@ export async function processIngestedReading(
   };
 
   await storage.saveActuatorsState(greenhouseId, zoneId, updatedActuators);
+
+  // El push va al final para no retrasar ni romper la escritura de lecturas y alertas.
+  if (notifier) {
+    for (const alert of criticalToNotify) {
+      try {
+        await notifier.notifyCriticalAlert(greenhouseId, alert);
+      } catch {
+        // Un fallo de FCM no debe tumbar la ingesta.
+      }
+    }
+  }
 
   return {
     readingId,

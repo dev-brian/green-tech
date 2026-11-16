@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Workbox omite sin error los archivos de más de 2 MiB, lo que dejaría la app incompleta
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Muestra las notificaciones push FCM de alertas críticas (T6.4 #51)
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

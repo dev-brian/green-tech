@@ -16,6 +16,12 @@ import {
   stepZoneReadings,
 } from '../simulator/core/simulatorEngine.ts';
 import { createIngestHttpServer } from '../simulator/server.ts';
+import {
+  RecordingPushNotifier,
+  buildCriticalAlertMessage,
+  findStaleTokenIndexes,
+  type AlertPushNotifier,
+} from '../simulator/core/pushNotifier.ts';
 
 const DEVICE_KEY = 'test-device-key-123';
 
@@ -263,5 +269,119 @@ describe('T11.4 (#29) y T6.2 (#49) — Eliminación de datos locales, alertas en
     assert.match(storageSrc, /firebase-admin\/firestore/);
     assert.doesNotMatch(storageSrc, /ingestKey/);
     assert.doesNotMatch(storageSrc, /gt-dev-device-key-2026/);
+  });
+});
+
+describe('T6.5 (#52) — Push FCM a los miembros cuando una alerta llega a crítico', () => {
+  const baseReadings = {
+    airTemp: 23.0,
+    humidity: 65,
+    light: 28000,
+    ph: 6.0,
+    ec: 2.6,
+    solutionTemp: 21.0,
+    tankLevel: 80,
+  };
+  const ingest = (
+    storage: InMemoryTelemetryStorage,
+    notifier: AlertPushNotifier,
+    minute: number,
+    ph: number,
+  ) =>
+    processIngestedReading(
+      {
+        greenhouseId: 'gh-push',
+        zoneId: 'zona-1',
+        crop: 'jitomate',
+        timestamp: `2026-11-08T12:0${minute}:00.000Z`,
+        readings: { ...baseReadings, ph },
+      },
+      storage,
+      notifier,
+    );
+
+  it('notifica al crear una alerta crítica y no repite mientras sigue activa', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const notifier = new RecordingPushNotifier();
+
+    await ingest(storage, notifier, 0, 7.5);
+    assert.equal(notifier.calls.length, 1);
+    assert.equal(notifier.calls[0].greenhouseId, 'gh-push');
+    assert.equal(notifier.calls[0].alert.variable, 'ph');
+    assert.equal(notifier.calls[0].alert.severity, 'critical');
+
+    await ingest(storage, notifier, 1, 7.6);
+    assert.equal(notifier.calls.length, 1, 'la alerta activa no vuelve a notificar');
+  });
+
+  it('no notifica alertas de precaución, pero sí cuando suben a crítico', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const notifier = new RecordingPushNotifier();
+
+    const warn = await ingest(storage, notifier, 0, 6.8);
+    assert.equal(warn.createdAlerts[0].severity, 'warn');
+    assert.equal(notifier.calls.length, 0);
+
+    await ingest(storage, notifier, 1, 7.4);
+    assert.equal(notifier.calls.length, 1);
+    assert.equal(notifier.calls[0].alert.id, warn.createdAlerts[0].id);
+    assert.equal(notifier.calls[0].alert.severity, 'critical');
+    assert.equal(notifier.calls[0].alert.value, 7.4);
+  });
+
+  it('un fallo del envío de push no rompe la ingesta', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const failing: AlertPushNotifier = {
+      async notifyCriticalAlert() {
+        throw new Error('FCM caído');
+      },
+    };
+    const res = await ingest(storage, failing, 0, 7.5);
+    assert.equal(res.createdAlerts.length, 1);
+    assert.equal(storage.alerts['gh-push'].length, 1);
+  });
+
+  it('arma el mensaje con datos en texto y detecta tokens inválidos', () => {
+    const msg = buildCriticalAlertMessage('gh-push', {
+      id: 'alert-9',
+      zoneId: 'zona-2',
+      variable: 'tankLevel',
+      severity: 'critical',
+      value: 8,
+      message: '',
+      status: 'new',
+      createdAt: '2026-11-08T12:00:00.000Z',
+      attendedBy: null,
+      attendedAt: null,
+      resolvedAt: null,
+    });
+    assert.match(msg.title, /crítica/);
+    assert.match(msg.body, /zona-2/);
+    assert.deepEqual(msg.data, {
+      type: 'alert',
+      greenhouseId: 'gh-push',
+      alertId: 'alert-9',
+      zoneId: 'zona-2',
+      variable: 'tankLevel',
+      severity: 'critical',
+      value: '8',
+    });
+    for (const v of Object.values(msg.data)) assert.equal(typeof v, 'string');
+
+    const stale = findStaleTokenIndexes([
+      { success: true },
+      { success: false, error: { code: 'messaging/registration-token-not-registered' } },
+      { success: false, error: { code: 'messaging/internal-error' } },
+      { success: false, error: { code: 'messaging/invalid-registration-token' } },
+    ]);
+    assert.deepEqual(stale, [1, 3]);
+  });
+
+  it('el service worker de la PWA importa el manejador de push', () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+    assert.match(viteConfig, /importScripts:\s*\['push-sw\.js'\]/);
+    const sw = readFileSync(resolve(process.cwd(), 'public/push-sw.js'), 'utf8');
+    assert.match(sw, /addEventListener\('push'/);
+    assert.match(sw, /addEventListener\('notificationclick'/);
   });
 });

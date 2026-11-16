@@ -13,6 +13,7 @@ import PlantManagement from './pages/PlantManagement';
 import LoginPage from './pages/auth/LoginPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AlertsPage from './pages/AlertsPage';
+import ZonesPage from './pages/ZonesPage';
 
 
 // ─── Auth pages don't show the nav/alert bar ──────────────────────────────────
@@ -81,6 +82,14 @@ function AppShell() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <PlantManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/zones"
+            element={
+              <ProtectedRoute>
+                <ZonesPage />
               </ProtectedRoute>
             }
           />

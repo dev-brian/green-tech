@@ -24,10 +24,16 @@ service cloud.firestore {
     //   - inviteCode: string (required when self-joining as 'operador')
     //
     // Subcollections: /greenhouses/{greenhouseId}/plants/{plantId},
-    //                 /greenhouses/{greenhouseId}/zones/{zoneId},
     //                 /greenhouses/{greenhouseId}/actuators/{actuatorId}
     //   - Read: any member of the greenhouse
     //   - Write: only admin of the greenhouse
+    //
+    // Subcollection: /greenhouses/{greenhouseId}/zones/{zoneId} (HU-04, T4.1 #64)
+    //   - zoneId: same id the sensor sends (e.g. 'zona-1'), [a-z0-9-], 1..40 chars
+    //   - name: string (required, 1..60 chars)
+    //   - crop: 'jitomate' | 'lechuga' (required)
+    //   - createdAt, updatedAt: timestamp (optional)
+    //   - Read: any member. Create / Update / Delete: only admin
     //
     // Subcollections: /greenhouses/{greenhouseId}/readings/{readingId},
     //                 /greenhouses/{greenhouseId}/readingsHourly/{hourId},
@@ -152,6 +158,16 @@ service cloud.firestore {
           && request.resource.data.get('inviteCode', '') == get(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.inviteCode;
     }
 
+    // ─── Helper: documento de zona válido (T4.1 #64) ─────────────────────────
+    function isValidZone(zoneId) {
+      return zoneId.matches('^[a-z0-9-]{1,40}$')
+          && request.resource.data.keys().hasOnly(['name', 'crop', 'createdAt', 'updatedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 60
+          && request.resource.data.crop in ['jitomate', 'lechuga'];
+    }
+
     // ─── Helper: acuse de recibo ("attended") de una alerta ──────────────────
     function isValidAlertAcknowledge() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'attendedBy', 'attendedAt'])
@@ -222,8 +238,9 @@ service cloud.firestore {
       }
 
       match /zones/{zoneId} {
-        allow read:  if isMember(greenhouseId);
-        allow write: if isAdmin(greenhouseId);
+        allow read:           if isMember(greenhouseId);
+        allow create, update: if isAdmin(greenhouseId) && isValidZone(zoneId);
+        allow delete:         if isAdmin(greenhouseId);
       }
 
       match /actuators/{actuatorId} {

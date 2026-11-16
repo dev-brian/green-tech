@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
 import PwaUpdatePrompt from './components/PwaUpdatePrompt';
+import PushPermissionPrompt from './components/PushPermissionPrompt';
 
 // Pages
 import Landing from './pages/Landing';
@@ -109,6 +110,7 @@ function App() {
       <Router>
         <AppShell />
       </Router>
+      <PushPermissionPrompt />
       <PwaUpdatePrompt />
     </AuthProvider>
   );

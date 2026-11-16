@@ -4,6 +4,8 @@ import {
   CheckCircle2, Clock, AlertTriangle, ChevronDown,
   ChevronUp, RotateCcw, Save, Filter, X,
 } from 'lucide-react';
+import { useZones } from '../hooks/useZones';
+import { mergeZoneIds, zoneDisplayName, zoneLabel, type Zone } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
@@ -58,9 +60,11 @@ function VariableIcon({ variable, color }: { variable: string; color: string }) 
 
 function AlertItem({
   alert,
+  zoneName,
   onMarkAttended,
 }: {
   alert: FirestoreAlert;
+  zoneName: string;
   onMarkAttended: (id: string) => void;
 }) {
   const severityColor = alert.severity === 'red'
@@ -127,7 +131,7 @@ function AlertItem({
             {relativeTime(alert.createdAt)}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-            {alert.sector}
+            {zoneName}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
             {VARIABLE_LABELS[alert.variable]}: <strong style={{ color: severityColor }}>{alert.value}{VARIABLE_UNITS[alert.variable]}</strong>
@@ -191,10 +195,12 @@ function FilterBar({
   filters,
   onFiltersChange,
   sectors,
+  zonesById,
 }: {
   filters: AlertFilters;
   onFiltersChange: (f: AlertFilters) => void;
   sectors: string[];
+  zonesById: Record<string, Zone>;
 }) {
   const hasActiveFilter = !!(filters.severity || filters.status || filters.sector);
 
@@ -275,7 +281,7 @@ function FilterBar({
               : 'var(--text-secondary)',
           }}
         >
-          {s}
+          {zoneLabel(s, zonesById)}
         </button>
       ))}
 
@@ -643,8 +649,14 @@ export default function AlertsPage() {
   const { alerts, loading, unattendedCount, filters, setFilters, markAttended } =
     useAlerts(greenhouseId);
 
-  // Sectores únicos presentes en las alertas (para el filtro)
-  const sectors = [...new Set(alerts.map((a) => a.sector))].filter(Boolean).sort();
+  // Zonas para el filtro (T4.2 #65): las registradas, las que aparecen en
+  // alertas y la elegida, para que el filtro no desaparezca al aplicarlo.
+  const { zones, zonesById } = useZones(greenhouseId);
+  const sectors = mergeZoneIds(
+    zones.map((z) => z.id),
+    alerts.map((a) => a.sector),
+    filters.sector ? [filters.sector] : [],
+  );
 
   return (
     <div className="container animate-fade-in" style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}>
@@ -693,7 +705,7 @@ export default function AlertsPage() {
 
             {/* Filtros */}
             <div style={{ marginBottom: 'var(--space-sm)' }}>
-              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} />
+              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} zonesById={zonesById} />
             </div>
 
             {/* Lista */}
@@ -714,7 +726,7 @@ export default function AlertsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {alerts.map((alert) => (
-                  <AlertItem key={alert.id} alert={alert} onMarkAttended={markAttended} />
+                  <AlertItem key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onMarkAttended={markAttended} />
                 ))}
               </div>
             )}

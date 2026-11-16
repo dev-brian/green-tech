@@ -1,34 +1,32 @@
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { THRESHOLDS, type ThresholdRange } from './sensorThresholds';
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-export interface ThresholdRange {
-  yellowMin: number;
-  yellowMax: number;
-  redMin: number;
-  redMax: number;
-}
+export type { ThresholdRange };
 
 export interface GreenhouseThresholds {
-  temperature:  ThresholdRange;
+  airTemp:      ThresholdRange;
   humidity:     ThresholdRange;
-  soilMoisture: ThresholdRange;
+  light:        ThresholdRange;
+  ph:           ThresholdRange;
+  ec:           ThresholdRange;
+  solutionTemp: ThresholdRange;
+  tankLevel:    ThresholdRange;
 }
 
-// ─── Valores de fábrica (SPECS.md §B) ────────────────────────────────────────
-
 export const DEFAULT_THRESHOLDS: GreenhouseThresholds = {
-  temperature:  { redMin: 12, yellowMin: 18, yellowMax: 27, redMax: 32 },
-  humidity:     { redMin: 40, yellowMin: 60, yellowMax: 80, redMax: 90 },
-  soilMoisture: { redMin: 40, yellowMin: 60, yellowMax: 80, redMax: 90 },
+  airTemp:      THRESHOLDS.airTemp,
+  humidity:     THRESHOLDS.humidity,
+  light:        THRESHOLDS.light,
+  ph:           THRESHOLDS.ph,
+  ec:           THRESHOLDS.ec,
+  solutionTemp: THRESHOLDS.solutionTemp,
+  tankLevel:    THRESHOLDS.tankLevel,
 };
 
-// ─── API pública ──────────────────────────────────────────────────────────────
-
 /**
- * Lee los umbrales del invernadero. Si no existen en Firestore,
- * devuelve los valores de fábrica.
+ * Lee los umbrales hidropónicos del invernadero. Si no existen en Firestore,
+ * devuelve los valores por defecto.
  */
 export async function getThresholds(
   greenhouseId: string,
@@ -41,11 +39,14 @@ export async function getThresholds(
 
   if (!stored) return DEFAULT_THRESHOLDS;
 
-  // Merge con defaults por si faltan campos
   return {
-    temperature:  { ...DEFAULT_THRESHOLDS.temperature,  ...stored.temperature  },
-    humidity:     { ...DEFAULT_THRESHOLDS.humidity,      ...stored.humidity     },
-    soilMoisture: { ...DEFAULT_THRESHOLDS.soilMoisture,  ...stored.soilMoisture },
+    airTemp:      { ...DEFAULT_THRESHOLDS.airTemp,      ...stored.airTemp      },
+    humidity:     { ...DEFAULT_THRESHOLDS.humidity,     ...stored.humidity     },
+    light:        { ...DEFAULT_THRESHOLDS.light,        ...stored.light        },
+    ph:           { ...DEFAULT_THRESHOLDS.ph,           ...stored.ph           },
+    ec:           { ...DEFAULT_THRESHOLDS.ec,           ...stored.ec           },
+    solutionTemp: { ...DEFAULT_THRESHOLDS.solutionTemp, ...stored.solutionTemp },
+    tankLevel:    { ...DEFAULT_THRESHOLDS.tankLevel,    ...stored.tankLevel    },
   };
 }
 
@@ -62,7 +63,7 @@ export async function updateThresholds(
 }
 
 /**
- * Restaura los umbrales de fábrica en Firestore.
+ * Restaura los umbrales por defecto en Firestore.
  */
 export async function resetThresholds(greenhouseId: string): Promise<void> {
   await updateThresholds(greenhouseId, DEFAULT_THRESHOLDS);

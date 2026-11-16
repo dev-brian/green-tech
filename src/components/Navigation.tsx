@@ -13,10 +13,13 @@ import {
   Wrench,
   Sprout,
   Bell,
+  MapPin,
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
 import AlertBadge from './AlertBadge';
+import PwaInstallButton from './PwaInstallButton';
+import ThemeToggle from './ThemeToggle';
 import logoUrl from '../icons/icon_green-tech.svg';
 
 
@@ -35,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/alerts',    label: 'Alertas',   icon: Bell },
   { path: '/control',   label: 'Control',   icon: Settings2 },
+  { path: '/zones',     label: 'Zonas',     icon: MapPin },
   { path: '/plants',    label: 'Plantas',   icon: Leaf, roles: ['admin'] },
 ];
 
@@ -46,9 +50,9 @@ function RoleBadge({ role }: { role: UserRole }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: isAdmin ? 'rgba(16,185,129,0.12)' : 'rgba(59,130,246,0.12)',
+      background: isAdmin ? 'var(--status-ok-soft)' : 'var(--status-blue-glow)',
       color: isAdmin ? 'var(--status-green)' : 'var(--status-blue)',
-      border: `1px solid ${isAdmin ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}`,
+      border: `1px solid ${isAdmin ? 'var(--leaf)' : 'var(--status-blue)'}`,
       borderRadius: 'var(--radius-full)',
       padding: '2px 8px',
       fontSize: '0.625rem',
@@ -143,7 +147,7 @@ function WorkspaceSelector() {
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: 'var(--space-xs) var(--space-sm)',
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                borderBottom: '1px solid var(--line)',
               }}>
                 <span className="metric-label">Mis Invernaderos</span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)', fontWeight: 700 }}>{workspaces.length}</span>
@@ -159,12 +163,12 @@ function WorkspaceSelector() {
                       width: '100%', display: 'flex',
                       alignItems: 'center', justifyContent: 'space-between',
                       padding: 'var(--space-xs) var(--space-sm)',
-                      background: activeWorkspace.id === ws.id ? 'rgba(16,185,129,0.08)' : 'transparent',
+                      background: activeWorkspace.id === ws.id ? 'var(--status-ok-soft)' : 'transparent',
                       border: 'none', cursor: 'pointer',
                       minHeight: 40, textAlign: 'left',
                       transition: 'background 0.15s ease',
                     }}
-                    onMouseEnter={e => { if (activeWorkspace.id !== ws.id) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onMouseEnter={e => { if (activeWorkspace.id !== ws.id) e.currentTarget.style.background = 'var(--line)'; }}
                     onMouseLeave={e => { if (activeWorkspace.id !== ws.id) e.currentTarget.style.background = 'transparent'; }}
                   >
                     <span style={{
@@ -180,7 +184,7 @@ function WorkspaceSelector() {
               </div>
 
               {/* Acciones del footer */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: 'var(--space-xs)' }}>
+              <div style={{ borderTop: '1px solid var(--line)', padding: 'var(--space-xs)' }}>
                 <button
                   onClick={() => { setOpen(false); setShowSettingsModal(true); }}
                   style={{
@@ -303,7 +307,7 @@ function UserMenu() {
             {/* Info del usuario */}
             <div style={{
               padding: 'var(--space-sm)',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
+              borderBottom: '1px solid var(--line)',
             }}>
               {/* Avatar grande */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xs)' }}>
@@ -343,7 +347,7 @@ function UserMenu() {
                 cursor: 'pointer',
                 transition: 'background 0.15s ease',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--status-crit-soft)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               <LogOut size={16} strokeWidth={1.5} />
@@ -382,9 +386,10 @@ export default function Navigation() {
   return (
     <nav
       style={{
-        background: 'var(--bg)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-        boxShadow: '0 4px 8px var(--shadow-dark)',
+        background: 'var(--glass)',
+        borderBottom: '1px solid var(--line)',
+        WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+        backdropFilter: 'blur(16px) saturate(1.2)',
         position: 'sticky',
         top: 0,
         zIndex: 50,
@@ -399,12 +404,12 @@ export default function Navigation() {
         >
           <img src={logoUrl} alt="GreenTech" style={{ width: 36, height: 36, objectFit: 'contain' }} />
           <span style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: '1.125rem', color: 'var(--text-primary)' }} className="hidden sm:block">
-            Green<span style={{ color: 'var(--accent)' }}>Tech</span>
+            GreenTech
           </span>
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 'var(--space-lg)' }}>
+        <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-full)', background: 'var(--track)' }}>
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             const isAlertsLink = item.path === '/alerts';
@@ -414,12 +419,13 @@ export default function Navigation() {
                 to={item.path}
                 style={{
                   position: 'relative',
-                  paddingBottom: 6,
-                  fontSize: '0.8125rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                  minHeight: 44,
+                  padding: '0 16px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  background: isActive ? 'var(--ink-block)' : 'transparent',
+                  color: isActive ? 'var(--text-on-ink)' : 'var(--text-secondary)',
                   textDecoration: 'none',
                   transition: 'color 0.15s ease',
                   display: 'flex',
@@ -429,19 +435,6 @@ export default function Navigation() {
               >
                 {item.label}
                 {isAlertsLink && <AlertBadge count={unattendedCount} />}
-                {isActive && (
-                  <span style={{
-                    position: 'absolute',
-                    bottom: -2,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: 'var(--accent)',
-                    boxShadow: '0 0 8px var(--accent-glow)',
-                  }} />
-                )}
               </Link>
             );
           })}
@@ -450,6 +443,13 @@ export default function Navigation() {
 
         {/* Right: workspace selector + user menu + mobile toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+          {/* En móvil va dentro del menú para no desbordar la barra a 375px */}
+          <div className="hidden lg:flex">
+            <PwaInstallButton variant="bar" />
+          </div>
+
+          <ThemeToggle />
+
           {user && (
             <>
               <WorkspaceSelector />
@@ -477,7 +477,7 @@ export default function Navigation() {
             position: 'absolute',
             width: '100%',
             background: 'var(--bg)',
-            borderTop: '1px solid rgba(255,255,255,0.04)',
+            borderTop: '1px solid var(--line)',
             boxShadow: '0 8px 16px var(--shadow-dark)',
             zIndex: 40,
           }}
@@ -502,7 +502,7 @@ export default function Navigation() {
                     fontWeight: 600,
                     minHeight: 48,
                     color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
-                    background: isActive ? 'rgba(16,185,129,0.08)' : 'transparent',
+                    background: isActive ? 'var(--status-ok-soft)' : 'transparent',
                     textDecoration: 'none',
                     transition: 'color 0.15s ease, background 0.15s ease',
                   }}
@@ -517,6 +517,7 @@ export default function Navigation() {
               );
             })}
 
+            <PwaInstallButton variant="menu" />
 
             {user && (
               <button
@@ -532,7 +533,7 @@ export default function Navigation() {
                   color: 'var(--status-red)',
                   background: 'transparent',
                   border: 'none',
-                  borderTop: '1px solid rgba(255,255,255,0.04)',
+                  borderTop: '1px solid var(--line)',
                   cursor: 'pointer',
                   fontWeight: 600,
                   fontSize: '0.9375rem',

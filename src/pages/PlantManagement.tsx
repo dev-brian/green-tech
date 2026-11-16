@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Leaf, Droplets, ThermometerSun, Plus, ShieldAlert,
+  Leaf, FlaskConical, Zap, ThermometerSun, Plus, ShieldAlert,
   Pencil, Trash2, X, CloudRain, Sun
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -11,11 +11,22 @@ import { plantsService, type Plant } from '../lib/plantsService';
 
 type PlantStatus = 'En Espera' | 'Creciendo' | 'Óptimo' | 'Cosecha';
 
+type PlantFormData = {
+  name: string;
+  status: string;
+  tempMin: number;
+  tempMax: number;
+  humidity: number;
+  phTarget: number;
+  ecTarget: number;
+  lightHours: number;
+};
+
 const STATUS_CONFIG: Record<PlantStatus, { color: string; glow: string; label: string }> = {
-  'En Espera': { color: 'var(--text-disabled)',  glow: 'rgba(74,85,104,0.35)',           label: 'En Espera' },
-  'Creciendo': { color: 'var(--status-blue)',    glow: 'rgba(59,130,246,0.35)',           label: 'Creciendo' },
-  'Óptimo':    { color: 'var(--status-green)',   glow: 'rgba(16,185,129,0.35)',           label: 'Óptimo'    },
-  'Cosecha':   { color: 'var(--status-yellow)',  glow: 'rgba(245,158,11,0.35)',           label: 'Cosecha'   },
+  'En Espera': { color: 'var(--text-disabled)',  glow: 'var(--status-offline-soft)',           label: 'En Espera' },
+  'Creciendo': { color: 'var(--status-blue)',    glow: 'var(--status-blue)',           label: 'Creciendo' },
+  'Óptimo':    { color: 'var(--status-green)',   glow: 'var(--leaf)',           label: 'Óptimo'    },
+  'Cosecha':   { color: 'var(--status-yellow)',  glow: 'var(--status-warn)',           label: 'Cosecha'   },
 };
 
 function StatusDot({ status }: { status: string }) {
@@ -41,7 +52,7 @@ function ParamRow({ icon, label, value }: { icon: React.ReactNode; label: string
       justifyContent: 'space-between',
       gap: 'var(--space-xs)',
       padding: 'var(--space-xs) 0',
-      borderBottom: '1px solid rgba(255,255,255,0.03)',
+      borderBottom: '1px solid var(--line)',
     }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
         {icon}
@@ -86,7 +97,7 @@ function PlantCard({
         borderRadius: 'var(--radius-md)',
         ...(isActive && {
           borderLeft: '3px solid var(--accent)',
-          boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 20px rgba(16,185,129,0.04)`,
+          boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 20px var(--status-ok-soft)`,
         }),
       }}
     >
@@ -176,7 +187,8 @@ function PlantCard({
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
           <ParamRow icon={<ThermometerSun size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="Temp." value={`${plant.reqs.tempMin}–${plant.reqs.tempMax}°C`} />
           <ParamRow icon={<CloudRain      size={14} strokeWidth={1.5} color="var(--status-blue)"   />} label="HR"    value={`${plant.reqs.humidity}%`} />
-          <ParamRow icon={<Droplets       size={14} strokeWidth={1.5} color="var(--status-blue)"   />} label="Sustrato" value={`${plant.reqs.soilMoisture}%`} />
+          <ParamRow icon={<FlaskConical   size={14} strokeWidth={1.5} color="var(--accent)"        />} label="pH Solución" value={`${(plant.reqs.phTarget ?? 6.0).toFixed(1)} pH`} />
+          <ParamRow icon={<Zap            size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="EC Solución" value={`${(plant.reqs.ecTarget ?? 1.8).toFixed(1)} mS/cm`} />
           <ParamRow icon={<Sun            size={14} strokeWidth={1.5} color="var(--status-yellow)" />} label="Luz"   value={`${plant.reqs.lightHours}h`} />
         </ul>
       </div>
@@ -242,8 +254,8 @@ function PlantModal({
   handleTempMaxChange,
 }: {
   editingPlant: Plant | null;
-  formData: any;
-  setFormData: (d: any) => void;
+  formData: PlantFormData;
+  setFormData: (d: PlantFormData) => void;
   isSaving: boolean;
   errorMsg: string | null;
   onClose: () => void;
@@ -275,7 +287,7 @@ function PlantModal({
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: 'var(--space-md)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid var(--line)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
@@ -358,7 +370,7 @@ function PlantModal({
                         display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                         textAlign: 'left',
                         padding: 'var(--space-sm)',
-                        border: isSelected ? `1px solid ${cfg.color}` : '1px solid rgba(255,255,255,0.03)',
+                        border: isSelected ? `1px solid ${cfg.color}` : '1px solid var(--line)',
                         cursor: 'pointer',
                         gap: 4,
                         ...(isSelected && { boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 12px ${cfg.glow}` }),
@@ -414,7 +426,7 @@ function PlantModal({
                 </div>
               </div>
 
-              {/* HR + Sustrato */}
+              {/* HR + pH + EC (Hidroponía) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
                 <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)' }}>
                   <LabeledSlider
@@ -426,12 +438,21 @@ function PlantModal({
                 </div>
                 <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)' }}>
                   <LabeledSlider
-                    label="Sustrato" icon={<Droplets size={14} strokeWidth={1.5} color="var(--status-blue)" />}
-                    value={formData.soilMoisture} min={0} max={100} step={5}
-                    unit="%" color="var(--status-blue)"
-                    onChange={v => setFormData({ ...formData, soilMoisture: v })}
+                    label="pH Solución" icon={<FlaskConical size={14} strokeWidth={1.5} color="var(--accent)" />}
+                    value={formData.phTarget} min={4.5} max={7.5} step={0.1}
+                    unit=" pH" color="var(--accent)"
+                    onChange={v => setFormData({ ...formData, phTarget: v })}
                   />
                 </div>
+              </div>
+
+              <div className="nm-concave" style={{ padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)', marginBottom: 'var(--space-sm)' }}>
+                <LabeledSlider
+                  label="Conductividad (EC)" icon={<Zap size={14} strokeWidth={1.5} color="var(--status-yellow)" />}
+                  value={formData.ecTarget} min={0.6} max={3.5} step={0.1}
+                  unit=" mS/cm" color="var(--status-yellow)"
+                  onChange={v => setFormData({ ...formData, ecTarget: v })}
+                />
               </div>
 
               {/* Fotoperiodo */}
@@ -455,7 +476,7 @@ function PlantModal({
         {/* Footer del modal */}
         <div style={{
           padding: 'var(--space-md)',
-          borderTop: '1px solid rgba(255,255,255,0.04)',
+          borderTop: '1px solid var(--line)',
           flexShrink: 0,
           display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)',
         }}>
@@ -484,7 +505,7 @@ function PlantModal({
             >
               {isSaving ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                  <span style={{ width: 16, height: 16, border: '2px solid var(--text-disabled)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
                   Guardando...
                 </span>
               ) : 'Guardar Cultivo'}
@@ -507,30 +528,61 @@ export default function PlantManagement() {
   const [isSaving,    setIsSaving]    = useState(false);
   const [errorMsg,    setErrorMsg]    = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PlantFormData>({
     name: '', status: 'En Espera', tempMin: 18, tempMax: 24,
-    humidity: 60, soilMoisture: 50, lightHours: 12,
+    humidity: 60, phTarget: 6.0, ecTarget: 1.8, lightHours: 12,
   });
-
-  useEffect(() => {
-    if (isAdmin && activeWorkspace) loadPlants();
-  }, [isAdmin, activeWorkspace]);
 
   const loadPlants = async () => {
     if (!activeWorkspace) return;
     try { setLoading(true); setErrorMsg(null); setPlants(await plantsService.getPlants(activeWorkspace.id)); }
-    catch (e: any) { setErrorMsg('No se pudieron cargar las plantas: ' + (e.message || 'Error desconocido')); }
+    catch (e) { setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); }
     finally { setLoading(false); }
   };
+
+  const workspaceId = activeWorkspace?.id ?? null;
+  const [loadingFor, setLoadingFor] = useState(workspaceId);
+  if (loadingFor !== workspaceId) {
+    setLoadingFor(workspaceId);
+    setLoading(true); setErrorMsg(null);
+  }
+
+  useEffect(() => {
+    if (!isAdmin || !activeWorkspace) return;
+    let ignore = false;
+    plantsService.getPlants(activeWorkspace.id)
+      .then((list) => { if (!ignore) { setPlants(list); setErrorMsg(null); } })
+      .catch((e) => { if (!ignore) setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, [isAdmin, activeWorkspace]);
 
   const handleOpenModal = (plant?: Plant) => {
     setErrorMsg(null);
     if (plant) {
       setEditingPlant(plant);
-      setFormData({ name: plant.name, status: plant.status, tempMin: plant.reqs.tempMin || 18, tempMax: plant.reqs.tempMax || 24, humidity: plant.reqs.humidity || 60, soilMoisture: plant.reqs.soilMoisture || 50, lightHours: plant.reqs.lightHours || 12 });
+      setFormData({
+        name: plant.name,
+        status: plant.status,
+        tempMin: plant.reqs.tempMin || 18,
+        tempMax: plant.reqs.tempMax || 24,
+        humidity: plant.reqs.humidity || 60,
+        phTarget: plant.reqs.phTarget || 6.0,
+        ecTarget: plant.reqs.ecTarget || 1.8,
+        lightHours: plant.reqs.lightHours || 12,
+      });
     } else {
       setEditingPlant(null);
-      setFormData({ name: '', status: 'En Espera', tempMin: 18, tempMax: 24, humidity: 60, soilMoisture: 50, lightHours: 12 });
+      setFormData({
+        name: '',
+        status: 'En Espera',
+        tempMin: 18,
+        tempMax: 24,
+        humidity: 60,
+        phTarget: 6.0,
+        ecTarget: 1.8,
+        lightHours: 12,
+      });
     }
     setIsModalOpen(true);
   };
@@ -542,24 +594,36 @@ export default function PlantManagement() {
     if (!activeWorkspace) return;
     try {
       setIsSaving(true); setErrorMsg(null);
-      const data = { name: formData.name, status: formData.status, active: editingPlant?.active ?? false, reqs: { tempMin: +formData.tempMin, tempMax: +formData.tempMax, humidity: +formData.humidity, soilMoisture: +formData.soilMoisture, lightHours: +formData.lightHours } };
+      const data = {
+        name: formData.name,
+        status: formData.status,
+        active: editingPlant?.active ?? false,
+        reqs: {
+          tempMin: +formData.tempMin,
+          tempMax: +formData.tempMax,
+          humidity: +formData.humidity,
+          phTarget: +formData.phTarget,
+          ecTarget: +formData.ecTarget,
+          lightHours: +formData.lightHours,
+        },
+      };
       if (editingPlant) await plantsService.updatePlant(activeWorkspace.id, editingPlant.id, data);
       else await plantsService.addPlant(activeWorkspace.id, data);
       handleCloseModal(); loadPlants();
-    } catch (e: any) { setErrorMsg('Error al guardar: ' + (e.message || 'Verifica tus permisos de Firebase.')); }
+    } catch (e) { setErrorMsg('Error al guardar: ' + ((e as Error).message || 'Verifica tus permisos de Firebase.')); }
     finally { setIsSaving(false); }
   };
 
   const handleDeletePlant = async (plantId: string) => {
     if (!activeWorkspace || !window.confirm('¿Eliminar esta planta?')) return;
     try { await plantsService.deletePlant(activeWorkspace.id, plantId); loadPlants(); }
-    catch (e: any) { alert('Error al eliminar: ' + e.message); }
+    catch (e) { alert('Error al eliminar: ' + (e as Error).message); }
   };
 
   const handleSetActive = async (plantId: string) => {
     if (!activeWorkspace) return;
     try { await plantsService.setActivePlant(activeWorkspace.id, plantId, plants.map(p => p.id)); loadPlants(); }
-    catch (e: any) { alert('Error al activar: ' + e.message); }
+    catch (e) { alert('Error al activar: ' + (e as Error).message); }
   };
 
   const handleTempMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {

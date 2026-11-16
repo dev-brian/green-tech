@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
+import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 
 // Pages
 import Landing from './pages/Landing';
@@ -12,6 +13,7 @@ import PlantManagement from './pages/PlantManagement';
 import LoginPage from './pages/auth/LoginPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import AlertsPage from './pages/AlertsPage';
+import ZonesPage from './pages/ZonesPage';
 
 
 // ─── Auth pages don't show the nav/alert bar ──────────────────────────────────
@@ -83,6 +85,14 @@ function AppShell() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/zones"
+            element={
+              <ProtectedRoute>
+                <ZonesPage />
+              </ProtectedRoute>
+            }
+          />
 
 
           {/* Catch-all */}
@@ -99,6 +109,7 @@ function App() {
       <Router>
         <AppShell />
       </Router>
+      <PwaUpdatePrompt />
     </AuthProvider>
   );
 }

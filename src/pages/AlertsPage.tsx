@@ -1,12 +1,15 @@
 import { useState, useCallback } from 'react';
 import {
-  Bell, BellOff, Thermometer, Droplets, Sprout,
+  Bell, BellOff, Thermometer, Droplets, Sun, FlaskConical, Zap, Waves,
   CheckCircle2, Clock, AlertTriangle, ChevronDown,
   ChevronUp, RotateCcw, Save, Filter, X,
 } from 'lucide-react';
+import { useZones } from '../hooks/useZones';
+import { mergeZoneIds, zoneDisplayName, zoneLabel, type Zone } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
+import PushNotificationsToggle from '../components/PushNotificationsToggle';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,31 +24,48 @@ function relativeTime(date: Date): string {
 }
 
 const VARIABLE_LABELS: Record<string, string> = {
-  temperature: 'Temperatura',
+  airTemp: 'Temperatura del Aire',
+  temperature: 'Temperatura del Aire',
   humidity: 'Humedad Relativa',
-  soilMoisture: 'Humedad de Suelo',
+  light: 'Luz Ambiental',
+  ph: 'pH de la Solución',
+  ec: 'Conductividad (EC)',
+  solutionTemp: 'Temp. de la Solución',
+  tankLevel: 'Nivel del Tanque',
 };
 
 const VARIABLE_UNITS: Record<string, string> = {
+  airTemp: '°C',
   temperature: '°C',
   humidity: '%',
-  soilMoisture: '%',
+  light: ' lux',
+  ph: ' pH',
+  ec: ' mS/cm',
+  solutionTemp: '°C',
+  tankLevel: '%',
 };
 
 function VariableIcon({ variable, color }: { variable: string; color: string }) {
   const props = { size: 18, strokeWidth: 1.5, color };
-  if (variable === 'temperature') return <Thermometer {...props} />;
-  if (variable === 'humidity')    return <Droplets    {...props} />;
-  return                                  <Sprout     {...props} />;
+  if (variable === 'airTemp' || variable === 'temperature' || variable === 'solutionTemp') {
+    return <Thermometer {...props} />;
+  }
+  if (variable === 'humidity') return <Droplets {...props} />;
+  if (variable === 'light')    return <Sun {...props} />;
+  if (variable === 'ph')       return <FlaskConical {...props} />;
+  if (variable === 'ec')       return <Zap {...props} />;
+  return <Waves {...props} />;
 }
 
 // ─── Componente: ítem de alerta ───────────────────────────────────────────────
 
 function AlertItem({
   alert,
+  zoneName,
   onMarkAttended,
 }: {
   alert: FirestoreAlert;
+  zoneName: string;
   onMarkAttended: (id: string) => void;
 }) {
   const severityColor = alert.severity === 'red'
@@ -53,9 +73,9 @@ function AlertItem({
     : 'var(--status-yellow)';
 
   const statusConfig = {
-    new:           { label: 'Nueva',     bg: 'rgba(239,68,68,0.12)',   text: 'var(--status-red)'    },
-    attended:      { label: 'Atendida',  bg: 'rgba(16,185,129,0.12)',  text: 'var(--status-green)'  },
-    auto_resolved: { label: 'Resuelta',  bg: 'rgba(148,163,184,0.12)', text: 'var(--text-secondary)' },
+    new:           { label: 'Nueva',     bg: 'var(--status-crit-soft)',   text: 'var(--status-red)'    },
+    attended:      { label: 'Atendida',  bg: 'var(--status-ok-soft)',  text: 'var(--status-green)'  },
+    auto_resolved: { label: 'Resuelta',  bg: 'var(--status-offline-soft)', text: 'var(--text-secondary)' },
   }[alert.status];
 
   return (
@@ -112,7 +132,7 @@ function AlertItem({
             {relativeTime(alert.createdAt)}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-            {alert.sector}
+            {zoneName}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
             {VARIABLE_LABELS[alert.variable]}: <strong style={{ color: severityColor }}>{alert.value}{VARIABLE_UNITS[alert.variable]}</strong>
@@ -128,8 +148,8 @@ function AlertItem({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: 'rgba(16,185,129,0.08)',
-              border: '1px solid rgba(16,185,129,0.2)',
+              background: 'var(--status-ok-soft)',
+              border: '1px solid var(--leaf)',
               color: 'var(--accent)',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 12px',
@@ -139,8 +159,8 @@ function AlertItem({
               minHeight: 36,
               transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
           >
             <CheckCircle2 size={14} strokeWidth={1.5} />
             Marcar como atendida
@@ -176,10 +196,12 @@ function FilterBar({
   filters,
   onFiltersChange,
   sectors,
+  zonesById,
 }: {
   filters: AlertFilters;
   onFiltersChange: (f: AlertFilters) => void;
   sectors: string[];
+  zonesById: Record<string, Zone>;
 }) {
   const hasActiveFilter = !!(filters.severity || filters.status || filters.sector);
 
@@ -201,8 +223,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.severity === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.severity === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -227,8 +249,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.status === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.status === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -253,14 +275,14 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.sector === s
-              ? 'rgba(59,130,246,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-blue-glow)'
+              : 'var(--line)',
             color: filters.sector === s
               ? 'var(--status-blue)'
               : 'var(--text-secondary)',
           }}
         >
-          {s}
+          {zoneLabel(s, zonesById)}
         </button>
       ))}
 
@@ -277,7 +299,7 @@ function FilterBar({
             border: 'none',
             cursor: 'pointer',
             minHeight: 30,
-            background: 'rgba(239,68,68,0.08)',
+            background: 'var(--status-crit-soft)',
             color: 'var(--status-red)',
           }}
         >
@@ -291,12 +313,30 @@ function FilterBar({
 
 // ─── Componente: configuración de umbrales ────────────────────────────────────
 
-type Variable = 'temperature' | 'humidity' | 'soilMoisture';
+type Variable =
+  | 'airTemp'
+  | 'humidity'
+  | 'light'
+  | 'ph'
+  | 'ec'
+  | 'solutionTemp'
+  | 'tankLevel';
 
-const VARIABLE_CONFIG: { key: Variable; label: string; unit: string; min: number; max: number }[] = [
-  { key: 'temperature',  label: 'Temperatura',         unit: '°C', min: -10, max: 60 },
-  { key: 'humidity',     label: 'Humedad Relativa',     unit: '%',  min: 0,   max: 100 },
-  { key: 'soilMoisture', label: 'Humedad de Suelo',     unit: '%',  min: 0,   max: 100 },
+const VARIABLE_CONFIG: {
+  key: Variable;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+}[] = [
+  { key: 'airTemp',      label: 'Temperatura del Aire', unit: '°C',    min: -5,  max: 50,    step: 1 },
+  { key: 'humidity',     label: 'Humedad Relativa',     unit: '%',     min: 0,   max: 100,   step: 1 },
+  { key: 'light',        label: 'Luz Ambiental',        unit: ' lux',  min: 0,   max: 50000, step: 500 },
+  { key: 'ph',           label: 'pH de la Solución',    unit: ' pH',   min: 3.5, max: 8.5,   step: 0.1 },
+  { key: 'ec',           label: 'Conductividad (EC)',   unit: ' mS/cm',min: 0.2, max: 4.5,   step: 0.1 },
+  { key: 'solutionTemp', label: 'Temp. de la Solución', unit: '°C',    min: 5,   max: 40,    step: 1 },
+  { key: 'tankLevel',    label: 'Nivel del Tanque',     unit: '%',     min: 0,   max: 100,   step: 1 },
 ];
 
 function ThresholdBlock({
@@ -305,6 +345,7 @@ function ThresholdBlock({
   unit,
   min,
   max,
+  step,
   values,
   onChange,
   disabled,
@@ -314,11 +355,12 @@ function ThresholdBlock({
   unit: string;
   min: number;
   max: number;
+  step: number;
   values: { redMin: number; yellowMin: number; yellowMax: number; redMax: number };
   onChange: (key: Variable, field: string, value: number) => void;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(varKey === 'airTemp' || varKey === 'ph');
 
   const sliders: { field: string; label: string; color: string; description: string }[] = [
     { field: 'redMin',    label: 'Crítico mínimo',   color: 'var(--status-red)',    description: `Por debajo → 🔴 Rojo` },
@@ -377,7 +419,7 @@ function ThresholdBlock({
                   type="range"
                   min={min}
                   max={max}
-                  step={1}
+                  step={step}
                   value={currentVal}
                   disabled={disabled}
                   onChange={(e) => onChange(varKey, field, Number(e.target.value))}
@@ -444,8 +486,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
           style={{
             padding: 'var(--space-sm)',
             borderRadius: 'var(--radius-md)',
-            background: 'rgba(16,185,129,0.10)',
-            border: '1px solid rgba(16,185,129,0.25)',
+            background: 'var(--status-ok-soft)',
+            border: '1px solid var(--leaf)',
             color: 'var(--status-green)',
             fontSize: '0.875rem',
             fontWeight: 600,
@@ -464,8 +506,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
         <div style={{
           padding: 'var(--space-sm)',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(239,68,68,0.10)',
-          border: '1px solid rgba(239,68,68,0.25)',
+          background: 'var(--status-crit-soft)',
+          border: '1px solid var(--status-crit)',
           color: 'var(--status-red)',
           fontSize: '0.875rem',
         }}>
@@ -474,7 +516,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
       )}
 
       {/* Bloques por variable */}
-      {VARIABLE_CONFIG.map(({ key, label, unit, min, max }) => (
+      {VARIABLE_CONFIG.map(({ key, label, unit, min, max, step }) => (
         <ThresholdBlock
           key={key}
           varKey={key}
@@ -482,6 +524,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
           unit={unit}
           min={min}
           max={max}
+          step={step}
           values={current[key]}
           onChange={handleChange}
           disabled={saving}
@@ -513,7 +556,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
                   padding: '8px 16px',
                   borderRadius: 'var(--radius-sm)',
                   border: 'none',
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--line)',
                   color: 'var(--text-secondary)',
                   fontSize: '0.875rem',
                   fontWeight: 600,
@@ -530,7 +573,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
                   padding: '8px 16px',
                   borderRadius: 'var(--radius-sm)',
                   border: 'none',
-                  background: 'rgba(239,68,68,0.15)',
+                  background: 'var(--status-crit-soft)',
                   color: 'var(--status-red)',
                   fontSize: '0.875rem',
                   fontWeight: 700,
@@ -555,7 +598,7 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
               padding: '8px 16px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: 'rgba(255,255,255,0.04)',
+              background: 'var(--line)',
               color: 'var(--text-secondary)',
               fontSize: '0.875rem',
               fontWeight: 600,
@@ -578,8 +621,8 @@ function ThresholdsSection({ greenhouseId }: { greenhouseId: string }) {
             padding: '8px 20px',
             borderRadius: 'var(--radius-sm)',
             border: 'none',
-            background: draft && !saving ? 'var(--accent)' : 'rgba(16,185,129,0.2)',
-            color: draft && !saving ? '#fff' : 'var(--text-disabled)',
+            background: draft && !saving ? 'var(--ink-block)' : 'var(--track)',
+            color: draft && !saving ? 'var(--text-on-ink)' : 'var(--text-secondary)',
             fontSize: '0.875rem',
             fontWeight: 700,
             cursor: (saving || !draft) ? 'not-allowed' : 'pointer',
@@ -607,8 +650,14 @@ export default function AlertsPage() {
   const { alerts, loading, unattendedCount, filters, setFilters, markAttended } =
     useAlerts(greenhouseId);
 
-  // Sectores únicos presentes en las alertas (para el filtro)
-  const sectors = [...new Set(alerts.map((a) => a.sector))].filter(Boolean).sort();
+  // Zonas para el filtro (T4.2 #65): las registradas, las que aparecen en
+  // alertas y la elegida, para que el filtro no desaparezca al aplicarlo.
+  const { zones, zonesById } = useZones(greenhouseId);
+  const sectors = mergeZoneIds(
+    zones.map((z) => z.id),
+    alerts.map((a) => a.sector),
+    filters.sector ? [filters.sector] : [],
+  );
 
   return (
     <div className="container animate-fade-in" style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}>
@@ -622,9 +671,9 @@ export default function AlertsPage() {
           {unattendedCount > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(239,68,68,0.12)',
+              background: 'var(--status-crit-soft)',
               color: 'var(--status-red)',
-              border: '1px solid rgba(239,68,68,0.25)',
+              border: '1px solid var(--status-crit)',
               borderRadius: 'var(--radius-full)',
               padding: '2px 10px',
               fontSize: '0.6875rem',
@@ -640,6 +689,9 @@ export default function AlertsPage() {
           {activeWorkspace ? `Invernadero: ${activeWorkspace.name}` : 'Selecciona un invernadero'}
         </p>
       </div>
+
+      {/* ─── Push FCM de alertas críticas (T6.4 #51) ─────────────── */}
+      {activeWorkspace && <PushNotificationsToggle />}
 
       {!activeWorkspace ? (
         <div className="nm-concave" style={{ padding: 'var(--space-2xl)', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
@@ -657,7 +709,7 @@ export default function AlertsPage() {
 
             {/* Filtros */}
             <div style={{ marginBottom: 'var(--space-sm)' }}>
-              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} />
+              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} zonesById={zonesById} />
             </div>
 
             {/* Lista */}
@@ -678,7 +730,7 @@ export default function AlertsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {alerts.map((alert) => (
-                  <AlertItem key={alert.id} alert={alert} onMarkAttended={markAttended} />
+                  <AlertItem key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onMarkAttended={markAttended} />
                 ))}
               </div>
             )}

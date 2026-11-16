@@ -10,6 +10,7 @@ import {
   where,
   writeBatch,
   doc,
+  setDoc,
   Timestamp,
 } from 'firebase/firestore';
 
@@ -24,31 +25,34 @@ const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
     const [k, v] = a.replace(/^--/, '').split('=');
     return [k, v ?? true];
-  })
+  }),
 );
 
-const HOURS = Number(args.hours ?? 24);
+const HOURS = Number(args.hours ?? 12);
 const INTERVAL_MIN = Number(args.interval ?? 30);
 const NODE_ID = args.nodeId ?? 'ESP32-SIM-01';
-const SECTOR = args.sector ?? 'Sector 1';
 const CLEAR = Boolean(args.clear);
 
+const ZONES = [
+  { zoneId: 'zona-1', crop: 'Lechuga NFT', basePh: 6.0, baseEc: 1.4 },
+  { zoneId: 'zona-2', crop: 'Jitomate DWC', basePh: 6.2, baseEc: 2.2 },
+  { zoneId: 'zona-3', crop: 'Hierbas Aromáticas', basePh: 5.9, baseEc: 1.6 },
+];
+
 const THRESHOLDS = {
-  temperature: { redMin: 12, yellowMin: 18, yellowMax: 27, redMax: 32 },
-  humidity: { redMin: 40, yellowMin: 60, yellowMax: 80, redMax: 90 },
-  soilMoisture: { redMin: 40, yellowMin: 60, yellowMax: 80, redMax: 90 },
+  airTemp:      { redMin: 12, yellowMin: 18, yellowMax: 27, redMax: 32 },
+  humidity:     { redMin: 40, yellowMin: 55, yellowMax: 75, redMax: 85 },
+  light:        { redMin: 2000, yellowMin: 8000, yellowMax: 32000, redMax: 42000 },
+  ph:           { redMin: 5.0, yellowMin: 5.5, yellowMax: 6.5, redMax: 7.2 },
+  ec:           { redMin: 0.8, yellowMin: 1.2, yellowMax: 2.4, redMax: 3.0 },
+  solutionTemp: { redMin: 14, yellowMin: 18, yellowMax: 24, redMax: 28 },
+  tankLevel:    { redMin: 20, yellowMin: 40, yellowMax: 95, redMax: 100 },
 };
 
-function statusFor(value, t) {
-  if (value < t.redMin || value > t.redMax) return 'red';
-  if (value < t.yellowMin || value > t.yellowMax) return 'yellow';
-  return 'green';
-}
-
-function worstOf(...statuses) {
-  if (statuses.includes('red')) return 'red';
-  if (statuses.includes('yellow')) return 'yellow';
-  return 'green';
+function levelFor(value, t) {
+  if (value < t.redMin || value > t.redMax) return 'critical';
+  if (value < t.yellowMin || value > t.yellowMax) return 'warn';
+  return 'ok';
 }
 
 const firebaseConfig = {
@@ -73,42 +77,60 @@ function generateReadings(greenhouseId, hours, intervalMin) {
   const points = Math.floor((hours * 60) / intervalMin);
   const now = Date.now();
   const readings = [];
+  const latestState = {};
 
   for (let i = points; i >= 0; i--) {
     const t = new Date(now - i * intervalMin * 60 * 1000);
     const hourOfDay = t.getHours() + t.getMinutes() / 60;
-
     const dayPhase = Math.sin(((hourOfDay - 8) / 24) * 2 * Math.PI);
 
-    let temperature = 22 + dayPhase * 6 + (Math.random() - 0.5) * 1.5;
-    let humidity = 68 - dayPhase * 12 + (Math.random() - 0.5) * 4;
-    let soilMoisture = 65 + Math.sin((i / points) * Math.PI * 3) * 15 + (Math.random() - 0.5) * 3;
+    for (const z of ZONES) {
+      let airTemp = Number((22 + dayPhase * 5 + (Math.random() - 0.5) * 1.2).toFixed(1));
+      let humidity = Math.max(30, Math.min(95, Math.round(66 - dayPhase * 10 + (Math.random() - 0.5) * 4)));
+      let light = Math.max(500, Math.round((dayPhase > 0 ? 18000 * dayPhase : 3500) + (Math.random() - 0.5) * 1200));
+      let ph = Number((z.basePh + (Math.random() - 0.5) * 0.25).toFixed(2));
+      let ec = Number((z.baseEc + (Math.random() - 0.5) * 0.2).toFixed(2));
+      let solutionTemp = Number((airTemp - 1.5 + (Math.random() - 0.5) * 0.6).toFixed(1));
+      let tankLevel = Math.max(15, Math.min(100, Math.round(88 - ((points - i) / Math.max(1, points)) * 22)));
 
+      if (i === 0 && z.zoneId === 'zona-2') {
+        ph = 7.35; // anomalía demostrativa en zona-2
+      }
 
-    if (i === Math.floor(points * 0.3)) temperature += 11;
-    if (i === Math.floor(points * 0.65)) soilMoisture -= 30;
+      const ts = Timestamp.fromDate(t);
+      const reading = {
+        greenhouseId,
+        nodeId: NODE_ID,
+        zoneId: z.zoneId,
+        crop: z.crop,
+        timestamp: ts,
+        airTemp,
+        humidity,
+        light,
+        ph,
+        ec,
+        solutionTemp,
+        tankLevel,
+        simulated: true,
+      };
+      readings.push(reading);
 
-    temperature = Math.round(temperature * 10) / 10;
-    humidity = Math.max(0, Math.min(100, Math.round(humidity)));
-    soilMoisture = Math.max(0, Math.min(100, Math.round(soilMoisture)));
-
-    const tempStatus = statusFor(temperature, THRESHOLDS.temperature);
-    const humStatus = statusFor(humidity, THRESHOLDS.humidity);
-    const soilStatus = statusFor(soilMoisture, THRESHOLDS.soilMoisture);
-
-    readings.push({
-      greenhouseId,
-      nodeId: NODE_ID,
-      sector: SECTOR,
-      timestamp: Timestamp.fromDate(t),
-      temperature,
-      humidity,
-      soilMoisture,
-      semaphoreStatus: worstOf(tempStatus, humStatus, soilStatus),
-      simulated: true,
-    });
+      if (i === 0) {
+        latestState[z.zoneId] = {
+          crop: z.crop,
+          timestamp: ts,
+          airTemp:      { value: airTemp,      level: levelFor(airTemp, THRESHOLDS.airTemp) },
+          humidity:     { value: humidity,     level: levelFor(humidity, THRESHOLDS.humidity) },
+          light:        { value: light,        level: levelFor(light, THRESHOLDS.light) },
+          ph:           { value: ph,           level: levelFor(ph, THRESHOLDS.ph) },
+          ec:           { value: ec,           level: levelFor(ec, THRESHOLDS.ec) },
+          solutionTemp: { value: solutionTemp, level: levelFor(solutionTemp, THRESHOLDS.solutionTemp) },
+          tankLevel:    { value: tankLevel,    level: levelFor(tankLevel, THRESHOLDS.tankLevel) },
+        };
+      }
+    }
   }
-  return readings;
+  return { readings, latestState };
 }
 
 async function resolveGreenhouseId() {
@@ -133,9 +155,8 @@ async function resolveGreenhouseId() {
 
 async function clearSimulated(greenhouseId) {
   const q = query(
-    collection(db, 'telemetry_data'),
-    where('greenhouseId', '==', greenhouseId),
-    where('simulated', '==', true)
+    collection(db, 'greenhouses', greenhouseId, 'readings'),
+    where('simulated', '==', true),
   );
   const snap = await getDocs(q);
   if (snap.empty) {
@@ -157,9 +178,7 @@ async function main() {
   try {
     await signInAnonymously(auth);
   } catch (err) {
-    console.error('✗ No se pudo autenticar de forma anónima.');
-    console.error('  Habilita el proveedor "Anonymous" en Firebase Console → Authentication → Sign-in method.');
-    console.error('  Detalle:', err.message);
+    console.error('✗ No se pudo autenticar de forma anónima:', err.message);
     process.exit(1);
   }
 
@@ -175,7 +194,7 @@ async function main() {
   }
 
   console.log(`→ Generando ${HOURS}h de historia cada ${INTERVAL_MIN}min para "${greenhouseId}"...`);
-  const readings = generateReadings(greenhouseId, HOURS, INTERVAL_MIN);
+  const { readings, latestState } = generateReadings(greenhouseId, HOURS, INTERVAL_MIN);
 
   const chunks = [];
   for (let i = 0; i < readings.length; i += 450) chunks.push(readings.slice(i, i + 450));
@@ -184,15 +203,20 @@ async function main() {
   for (const chunk of chunks) {
     const batch = writeBatch(db);
     chunk.forEach((reading) => {
-      const ref = doc(collection(db, 'telemetry_data'));
+      const ref = doc(collection(db, 'greenhouses', greenhouseId, 'readings'));
       batch.set(ref, reading);
     });
     await batch.commit();
     written += chunk.length;
   }
 
-  console.log(`✓ Listo: ${written} lecturas de prueba escritas en telemetry_data.`);
-  console.log('  Abre el Dashboard — el histórico y las tarjetas deberían mostrar estos datos en unos segundos.');
+  await setDoc(
+    doc(db, 'greenhouses', greenhouseId, 'state', 'latest'),
+    { ...latestState, updatedAt: Timestamp.now() },
+    { merge: true },
+  );
+
+  console.log(`✓ Listo: ${written} lecturas escritas en greenhouses/${greenhouseId}/readings y state/latest actualizado.`);
   process.exit(0);
 }
 

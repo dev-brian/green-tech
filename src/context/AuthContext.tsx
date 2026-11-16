@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { auth, db, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { disablePush } from '../lib/pushService';
 import {
   doc,
   getDoc,
@@ -177,6 +178,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Dar de baja el token push antes de salir: después ya no hay permiso para borrarlo.
+    if (auth.currentUser) {
+      await disablePush(auth.currentUser.uid).catch(() => undefined);
+    }
     await signOut(auth);
   }, []);
 

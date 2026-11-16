@@ -13,6 +13,7 @@
 import type { AddressInfo } from 'node:net';
 import { createIngestHttpServer } from './server.ts';
 import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
+import { FcmPushNotifier } from './core/fcmPushNotifier.ts';
 import {
   DEFAULT_SIMULATED_ZONES,
   createInitialReadings,
@@ -79,7 +80,9 @@ async function runCli() {
     const storage = useFirestore
       ? new FirestoreTelemetryStorage()
       : undefined;
-    const { server } = createIngestHttpServer({ deviceKey, storage });
+    // Con Firestore también se envían push FCM de alertas críticas (T6.5 #52)
+    const notifier = useFirestore ? new FcmPushNotifier() : undefined;
+    const { server } = createIngestHttpServer({ deviceKey, storage, notifier });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;

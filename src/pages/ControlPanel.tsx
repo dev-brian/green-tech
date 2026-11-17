@@ -1,298 +1,151 @@
-import { useState } from 'react';
-import { Settings2, Power, ShieldAlert, Lock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Droplets, FlaskConical, Fan, Sprout, Info, CircleDot, ChevronRight, WifiOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useZones } from '../hooks/useZones';
+import { useNow } from '../hooks/useNow';
+import { subscribeToActuators } from '../lib/actuatorsService';
+import { ACTUATOR_INFO, ACTUATOR_ORDER, type ActuatorKey, type ZoneActuators } from '../lib/actuators';
+import { cropLabel, zoneDisplayName } from '../lib/zones';
+import { STALE_THRESHOLD_MS, isStaleAt } from '../lib/zoneFreshness';
 
-/* ── Fila de control manual (bomba / riego) ─────────────── */
-function ControlRow({
-  label,
-  sublabel,
-  checked,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  sublabel: string;
-  checked: boolean;
-  disabled: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div
-      className="nm-concave"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 'var(--space-sm)',
-        gap: 'var(--space-sm)',
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
-          {label}
-        </p>
-        <p className="metric-timestamp" style={{ marginTop: 4 }}>{sublabel}</p>
-      </div>
-      <label className="switch" aria-label={label}>
-        <input
-          type="checkbox"
-          checked={checked}
-          disabled={disabled}
-          onChange={e => onChange(e.target.checked)}
-        />
-        <span className="slider" />
-      </label>
-    </div>
-  );
+/**
+ * Equipos del invernadero (auditoría A2, issue #68).
+ *
+ * Antes esta página era una maqueta: encender la bomba o "Guardar
+ * Configuración" no escribía nada, y un operador podía creer que había
+ * encendido algo. Ahora muestra, en solo lectura, lo que el backend decidió
+ * en greenhouses/{id}/actuators/{zoneId}. El control manual queda fuera del
+ * alcance de la entrega; los límites se ajustan en Alertas.
+ */
+
+const ICONS: Record<ActuatorKey, typeof Droplets> = {
+  recirculationPump: Droplets,
+  phDoser: FlaskConical,
+  nutrientDoser: Sprout,
+  ventilation: Fan,
+};
+
+function timeAgo(date: Date | null, now: number): string {
+  if (!date) return 'sin hora';
+  const s = Math.floor((now - date.getTime()) / 1000);
+  if (s < 60) return `hace ${Math.max(0, s)} s`;
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  return `el ${date.toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
 }
 
-/* ── Fila de slider de configuración ────────────────────── */
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step = 1,
-  unit,
-  color,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  unit: string;
-  color: string;
-  disabled: boolean;
-  onChange: (v: number) => void;
-}) {
+function ActuatorRow({ k, on, stale }: { k: ActuatorKey; on: boolean | null; stale: boolean }) {
+  const info = ACTUATOR_INFO[k];
+  const Icon = ICONS[k];
+  const known = on !== null && !stale;
+  const tone = !known ? 'offline' : on ? 'ok' : 'offline';
+  const word = on === null ? 'Sin dato' : on ? 'Encendido' : 'Apagado';
+  const detail = on === null ? 'El sistema todavía no reporta este equipo.' : on ? info.on : info.off;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span className="metric-label">{label}</span>
-        <span style={{ fontWeight: 700, fontSize: '0.875rem', color, fontVariantNumeric: 'tabular-nums' }}>
-          {value}{unit}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={e => onChange(step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value))}
-        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-      />
-    </div>
+    <li style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderTop: '1px solid var(--line)' }}>
+      <span className={`icon-well icon-well--${tone}`}>
+        <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <span style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontSize: '0.9375rem', fontWeight: 600 }}>{info.name}</span>
+        <span className="metric-label">{detail}</span>
+      </span>
+      <span className={`chip chip--${tone}`}>
+        <CircleDot size={16} strokeWidth={2} aria-hidden="true" />
+        {stale && on !== null ? `${word} (último dato)` : word}
+      </span>
+    </li>
   );
 }
 
 export default function ControlPanel() {
-  const { isAdmin } = useAuth();
-  const [isAutoMode,       setIsAutoMode]       = useState(true);
-  const [pumpActive,       setPumpActive]       = useState(false);
-  const [irrigationActive, setIrrigationActive] = useState(true);
-  const [minTemp,          setMinTemp]          = useState(18);
-  const [maxTemp,          setMaxTemp]          = useState(28);
-  const [minHumidity,      setMinHumidity]      = useState(50);
-  const [targetPh,         setTargetPh]         = useState(6.2);
+  const { activeWorkspace } = useAuth();
+  const greenhouseId = activeWorkspace?.id ?? null;
+  const { zonesById } = useZones(greenhouseId);
+  const now = useNow(30_000);
+  const [result, setResult] = useState<{ greenhouseId: string; zones: ZoneActuators[]; error: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!greenhouseId) return;
+    return subscribeToActuators(
+      greenhouseId,
+      (zones) => setResult({ greenhouseId, zones, error: null }),
+      (err) => {
+        console.error('Error leyendo actuadores:', err);
+        setResult({ greenhouseId, zones: [], error: 'No se pudo leer el estado de los equipos. Revisa tu conexión e intenta de nuevo.' });
+      },
+    );
+  }, [greenhouseId]);
+
+  const current = result && result.greenhouseId === greenhouseId ? result : null;
 
   return (
     <div
       className="container animate-fade-in"
-      style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}
+      style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}
     >
-      {/* ── Header ──────────────────────────────────── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 'var(--space-sm)',
-        marginBottom: 'var(--space-lg)',
-      }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)' }}>Panel de Control</h2>
-          <p style={{ margin: 0, marginTop: 'var(--space-xs)', fontSize: '0.875rem' }}>
-            Monitoreo y configuración en tiempo real.
-          </p>
-        </div>
+      <header style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+        <h1 style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)' }}>Equipos del invernadero</h1>
+        <p style={{ maxWidth: 560 }}>
+          Qué está encendido en cada zona. El sistema los prende y los apaga solo, según las lecturas.
+        </p>
+      </header>
 
-        {/* Toggle Manual / Automático */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <span className="metric-label">Manual</span>
-          <label className="switch" aria-label="Modo de operación">
-            <input
-              type="checkbox"
-              checked={isAutoMode}
-              onChange={e => setIsAutoMode(e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
-          <span style={{
-            fontWeight: 700,
-            fontSize: '0.875rem',
-            color: isAutoMode ? 'var(--accent)' : 'var(--text-disabled)',
-            transition: 'color 0.3s',
-          }}>
-            Automático
-          </span>
-        </div>
+      <div className="well" role="note" style={{ display: 'flex', gap: 12, padding: 16, alignItems: 'flex-start' }}>
+        <Info size={20} strokeWidth={1.75} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+        <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5 }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Solo lectura.</strong> Desde aquí todavía no se puede
+          encender ni apagar nada. Para cambiar los rangos que activan cada equipo, ve a{' '}
+          <Link to="/alerts" style={{ fontWeight: 600 }}>Alertas</Link>.
+        </p>
       </div>
 
-      {/* ── Grid de paneles ─────────────────────────── */}
-      <div className="grid-cards">
-
-        {/* Panel de Controles Manuales */}
-        <div
-          className="nm-flat"
-          style={{
-            padding: 'var(--space-md)',
-            opacity: isAutoMode ? 0.55 : 1,
-            transition: 'opacity 0.3s ease',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-md)' }}>
-            <Power size={20} strokeWidth={1.5} color="var(--status-yellow)" />
-            <h3 style={{ margin: 0, fontSize: '1rem' }}>Controles Manuales</h3>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            <ControlRow
-              label="Bomba de Agua"
-              sublabel={`Estado: ${pumpActive ? 'Encendida' : 'Apagada'}`}
-              checked={pumpActive}
-              disabled={isAutoMode}
-              onChange={setPumpActive}
-            />
-            <ControlRow
-              label="Sistema de Riego"
-              sublabel={`Estado: ${irrigationActive ? 'Activo' : 'Inactivo'}`}
-              checked={irrigationActive}
-              disabled={isAutoMode}
-              onChange={setIrrigationActive}
-            />
-          </div>
-
-          {isAutoMode && (
-            <p style={{
-              margin: 0,
-              marginTop: 'var(--space-sm)',
-              fontSize: '0.75rem',
-              color: 'var(--text-disabled)',
-              textAlign: 'center',
-            }}>
-              Desactiva el modo automático para habilitar los controles manuales.
-            </p>
-          )}
+      {!greenhouseId ? null : !current ? (
+        <p role="status" style={{ color: 'var(--text-secondary)' }}>Cargando equipos…</p>
+      ) : current.error ? (
+        <p role="alert" className="glass" style={{ padding: 'var(--space-md)', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <WifiOff size={20} aria-hidden="true" /> {current.error}
+        </p>
+      ) : current.zones.length === 0 ? (
+        <div className="glass" style={{ padding: 'var(--space-lg) var(--space-md)', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '1.125rem' }}>Todavía no hay datos de equipos</h2>
+          <p>Aparecerán en cuanto los sensores (o el simulador) manden la primera lectura.</p>
         </div>
-
-        {/* Panel de Límites del Sistema */}
-        <div className="nm-flat" style={{ padding: 'var(--space-md)' }}>
-
-          {/* Encabezado del panel */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 'var(--space-md)',
-            flexWrap: 'wrap',
-            gap: 'var(--space-xs)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-              <Settings2 size={20} strokeWidth={1.5} color="var(--status-blue)" />
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Límites del Sistema</h3>
-            </div>
-            {!isAdmin && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                background: 'var(--status-warn-soft)',
-                color: 'var(--status-yellow)',
-                border: '1px solid var(--status-warn)',
-                borderRadius: 'var(--radius-full)',
-                padding: '2px 10px',
-                fontSize: '0.6875rem',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-              }}>
-                <Lock size={10} strokeWidth={1.5} /> SOLO LECTURA
-              </span>
-            )}
-          </div>
-
-          {/* Banner de acceso restringido */}
-          {!isAdmin && (
-            <div className="nm-concave" style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 'var(--space-xs)',
-              padding: 'var(--space-sm)',
-              marginBottom: 'var(--space-md)',
-              borderLeft: '3px solid var(--status-yellow)',
-            }}>
-              <ShieldAlert size={18} strokeWidth={1.5} color="var(--status-yellow)" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: '0.8125rem', color: 'var(--status-yellow)' }}>
-                  Acceso Restringido
-                </p>
-                <p style={{ margin: 0, marginTop: 4, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Tu rol de <strong style={{ color: 'var(--text-primary)' }}>Operador</strong> no puede modificar los límites del sistema.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Sliders */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            <SliderRow
-              label="Temperatura Mínima"
-              value={minTemp} min={10} max={25}
-              unit="°C" color="var(--status-yellow)"
-              disabled={!isAdmin}
-              onChange={v => { if (v <= maxTemp) setMinTemp(v); }}
-            />
-            <SliderRow
-              label="Temperatura Máxima"
-              value={maxTemp} min={20} max={40}
-              unit="°C" color="var(--status-red)"
-              disabled={!isAdmin}
-              onChange={v => { if (v >= minTemp) setMaxTemp(v); }}
-            />
-            <SliderRow
-              label="Humedad Mínima"
-              value={minHumidity} min={30} max={80}
-              unit="%" color="var(--status-blue)"
-              disabled={!isAdmin}
-              onChange={setMinHumidity}
-            />
-            <SliderRow
-              label="Objetivo pH"
-              value={targetPh} min={5.0} max={8.0} step={0.1}
-              unit="" color="var(--accent)"
-              disabled={!isAdmin}
-              onChange={setTargetPh}
-            />
-          </div>
-
-          {/* Botón guardar */}
-          <div style={{ marginTop: 'var(--space-lg)' }}>
-            <button
-              className="btn-primary"
-              disabled={!isAdmin}
-              aria-disabled={!isAdmin}
-              style={{ width: '100%' }}
-            >
-              {isAdmin ? 'Guardar Configuración' : 'Configuración Bloqueada'}
-            </button>
-          </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-sm)' }}>
+          {current.zones.map((zone) => {
+            const stale = isStaleAt(zone.updatedAt, now);
+            const crop = cropLabel(zonesById[zone.zoneId]?.crop);
+            return (
+              <section key={zone.zoneId} className="glass" aria-labelledby={`eq-${zone.zoneId}`} style={{ padding: 'var(--space-sm) 0 0', overflow: 'hidden' }}>
+                <div style={{ padding: '4px 16px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <h2 id={`eq-${zone.zoneId}`} style={{ fontSize: '1.125rem' }}>
+                    {zoneDisplayName(zone.zoneId, zonesById)}
+                    {crop && <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}> · {crop}</span>}
+                  </h2>
+                  <span className="metric-label">
+                    {stale
+                      ? `Sin datos recientes · última actualización ${timeAgo(zone.updatedAt, now)}`
+                      : `Actualizado ${timeAgo(zone.updatedAt, now)}`}
+                  </span>
+                </div>
+                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {ACTUATOR_ORDER.map((k) => (
+                    <ActuatorRow key={k} k={k} on={zone[k].on} stale={stale} />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
         </div>
+      )}
 
-      </div>
+      <Link to="/dashboard" style={{ minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+        Volver al tablero <ChevronRight size={16} aria-hidden="true" />
+      </Link>
+      <span className="metric-label">
+        Un equipo sin actualizar en más de {STALE_THRESHOLD_MS / 60000} minutos se muestra en gris.
+      </span>
     </div>
   );
 }

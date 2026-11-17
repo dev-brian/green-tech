@@ -8,10 +8,9 @@ import {
   type ReactNode,
 } from 'react';
 import { auth, db, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getRedirectResult, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
 import { clearIndexedDbPersistence, terminate } from 'firebase/firestore';
 import { authErrorMessage, shouldFallBackToRedirect } from '../lib/authErrors';
-import { disablePush } from '../lib/pushService';
 import {
   doc,
   getDoc,
@@ -157,6 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [fetchWorkspaces]);
 
+  // Auditoría A9: si el inicio de sesión cayó a signInWithRedirect, el error
+  // (si lo hubo) solo llega aquí al volver de Google; sin esto se perdía.
+  useEffect(() => {
+    getRedirectResult(auth).catch((err: unknown) => {
+      console.error('Error al volver del inicio de sesión con redirección:', err);
+      setError(authErrorMessage(err));
+    });
+  }, []);
+
   // Sync active workspace
   useEffect(() => {
     if (activeWorkspace) {
@@ -193,8 +201,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // Dar de baja el token push antes de salir: después ya no hay permiso para borrarlo.
-    if (auth.currentUser) {
-      await disablePush(auth.currentUser.uid).catch(() => undefined);
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      // Import dinámico: Firebase Messaging no entra en el paquete inicial (auditoría A8).
+      await import('../lib/pushService')
+        .then((m) => m.disablePush(uid))
+        .catch(() => undefined);
     }
     await signOut(auth);
     // Auditoría A9: en un celular compartido no deben quedar lecturas ni
@@ -203,6 +215,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Si otra pestaña sigue abierta el borrado falla; se recarga igual.
     try {
       sessionStorage.clear();
+      // El id del invernadero no debe quedar para la siguiente persona.
+      localStorage.removeItem('gt_active_workspace');
     } catch {
       // Almacenamiento bloqueado: no hay nada que limpiar.
     }
@@ -212,7 +226,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.warn('No se pudo borrar la caché local de Firestore:', err);
     }
-    window.location.replace(`${import.meta.env.BASE_URL}#/login`);
+    // Cambiar solo el hash no recarga la página (y `db` ya está cerrado):
+    // se fija la ruta y se recarga explícitamente.
+    window.history.replaceState(null, '', `${import.meta.env.BASE_URL}#/login`);
+    window.location.reload();
   }, []);
 
   // Legacy stubs

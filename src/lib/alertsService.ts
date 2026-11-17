@@ -110,6 +110,7 @@ export function subscribeToAlerts(
   greenhouseId: string,
   filters: AlertFilters,
   callback: (alerts: FirestoreAlert[]) => void,
+  onError?: (err: Error) => void,
 ): () => void {
   const q = query(
     collection(db, 'greenhouses', greenhouseId, 'alerts'),
@@ -133,6 +134,10 @@ export function subscribeToAlerts(
     }
 
     callback(alerts);
+  }, (err) => {
+    // Auditoría A5: sin esto la lista se quedaba en esqueleto para siempre.
+    console.error('Error leyendo alertas:', err);
+    onError?.(err);
   });
 }
 

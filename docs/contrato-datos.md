@@ -114,7 +114,9 @@ Un solo documento con el último estado de cada zona, que el backend sobrescribe
 ```
 
 - `level` ∈ `"ok"` · `"warn"` · `"critical"` y **lo calcula el backend** con los umbrales del invernadero. Ninguna app tiene rangos propios.
-- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de 5 minutos.
+- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de **15 minutos** (tres ciclos del motor de alertas, que corre cada 5 min en un cron que suele retrasarse).
+- La vigencia se calcula **con el reloj del cliente**, no solo cuando llega un snapshot: si el sensor deja de enviar no llega ningún snapshot. La PWA la recalcula cada 30 s (`src/lib/zoneFreshness.ts`).
+- Sin `timestamp`, o con una hora más de 5 min en el futuro, la zona se muestra en gris. Si falta una variable se muestra "sin dato", nunca un valor por defecto.
 
 ### 2.5 `greenhouses/{greenhouseId}/alerts/{alertId}`
 

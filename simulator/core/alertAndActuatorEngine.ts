@@ -21,6 +21,7 @@ import {
   type HydroponicReadings,
   type HydroponicVariable,
   type IngestTelemetryRequest,
+  type VariableThresholdRange,
 } from './hydroponicModel.ts';
 import type { AlertPushNotifier } from './pushNotifier.ts';
 
@@ -48,6 +49,103 @@ export interface AlertRecord {
   attendedBy: string | null;
   attendedAt: string | null;
   resolvedAt: string | null;
+}
+
+/**
+ * Una alerta sigue abierta mientras no tenga `resolvedAt`, aunque alguien ya
+ * la haya marcado como atendida. Antes solo contaba `status == 'new'`, y
+ * atenderla hacía que la siguiente lectura creara otra (auditoría C4).
+ */
+export function isAlertOpen(alert: Pick<AlertRecord, 'status' | 'resolvedAt'>): boolean {
+  return (alert.status === 'new' || alert.status === 'attended') && !alert.resolvedAt;
+}
+
+/** Lo que el motor decide hacer con la alerta abierta de una zona y variable. */
+export type AlertChange =
+  | { kind: 'none' }
+  | { kind: 'create'; alert: Omit<AlertRecord, 'id'> }
+  | { kind: 'update'; patch: Partial<Omit<AlertRecord, 'id'>> };
+
+export interface AlertChangeResult {
+  change: AlertChange;
+  /** La alerta tal como quedó, o null si no había ninguna abierta. */
+  alert: AlertRecord | null;
+}
+
+/**
+ * Margen para cerrar una alerta, como fracción del ancho del rango ideal.
+ * Un valor que oscila justo en el límite no debe crear y cerrar alertas sin
+ * parar: solo se cierra cuando entra al rango con este margen (histéresis).
+ * pH 5.5–6.5 → 0.05; temperatura 18–24 °C → 0.3 °C.
+ */
+export const ALERT_RESOLVE_MARGIN = 0.05;
+
+/**
+ * true si el valor ya volvió al rango ideal con margen suficiente para cerrar
+ * la alerta. El margen solo se pide del lado por el que salió (`triggerValue`),
+ * porque hay rangos que llegan al tope físico (tanque 40–100 %).
+ */
+export function isClearOfThreshold(
+  value: number,
+  range: VariableThresholdRange,
+  triggerValue: number,
+): boolean {
+  const margin = (range.yellowMax - range.yellowMin) * ALERT_RESOLVE_MARGIN;
+  const low = triggerValue < range.yellowMin;
+  const high = triggerValue > range.yellowMax;
+  const aboveLow = value >= range.yellowMin + (low || !high ? margin : 0);
+  const belowHigh = value <= range.yellowMax - (high || !low ? margin : 0);
+  return aboveLow && belowHigh;
+}
+
+/**
+ * Regla de alertas para una variable en una lectura (pura, sin I/O):
+ * - Fuera de rango y sin alerta abierta: crea una (`new`).
+ * - Ya abierta (nueva o atendida) en precaución y ahora crítica: sube a crítica
+ *   y vuelve a `new` para que el equipo la vea otra vez.
+ * - Ya abierta y sigue fuera de rango: no hace nada (ni alerta nueva ni push).
+ * - Abierta y el valor volvió al rango con margen: `auto_resolved`.
+ */
+export function decideAlertChange(
+  open: AlertRecord | null,
+  reading: {
+    zoneId: string;
+    variable: HydroponicVariable;
+    value: number;
+    level: AlertLevel;
+    range: VariableThresholdRange;
+    message: string;
+    timestamp: string;
+  },
+): AlertChange {
+  const { zoneId, variable, value, level, range, message, timestamp } = reading;
+  if (level === 'warn' || level === 'critical') {
+    if (!open) {
+      return {
+        kind: 'create',
+        alert: {
+          zoneId,
+          variable,
+          severity: level,
+          value,
+          message,
+          status: 'new',
+          createdAt: timestamp,
+          attendedBy: null,
+          attendedAt: null,
+          resolvedAt: null,
+        },
+      };
+    }
+    if (open.severity === 'warn' && level === 'critical') {
+      return { kind: 'update', patch: { severity: 'critical', value, message, status: 'new' } };
+    }
+    return { kind: 'none' };
+  }
+  if (open && isClearOfThreshold(value, range, open.value)) {
+    return { kind: 'update', patch: { status: 'auto_resolved', resolvedAt: timestamp } };
+  }
+  return { kind: 'none' };
 }
 
 export interface ActuatorItemState {
@@ -92,20 +190,18 @@ export interface TelemetryStorageAdapter {
     zoneId: string,
     zoneState: ZoneLatestState,
   ): Promise<void>;
-  getActiveAlert(
+  /**
+   * Lee la alerta abierta de la zona y variable, aplica lo que decida `decide`
+   * y lo guarda en un solo paso atómico (en Firestore, una transacción). Así
+   * dos lecturas simultáneas no pueden crear dos alertas para lo mismo (C4).
+   * `decide` debe ser pura: Firestore la puede llamar más de una vez si reintenta.
+   */
+  applyAlertChange(
     greenhouseId: string,
     zoneId: string,
     variable: HydroponicVariable,
-  ): Promise<AlertRecord | null>;
-  createAlert(
-    greenhouseId: string,
-    alert: Omit<AlertRecord, 'id'>,
-  ): Promise<AlertRecord>;
-  updateAlert(
-    greenhouseId: string,
-    alertId: string,
-    patch: Partial<AlertRecord>,
-  ): Promise<void>;
+    decide: (open: AlertRecord | null) => AlertChange,
+  ): Promise<AlertChangeResult>;
   getActuatorsState(
     greenhouseId: string,
     zoneId: string,
@@ -183,39 +279,30 @@ export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
     this.latestState[greenhouseId][zoneId] = zoneState;
   }
 
-  async getActiveAlert(
+  async applyAlertChange(
     greenhouseId: string,
     zoneId: string,
     variable: HydroponicVariable,
-  ): Promise<AlertRecord | null> {
-    const list = this.alerts[greenhouseId] ?? [];
-    return (
-      list.find(
-        (a) => a.zoneId === zoneId && a.variable === variable && a.status === 'new',
-      ) ?? null
-    );
-  }
-
-  async createAlert(
-    greenhouseId: string,
-    alert: Omit<AlertRecord, 'id'>,
-  ): Promise<AlertRecord> {
-    const record: AlertRecord = { id: `alert-${this.seq++}`, ...alert };
+    decide: (open: AlertRecord | null) => AlertChange,
+  ): Promise<AlertChangeResult> {
     if (!this.alerts[greenhouseId]) this.alerts[greenhouseId] = [];
-    this.alerts[greenhouseId].push(record);
-    return record;
-  }
-
-  async updateAlert(
-    greenhouseId: string,
-    alertId: string,
-    patch: Partial<AlertRecord>,
-  ): Promise<void> {
-    const list = this.alerts[greenhouseId] ?? [];
-    const idx = list.findIndex((a) => a.id === alertId);
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], ...patch };
+    const list = this.alerts[greenhouseId];
+    const idx = findLastIndex(
+      list,
+      (a) => a.zoneId === zoneId && a.variable === variable && isAlertOpen(a),
+    );
+    const open = idx >= 0 ? list[idx] : null;
+    const change = decide(open);
+    if (change.kind === 'create') {
+      const record: AlertRecord = { id: `alert-${this.seq++}`, ...change.alert };
+      list.push(record);
+      return { change, alert: record };
     }
+    if (change.kind === 'update' && open) {
+      list[idx] = { ...open, ...change.patch };
+      return { change, alert: list[idx] };
+    }
+    return { change, alert: open };
   }
 
   async getActuatorsState(
@@ -278,6 +365,11 @@ export class InMemoryTelemetryStorage implements TelemetryStorageAdapter {
   }
 }
 
+function findLastIndex<T>(list: T[], pred: (item: T) => boolean): number {
+  for (let i = list.length - 1; i >= 0; i--) if (pred(list[i])) return i;
+  return -1;
+}
+
 export interface IngestProcessResult {
   readingId: string;
   zoneState: ZoneLatestState;
@@ -290,7 +382,8 @@ export interface IngestProcessResult {
  * Procesa una lectura validada de telemetría (T2.1 + T6.1 + T6.3 + T8.3):
  * 1. Guarda en greenhouses/{id}/readings y suma la lectura a readingsHourly (T7.1)
  * 2. Evalúa las 7 variables con los umbrales del cultivo y escribe greenhouses/{id}/state/latest
- * 3. Crea alertas sin duplicados (status === 'new') y resuelve automáticamente las que vuelven a 'ok'
+ * 3. Crea alertas sin duplicados (una sola abierta por zona y variable, aunque esté atendida)
+ *    y las resuelve solo cuando el valor vuelve al rango con margen (histéresis)
  * 4. Actualiza los 4 actuadores virtuales según las reglas de HU-08
  * 5. Envía push FCM a los miembros cuando una alerta se crea o sube a `critical` (T6.5 #52)
  */
@@ -330,41 +423,19 @@ export async function processIngestedReading(
     zoneState[key] = { value, level };
 
     const meta = HYDROPONIC_VARIABLES[key];
-    const existingActive = await storage.getActiveAlert(greenhouseId, zoneId, key);
+    const severityLabel = level === 'critical' ? 'crítico' : 'en precaución';
+    const message = `${meta.label} ${severityLabel} en ${zoneName}: ${value} ${meta.unit}`;
 
-    if (level === 'warn' || level === 'critical') {
-      const severityLabel = level === 'critical' ? 'crítico' : 'en precaución';
-      const message = `${meta.label} ${severityLabel} en ${zoneName}: ${value} ${meta.unit}`;
-
-      if (!existingActive) {
-        const created = await storage.createAlert(greenhouseId, {
-          zoneId,
-          variable: key,
-          severity: level,
-          value,
-          message,
-          status: 'new',
-          createdAt: timestamp,
-          attendedBy: null,
-          attendedAt: null,
-          resolvedAt: null,
-        });
-        createdAlerts.push(created);
-        if (created.severity === 'critical') criticalToNotify.push(created);
-      } else if (existingActive.severity === 'warn' && level === 'critical') {
-        await storage.updateAlert(greenhouseId, existingActive.id, {
-          severity: 'critical',
-          value,
-          message,
-        });
-        criticalToNotify.push({ ...existingActive, severity: 'critical', value, message });
-      }
-    } else if (level === 'ok' && existingActive) {
-      await storage.updateAlert(greenhouseId, existingActive.id, {
-        status: 'auto_resolved',
-        resolvedAt: timestamp,
-      });
-      resolvedAlertIds.push(existingActive.id);
+    const { change, alert } = await storage.applyAlertChange(greenhouseId, zoneId, key, (open) =>
+      decideAlertChange(open, { zoneId, variable: key, value, level, range, message, timestamp }),
+    );
+    if (!alert) continue;
+    if (change.kind === 'create') {
+      createdAlerts.push(alert);
+      if (alert.severity === 'critical') criticalToNotify.push(alert);
+    } else if (change.kind === 'update') {
+      if (change.patch.status === 'auto_resolved') resolvedAlertIds.push(alert.id);
+      else if (change.patch.severity === 'critical') criticalToNotify.push(alert);
     }
   }
 

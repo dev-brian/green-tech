@@ -21,6 +21,8 @@ import {
 } from 'firebase-admin/app';
 import {
   getFirestore,
+  FieldPath,
+  FieldValue,
   Timestamp,
   type CollectionReference,
   type Firestore,
@@ -40,13 +42,16 @@ import {
   type HourlyAggregate,
   type VariableStats,
 } from './hourlyAggregation.ts';
-import type {
-  AlertRecord,
-  PruneResult,
-  TelemetryStorageAdapter,
-  ZoneActuatorsState,
-  ZoneConfig,
-  ZoneLatestState,
+import {
+  isAlertOpen,
+  type AlertChange,
+  type AlertChangeResult,
+  type AlertRecord,
+  type PruneResult,
+  type TelemetryStorageAdapter,
+  type ZoneActuatorsState,
+  type ZoneConfig,
+  type ZoneLatestState,
 } from './alertAndActuatorEngine.ts';
 
 export function loadEnvLocal(): void {
@@ -180,74 +185,88 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     );
   }
 
-  async getActiveAlert(
+  /**
+   * Una sola alerta abierta por zona y variable (auditoría C4). El id de la
+   * alerta abierta se guarda en state/openAlerts ({zoneId: {variable: alertId}})
+   * y todo se lee y escribe en una transacción: si llegan dos lecturas a la vez,
+   * Firestore bloquea ese documento y la segunda ve la alerta que creó la primera.
+   */
+  async applyAlertChange(
     greenhouseId: string,
     zoneId: string,
     variable: HydroponicVariable,
-  ): Promise<AlertRecord | null> {
-    const snap = await this.db
-      .collection('greenhouses')
-      .doc(greenhouseId)
-      .collection('alerts')
-      .where('zoneId', '==', zoneId)
-      .where('variable', '==', variable)
-      .where('status', '==', 'new')
-      .limit(1)
-      .get();
+    decide: (open: AlertRecord | null) => AlertChange,
+  ): Promise<AlertChangeResult> {
+    const gh = this.db.collection('greenhouses').doc(greenhouseId);
+    const alertsCol = gh.collection('alerts');
+    const pointerRef = gh.collection('state').doc(OPEN_ALERTS_DOC);
 
-    if (snap.empty) return null;
-    const d = snap.docs[0];
-    const data = d.data();
-    return {
-      id: d.id,
-      zoneId: String(data.zoneId ?? zoneId),
-      variable: data.variable as HydroponicVariable,
-      severity: data.severity === 'critical' ? 'critical' : 'warn',
-      value: Number(data.value ?? 0),
-      message: String(data.message ?? ''),
-      status: 'new',
-      createdAt:
-        data.createdAt instanceof Timestamp
-          ? data.createdAt.toDate().toISOString()
-          : String(data.createdAt ?? new Date().toISOString()),
-      attendedBy: data.attendedBy ? String(data.attendedBy) : null,
-      attendedAt: null,
-      resolvedAt: null,
-    };
-  }
+    return this.db.runTransaction(async (tx) => {
+      const pointerSnap = await tx.get(pointerRef);
+      const pointed = pointerSnap.get(new FieldPath(zoneId, variable));
+      let open: AlertRecord | null = null;
+      let duplicates: string[] = [];
 
-  async createAlert(
-    greenhouseId: string,
-    alert: Omit<AlertRecord, 'id'>,
-  ): Promise<AlertRecord> {
-    const colRef = this.db
-      .collection('greenhouses')
-      .doc(greenhouseId)
-      .collection('alerts');
-    const docRef = await colRef.add({
-      ...alert,
-      createdAt: Timestamp.fromDate(new Date(alert.createdAt)),
+      if (typeof pointed === 'string' && pointed) {
+        const snap = await tx.get(alertsCol.doc(pointed));
+        if (snap.exists) {
+          const rec = alertFromFirestore(snap.id, snap.data() ?? {}, zoneId);
+          if (isAlertOpen(rec)) open = rec;
+        }
+      } else {
+        // Alertas creadas antes de state/openAlerts: se adopta la más reciente
+        // y se cierran las copias que dejó el error de C4.
+        const legacy = await tx.get(
+          alertsCol
+            .where('zoneId', '==', zoneId)
+            .where('variable', '==', variable)
+            .where('status', 'in', ['new', 'attended'])
+            .limit(LEGACY_SCAN_LIMIT),
+        );
+        const openLegacy = legacy.docs
+          .map((d) => alertFromFirestore(d.id, d.data(), zoneId))
+          .filter(isAlertOpen)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        open = openLegacy[0] ?? null;
+        duplicates = openLegacy.slice(1).map((a) => a.id);
+      }
+
+      const change = decide(open);
+      let result: AlertRecord | null = open;
+      let pointerValue: string | null = open?.id ?? null;
+
+      if (change.kind === 'create') {
+        const ref = alertsCol.doc();
+        tx.create(ref, toFirestoreAlert(change.alert));
+        result = { id: ref.id, ...change.alert };
+        pointerValue = ref.id;
+      } else if (change.kind === 'update' && open) {
+        tx.update(alertsCol.doc(open.id), toFirestoreAlert(change.patch));
+        result = { ...open, ...change.patch };
+        if (!isAlertOpen(result)) pointerValue = null;
+      }
+
+      if (duplicates.length > 0) {
+        const closedAt = Timestamp.now();
+        for (const id of duplicates) {
+          tx.update(alertsCol.doc(id), {
+            status: 'auto_resolved',
+            resolvedAt: closedAt,
+            supersededBy: open?.id ?? null,
+          });
+        }
+      }
+
+      if (pointerValue !== (typeof pointed === 'string' ? pointed : null)) {
+        tx.set(
+          pointerRef,
+          { [zoneId]: { [variable]: pointerValue ?? FieldValue.delete() } },
+          { merge: true },
+        );
+      }
+
+      return { change, alert: result };
     });
-    return { id: docRef.id, ...alert };
-  }
-
-  async updateAlert(
-    greenhouseId: string,
-    alertId: string,
-    patch: Partial<AlertRecord>,
-  ): Promise<void> {
-    const ref = this.db
-      .collection('greenhouses')
-      .doc(greenhouseId)
-      .collection('alerts')
-      .doc(alertId);
-    const firestorePatch: Record<string, unknown> = {
-      ...patch,
-    };
-    if (typeof patch.resolvedAt === 'string') {
-      firestorePatch.resolvedAt = Timestamp.fromDate(new Date(patch.resolvedAt));
-    }
-    await ref.update(firestorePatch);
   }
 
   async getActuatorsState(
@@ -379,6 +398,45 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     }
     if (pending > 0) await batch.commit();
   }
+}
+
+/** Documento con el id de la alerta abierta por zona y variable. */
+export const OPEN_ALERTS_DOC = 'openAlerts';
+
+/** Copias antiguas que se revisan de una vez (una transacción admite 500 escrituras). */
+const LEGACY_SCAN_LIMIT = 300;
+
+function toIso(v: unknown): string | null {
+  if (v instanceof Timestamp) return v.toDate().toISOString();
+  if (typeof v === 'string' && v) return v;
+  return null;
+}
+
+function alertFromFirestore(id: string, data: Record<string, unknown>, zoneId: string): AlertRecord {
+  const status = data.status;
+  return {
+    id,
+    zoneId: String(data.zoneId ?? zoneId),
+    variable: data.variable as HydroponicVariable,
+    severity: data.severity === 'critical' ? 'critical' : 'warn',
+    value: Number(data.value ?? 0),
+    message: String(data.message ?? ''),
+    status: status === 'attended' || status === 'auto_resolved' ? status : 'new',
+    createdAt: toIso(data.createdAt) ?? new Date(0).toISOString(),
+    attendedBy: data.attendedBy ? String(data.attendedBy) : null,
+    attendedAt: toIso(data.attendedAt),
+    resolvedAt: toIso(data.resolvedAt),
+  };
+}
+
+/** Fechas ISO del motor → Timestamp, como las espera la PWA y la app. */
+function toFirestoreAlert(alert: Partial<Omit<AlertRecord, 'id'>>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...alert };
+  for (const key of ['createdAt', 'resolvedAt'] as const) {
+    const v = alert[key];
+    if (typeof v === 'string') out[key] = Timestamp.fromDate(new Date(v));
+  }
+  return out;
 }
 
 /** Firestore admite hasta 500 escrituras por lote; se deja margen. */

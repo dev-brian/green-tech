@@ -1,4 +1,5 @@
-import { Thermometer, Droplets, Sprout, X } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Thermometer, Droplets, Sprout, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert } from '../hooks/useAlerts';
 
@@ -9,7 +10,58 @@ function iconFor(variable: string, color: string) {
   return                                  <Sprout     {...props} />;
 }
 
-function AlertBanner({ alert, onDismiss }: { alert: FirestoreAlert; onDismiss: (id: string) => void }) {
+const DISMISSED_KEY = 'gt.dismissedAlertBanners';
+
+/**
+ * Clave de un aviso cerrado. Incluye la severidad: si la alerta sube de
+ * precaución a crítica el aviso vuelve a salir.
+ */
+function dismissKey(alert: FirestoreAlert): string {
+  return `${alert.id}:${alert.severity}`;
+}
+
+function readDismissed(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissed(keys: Set<string>) {
+  try {
+    sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...keys].slice(-200)));
+  } catch {
+    // Sin almacenamiento (modo privado): el aviso queda cerrado solo en esta vista.
+  }
+}
+
+const iconButtonStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text-disabled)',
+  cursor: 'pointer',
+  padding: 8,
+  borderRadius: 'var(--radius-sm)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 32,
+  minHeight: 32,
+  flexShrink: 0,
+  transition: 'color 0.15s ease',
+};
+
+function AlertBanner({
+  alert,
+  onClose,
+  onAttend,
+}: {
+  alert: FirestoreAlert;
+  onClose: (alert: FirestoreAlert) => void;
+  onAttend: (alert: FirestoreAlert) => void;
+}) {
   const isDanger = alert.severity === 'red';
   const color    = isDanger ? 'var(--status-red)' : 'var(--status-yellow)';
 
@@ -34,26 +86,22 @@ function AlertBanner({ alert, onDismiss }: { alert: FirestoreAlert; onDismiss: (
         <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           Valor actual: <strong style={{ color }}>{alert.value}</strong>. Ver historial en la sección de Alertas.
         </p>
+        <button
+          onClick={() => onAttend(alert)}
+          className="btn-nm-secondary"
+          title="Marca la alerta como atendida para todo el equipo"
+          style={{ width: 'auto', minHeight: 36, padding: '0 14px', marginTop: 'var(--space-xs)', fontSize: '0.8125rem' }}
+        >
+          <Check size={14} strokeWidth={2} />
+          Ya lo revisé
+        </button>
       </div>
 
       <button
-        onClick={() => onDismiss(alert.id)}
-        aria-label="Marcar alerta como atendida y cerrar"
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--text-disabled)',
-          cursor: 'pointer',
-          padding: 8,
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minWidth: 32,
-          minHeight: 32,
-          flexShrink: 0,
-          transition: 'color 0.15s ease',
-        }}
+        onClick={() => onClose(alert)}
+        aria-label="Cerrar aviso"
+        title="Cerrar aviso (solo en este dispositivo)"
+        style={iconButtonStyle}
         onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
         onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-disabled)')}
       >
@@ -65,21 +113,50 @@ function AlertBanner({ alert, onDismiss }: { alert: FirestoreAlert; onDismiss: (
 
 /**
  * Muestra banners flotantes para las alertas "new" del invernadero activo.
- * Presionar X marca la alerta como "attended" en Firestore.
+ * - La X solo cierra el aviso en este dispositivo; la alerta sigue igual para el equipo.
+ * - "Ya lo revisé" la marca como atendida en Firestore para todos. La alerta
+ *   sigue abierta hasta que el valor vuelva a rango, sin crear otra (C4).
  * Máximo 3 banners visibles a la vez para no saturar la pantalla.
  */
 export default function AlertSystem() {
   const { activeWorkspace } = useAuth();
   const { alerts, markAttended } = useAlerts(activeWorkspace?.id ?? null);
+  const [dismissed, setDismissed] = useState<Set<string>>(readDismissed);
 
-  const banners = alerts.filter((a) => a.status === 'new').slice(0, 3);
+  const close = useCallback((alert: FirestoreAlert) => {
+    setDismissed((prev) => {
+      const next = new Set(prev).add(dismissKey(alert));
+      saveDismissed(next);
+      return next;
+    });
+  }, []);
+
+  const attend = useCallback(
+    (alert: FirestoreAlert) => {
+      close(alert);
+      markAttended(alert.id).catch(() => {
+        // Si falla (sin conexión o sin permiso) el aviso vuelve a mostrarse.
+        setDismissed((prev) => {
+          const next = new Set(prev);
+          next.delete(dismissKey(alert));
+          saveDismissed(next);
+          return next;
+        });
+      });
+    },
+    [close, markAttended],
+  );
+
+  const banners = alerts
+    .filter((a) => a.status === 'new' && !a.resolvedAt && !dismissed.has(dismissKey(a)))
+    .slice(0, 3);
 
   if (banners.length === 0) return null;
 
   return (
     <div className="alert-container">
       {banners.map((alert) => (
-        <AlertBanner key={alert.id} alert={alert} onDismiss={markAttended} />
+        <AlertBanner key={alert.id} alert={alert} onClose={close} onAttend={attend} />
       ))}
     </div>
   );

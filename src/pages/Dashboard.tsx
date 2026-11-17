@@ -28,6 +28,8 @@ import { useZones } from '../hooks/useZones';
 import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
+import ExportCsvButton from '../components/ExportCsvButton';
+import ExportPdfButton from '../components/ExportPdfButton';
 import { useZoneReadings } from '../hooks/useZoneReadings';
 import { useThresholds } from '../hooks/useThresholds';
 import { useAlerts } from '../hooks/useAlerts';
@@ -573,6 +575,7 @@ export default function Dashboard() {
                   <p style={{ margin: 0 }}>Esta zona todavía no tiene lecturas guardadas.</p>
                 ) : (
                 <>
+                <div id="historico-charts">
                 <TrendChart
                   title="Temperatura del aire y humedad"
                   data={chartData}
@@ -591,6 +594,7 @@ export default function Dashboard() {
                   ]}
                 />
                 <span className="metric-label">Últimas {chartData.length} lecturas de esta zona.</span>
+                </div>
                 </>
                 )}
                 <Link
@@ -599,6 +603,19 @@ export default function Dashboard() {
                 >
                   Ver el histórico de 24 h y 7 días <ChevronRight size={16} aria-hidden="true" />
                 </Link>
+
+                {/* Exportación del histórico (T7.3 CSV / T7.4 PDF, solo admin) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+                  <ExportCsvButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                  />
+                  <ExportPdfButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                    chartContainerId="historico-charts"
+                  />
+                </div>
               </div>
             </details>
           )}

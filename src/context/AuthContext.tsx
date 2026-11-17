@@ -177,10 +177,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // Dar de baja el token push antes de salir: después ya no hay permiso para borrarlo.
-    if (auth.currentUser) {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
       // Import dinámico: Firebase Messaging no entra en el paquete inicial (auditoría A8).
       await import('../lib/pushService')
-        .then((m) => m.disablePush(auth.currentUser!.uid))
+        .then((m) => m.disablePush(uid))
         .catch(() => undefined);
     }
     await signOut(auth);

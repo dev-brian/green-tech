@@ -6,6 +6,7 @@ import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
 import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 import PushPermissionPrompt from './components/PushPermissionPrompt';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 // La landing va en el paquete inicial; el resto se carga por ruta (auditoría A8)
@@ -47,6 +48,9 @@ function AppShell() {
       {!isAuthPage && <AlertSystem />}
 
       <main style={{ flex: 1 }}>
+        {/* El ErrorBoundary va por fuera del Suspense: también atrapa una página
+            que no se pudo descargar (por ejemplo, tras publicar una versión nueva). */}
+        <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* ── Public routes ── */}
@@ -123,6 +127,7 @@ function AppShell() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   );

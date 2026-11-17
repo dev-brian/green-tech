@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -53,7 +54,9 @@ export default function HistoryPage() {
     [zonesById, liveZones],
   );
 
-  const [pickedZone, setPickedZone] = useState<string | null>(null);
+  // ?zona=zona-2 llega desde el tablero para abrir la zona que se estaba viendo.
+  const [searchParams] = useSearchParams();
+  const [pickedZone, setPickedZone] = useState<string | null>(() => searchParams.get('zona'));
   const zoneId = pickedZone && zoneIds.includes(pickedZone) ? pickedZone : (zoneIds[0] ?? null);
   const [range, setRange] = useState<HistoryRange>('24h');
 

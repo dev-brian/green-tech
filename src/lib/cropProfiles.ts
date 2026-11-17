@@ -15,6 +15,8 @@ import type { GreenhouseThresholds } from './thresholdsService';
  * `simulator/core/hydroponicModel.ts`, para que lo que muestra la PWA coincida
  * con lo que evalúa el backend (los umbrales personalizados guardados en
  * `greenhouses/{id}.thresholds` se fusionan sobre este perfil en ambos lados).
+ * Las copias son intencionales (cada módulo debe seguir siendo puro), y
+ * `tests/cropProfiles.test.ts` los compara para que no se desincronicen.
  *
  * Módulo puro (sin Firebase) para probarlo con `node --test`.
  */

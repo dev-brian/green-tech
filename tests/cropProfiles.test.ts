@@ -6,6 +6,7 @@ import {
   defaultThresholdsFor,
 } from '../src/lib/cropProfiles.ts';
 import { validateThresholds } from '../src/lib/thresholdValidation.ts';
+import { DEFAULT_CROP_THRESHOLDS } from '../simulator/core/hydroponicModel.ts';
 
 /**
  * T5.2 (#45) — Perfiles de jitomate y lechuga (HU-05).
@@ -65,5 +66,46 @@ describe('defaultThresholdsFor', () => {
     assert.equal(defaultThresholdsFor(undefined), CROP_PROFILES.jitomate);
     assert.equal(defaultThresholdsFor(null), CROP_PROFILES.jitomate);
     assert.equal(defaultThresholdsFor('papa'), CROP_PROFILES.jitomate);
+  });
+});
+
+/**
+ * Revisión de PR: `CROP_PROFILES` (PWA) y `DEFAULT_CROP_THRESHOLDS` (backend)
+ * son copias intencionales del mismo criterio —una por lado, para que cada
+ * módulo siga siendo puro y sin dependencias cruzadas—, así que esta prueba
+ * existe para que **no se desincronicen**: si alguien cambia un umbral en un
+ * solo lado, aquí falla con el cultivo y la variable exactos.
+ */
+describe('CROP_PROFILES ↔ DEFAULT_CROP_THRESHOLDS (sincronía PWA/backend)', () => {
+  it('expone los mismos cultivos', () => {
+    assert.deepEqual(
+      [...CROP_OPTIONS].sort(),
+      Object.keys(DEFAULT_CROP_THRESHOLDS).sort(),
+    );
+  });
+
+  it('cada cultivo trae las mismas 7 variables con exactamente los mismos números', () => {
+    for (const crop of CROP_OPTIONS) {
+      const frontend = CROP_PROFILES[crop];
+      const backend = DEFAULT_CROP_THRESHOLDS[crop];
+
+      assert.deepEqual(
+        Object.keys(frontend).sort(),
+        Object.keys(backend).sort(),
+        `${crop}: lista de variables distinta`,
+      );
+
+      for (const variable of VARIABLES) {
+        assert.deepEqual(
+          frontend[variable],
+          backend[variable],
+          `${crop}.${variable}: la PWA y el backend ya no usan el mismo umbral`,
+        );
+      }
+    }
+  });
+
+  it('los dos objetos completos son idénticos (detecta claves de más o de menos)', () => {
+    assert.deepEqual(CROP_PROFILES, DEFAULT_CROP_THRESHOLDS);
   });
 });

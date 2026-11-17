@@ -36,11 +36,19 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: 'pnpm'
 
+      # Auditoría A7: mismas versiones que CI, lockfile exacto, y nada se
+      # publica sin pasar lint y pruebas.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Pruebas unitarias
+        run: pnpm test
 
       - name: Build
         run: pnpm run build

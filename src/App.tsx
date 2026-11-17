@@ -5,6 +5,7 @@ import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
 import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 import PushPermissionPrompt from './components/PushPermissionPrompt';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Landing from './pages/Landing';
@@ -34,6 +35,7 @@ function AppShell() {
       {!isAuthPage && <AlertSystem />}
 
       <main style={{ flex: 1 }}>
+        <ErrorBoundary resetKey={location.pathname}>
         <Routes>
           {/* ── Public routes ── */}
           <Route path="/" element={<Landing />} />
@@ -108,6 +110,7 @@ function AppShell() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   );

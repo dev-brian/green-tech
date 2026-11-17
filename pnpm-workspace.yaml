@@ -3,8 +3,10 @@ packages:
 
 allowBuilds:
   '@firebase/util': true
-  core-js: true
   protobufjs: true
 
-onlyBuiltDependencies:
-  - core-js
+# Versiones parcheadas de dependencias indirectas (issue #125).
+overrides:
+  '@grpc/grpc-js@<1.13.6': ^1.14.7
+  'workbox-build>glob': ^14.0.2
+  '@typescript-eslint/typescript-estree>minimatch': ^11.0.1

@@ -131,8 +131,12 @@ Las crea **solo** el motor del backend al evaluar los umbrales tras llegar una l
 | `createdAt` | Timestamp | |
 | `attendedBy` | string \| null | UID |
 | `attendedAt`, `resolvedAt` | Timestamp \| null | |
+| `supersededBy` | string \| null | Solo en copias que dejó el error de duplicados (auditoría C4): id de la alerta que quedó abierta |
 
-- **Sin duplicados:** el backend no crea otra alerta si ya hay una con el mismo `zoneId` y `variable` en `status == "new"`. Cuando la variable vuelve a `ok`, la marca `auto_resolved`.
+- **Abierta = sin `resolvedAt`:** una alerta sigue abierta mientras `status` sea `"new"` o `"attended"` y no tenga `resolvedAt`. Atenderla **no** la cierra: solo dice que alguien ya la vio.
+- **Sin duplicados:** hay como máximo una alerta abierta por `zoneId` + `variable`. El backend guarda su id en `state/openAlerts` (`{ "zona-1": { "ph": "<alertId>" } }`) y la lee y escribe en una transacción, así dos lecturas simultáneas no crean dos alertas. Las apps no necesitan leer ese documento.
+- **Escalar:** si una alerta abierta pasa de `warn` a `critical`, el backend sube `severity`, actualiza `value` y `message` y la regresa a `status: "new"` (aunque ya estuviera atendida), y manda el push una vez.
+- **Cerrar (histéresis):** el backend la marca `auto_resolved` con `resolvedAt` cuando el valor vuelve al rango ideal **con un margen** del 5 % del ancho del rango, del lado por el que salió (pH 5.5–6.5 que salió por arriba: se cierra con 6.45 o menos). Así un valor que oscila en el límite no abre y cierra alertas sin parar. Se conservan `attendedBy` y `attendedAt`.
 - **Atender:** un miembro puede actualizar **solo** `status` (a `"attended"`), `attendedBy` (su propio UID) y `attendedAt`. Cualquier otro campo se rechaza en las reglas.
 - **Push:** al crear una alerta `critical`, la función envía la notificación a los tokens de todos los miembros del invernadero (2.6).
 

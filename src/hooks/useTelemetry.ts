@@ -22,6 +22,17 @@ export type TelemetryReading = {
   timestamp: Date;
 } & Record<HydroponicVariable, number | null>;
 
+/** Documento de readings → lectura para gráficas. null si no trae hora. */
+export function toTelemetryReading(id: string, d: Record<string, unknown>): TelemetryReading | null {
+  const zoneId = String(d.zoneId ?? d.sector ?? 'zona-1');
+  const timestamp = parseTimestamp(d.timestamp);
+  if (!timestamp) return null;
+  const parsed = parseZone(zoneId, d, (v) => (v === 'airTemp' ? d.airTemp ?? d.temperature : d[v]));
+  const reading = { id, zoneId, crop: parsed.crop, timestamp } as TelemetryReading;
+  for (const v of ZONE_VARIABLES) reading[v] = parsed.variables[v].value;
+  return reading;
+}
+
 /** Lo que guardan las suscripciones; se descarta solo si cambia el invernadero. */
 interface Snapshot<T> {
   greenhouseId: string;
@@ -79,11 +90,8 @@ export function useTelemetry(greenhouseId: string | null) {
           // state/latest no la trae.
           if (!fallback[zoneId]) fallback[zoneId] = parsed;
           // Sin hora no se puede ubicar en la gráfica.
-          const timestamp = parseTimestamp(d.timestamp);
-          if (!timestamp) continue;
-          const reading = { id: docSnap.id, zoneId, crop: parsed.crop, timestamp } as TelemetryReading;
-          for (const v of ZONE_VARIABLES) reading[v] = parsed.variables[v].value;
-          newestFirst.push(reading);
+          const reading = toTelemetryReading(docSnap.id, d);
+          if (reading) newestFirst.push(reading);
         }
         setReadingsSnap({ greenhouseId, data: newestFirst.reverse() });
         setFallbackSnap({ greenhouseId, data: fallback });

@@ -28,6 +28,7 @@ import { useZones } from '../hooks/useZones';
 import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
+import { useZoneReadings } from '../hooks/useZoneReadings';
 import { useThresholds } from '../hooks/useThresholds';
 import { useAlerts } from '../hooks/useAlerts';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
@@ -181,7 +182,7 @@ function EmptyState() {
 export default function Dashboard() {
   const { activeWorkspace, user } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
-  const { readings, zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
+  const { zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
   const { thresholds } = useThresholds(greenhouseId);
   const { alerts, attend, attendState } = useAlerts(greenhouseId);
   // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
@@ -234,9 +235,11 @@ export default function Dashboard() {
   const activeZone =
     (selectedZoneId && zonesById[selectedZoneId]) || sortedZones[0] || null;
 
+  // Auditoría A6: la gráfica consulta solo la zona elegida; antes, si esa zona
+  // no tenía lecturas entre las 90 más recientes, mezclaba todas sin avisar.
+  const zoneReadings = useZoneReadings(greenhouseId, activeZone?.zoneId ?? null);
   const chartData = useMemo(() => {
-    const filtered = activeZone ? readings.filter((r: TelemetryReading) => r.zoneId === activeZone.zoneId) : readings;
-    return (filtered.length > 0 ? filtered : readings).map((r: TelemetryReading) => ({
+    return zoneReadings.readings.map((r: TelemetryReading) => ({
       time: r.timestamp.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
       airTemp: r.airTemp,
       humidity: r.humidity,
@@ -244,7 +247,7 @@ export default function Dashboard() {
       ec: r.ec,
       tankLevel: r.tankLevel,
     }));
-  }, [readings, activeZone]);
+  }, [zoneReadings.readings]);
 
   const openZone = (zoneId: string) => {
     setSelectedZoneId(zoneId);
@@ -556,12 +559,20 @@ export default function Dashboard() {
           )}
 
           {/* Gráficas: a un toque, no en primer plano */}
-          {chartData.length > 0 && (
+          {activeZone && (
             <details className="glass" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
               <summary style={{ minHeight: 48, display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: 600 }}>
-                Ver cómo han cambiado las lecturas
+                Ver cómo han cambiado las lecturas de la {zoneName(activeZone).name}
               </summary>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', paddingBottom: 'var(--space-sm)' }}>
+                {zoneReadings.error ? (
+                  <p role="alert" style={{ margin: 0 }}>{zoneReadings.error}</p>
+                ) : zoneReadings.loading ? (
+                  <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Cargando lecturas…</p>
+                ) : chartData.length === 0 ? (
+                  <p style={{ margin: 0 }}>Esta zona todavía no tiene lecturas guardadas.</p>
+                ) : (
+                <>
                 <TrendChart
                   title="Temperatura del aire y humedad"
                   data={chartData}
@@ -579,6 +590,15 @@ export default function Dashboard() {
                     { key: 'tankLevel', name: 'Tanque (%)', color: 'var(--status-blue)', axis: 'right' },
                   ]}
                 />
+                <span className="metric-label">Últimas {chartData.length} lecturas de esta zona.</span>
+                </>
+                )}
+                <Link
+                  to={`/history?zona=${encodeURIComponent(activeZone.zoneId)}`}
+                  style={{ minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                >
+                  Ver el histórico de 24 h y 7 días <ChevronRight size={16} aria-hidden="true" />
+                </Link>
               </div>
             </details>
           )}

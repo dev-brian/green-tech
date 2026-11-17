@@ -235,7 +235,10 @@ export class Publisher {
       `?greenhouseId=${encodeURIComponent(this.config.greenhouseId)}` +
       `&zoneId=${encodeURIComponent(zoneId)}`;
     try {
-      const res = await this.fetchImpl(url, { signal: AbortSignal.timeout(this.config.timeoutMs) });
+      const res = await this.fetchImpl(url, {
+        headers: { 'x-device-key': this.config.deviceKey },
+        signal: AbortSignal.timeout(this.config.timeoutMs),
+      });
       if (!res.ok) return null;
       const body = (await res.json()) as Record<string, { on?: unknown } | undefined>;
       const on = (key: string, fallback: boolean): boolean =>

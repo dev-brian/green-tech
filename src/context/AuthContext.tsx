@@ -236,22 +236,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cleanCode) throw new Error('Ingresa un código de invitación válido.');
 
     try {
-      let greenhouseId: string | null = null;
+      // El código se resuelve solo en greenhouse_invites. Las reglas no dejan
+      // buscar invernaderos por inviteCode, así que no hay consulta de respaldo.
       const inviteSnap = await getDoc(doc(db, 'greenhouse_invites', cleanCode));
-      if (inviteSnap.exists()) {
-        greenhouseId = String(inviteSnap.data().greenhouseId || '');
-      } else {
-        const q = query(collection(db, 'greenhouses'), where('inviteCode', '==', cleanCode));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const docSnap = snapshot.docs[0];
-          greenhouseId = docSnap.id;
-          const greenhouseData = docSnap.data();
-          if (greenhouseData.memberIds && greenhouseData.memberIds.includes(user.uid)) {
-            throw new Error('Ya eres miembro de este invernadero.');
-          }
-        }
-      }
+      const greenhouseId = inviteSnap.exists() ? String(inviteSnap.data().greenhouseId || '') : '';
 
       if (!greenhouseId) {
         throw new Error('Código de invitación no válido o inexistente. Verifica el código con tu administrador.');
@@ -282,7 +270,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('insufficient permissions') || msg.includes('permission-denied')) {
-        throw new Error('Permisos insuficientes en Firestore. Por favor, actualiza las Reglas de Seguridad (Rules) en tu Firebase Console.', { cause: err });
+        // Las reglas rechazan la unión si el código ya no es el vigente del invernadero.
+        throw new Error('Ese código ya no es válido. Pídele uno nuevo a tu administrador.', { cause: err });
       }
       throw err;
     }

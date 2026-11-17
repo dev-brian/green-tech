@@ -22,6 +22,7 @@ import {
   arrayUnion,
   arrayRemove,
   Timestamp,
+  serverTimestamp,
   setLogLevel,
 } from 'firebase/firestore';
 
@@ -342,6 +343,66 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
     rejoin.set(member(kickedDb, 'uid-operador'), { role: 'operador', inviteCode: VALID_CODE });
     await assertFails(rejoin.commit());
     await assertFails(updateDoc(gh(kickedDb), { memberIds: arrayUnion('uid-operador') }));
+  });
+
+  it('A: la unión de la app Flutter (email y name nulos) funciona y puede atender alertas', async () => {
+    // Mismo batch que GreenhouseRepository.joinWithCode en green-tech-app.
+    const db = testEnv.authenticatedContext('uid-app').firestore();
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayUnion('uid-app') });
+    batch.set(member(db, 'uid-app'), {
+      role: 'operador', email: null, name: null, joinedAt: '2026-11-17T00:00:00.000Z', inviteCode: VALID_CODE,
+    });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(
+      updateDoc(doc(db, 'greenhouses', GREENHOUSE_ID, 'alerts', 'alert-sub-1'), {
+        status: 'attended', attendedBy: 'uid-app', attendedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('A: nadie une a otra persona ni cambia otros campos al unirse', async () => {
+    const db = testEnv.authenticatedContext('uid-nuevo').firestore();
+    const other = writeBatch(db);
+    other.update(gh(db), { memberIds: arrayUnion('uid-amigo') });
+    other.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(other.commit());
+    const two = writeBatch(db);
+    two.update(gh(db), { memberIds: arrayUnion('uid-nuevo', 'uid-amigo') });
+    two.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(two.commit());
+    const rename = writeBatch(db);
+    rename.update(gh(db), { memberIds: arrayUnion('uid-nuevo'), name: 'tomado' });
+    rename.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(rename.commit());
+  });
+
+  it('A: quien quedó en memberIds sin documento de miembro (intruso anterior a C1) no llega a admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(gh(context.firestore()), { memberIds: arrayUnion('uid-colado') });
+    });
+    const db = testEnv.authenticatedContext('uid-colado').firestore();
+    await assertFails(setDoc(member(db, 'uid-colado'), { role: 'admin' }));
+    await assertFails(setDoc(member(db, 'uid-colado'), { role: 'admin', inviteCode: VALID_CODE }));
+    await assertFails(updateDoc(gh(db), { name: 'tomado' }));
+    // El admin sí puede sacarlo aunque no tenga documento de miembro
+    const adminDb = testEnv.authenticatedContext('uid-admin').firestore();
+    const kick = writeBatch(adminDb);
+    kick.update(gh(adminDb), { memberIds: arrayRemove('uid-colado') });
+    kick.delete(member(adminDb, 'uid-colado'));
+    await assertSucceeds(kick.commit());
+  });
+
+  it('A: un ex admin que dejó su documento de miembro no reentra con él', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(member(context.firestore(), 'uid-exadmin'), { role: 'admin' });
+    });
+    const db = testEnv.authenticatedContext('uid-exadmin').firestore();
+    await assertFails(updateDoc(gh(db), { memberIds: arrayUnion('uid-exadmin') }));
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayUnion('uid-exadmin') });
+    batch.update(member(db, 'uid-exadmin'), { inviteCode: VALID_CODE });
+    await assertFails(batch.commit());
   });
 
   it('B: un miembro único sin rol admin no puede borrar y recrear su documento como admin', async () => {

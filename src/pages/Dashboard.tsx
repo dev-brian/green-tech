@@ -181,9 +181,9 @@ function EmptyState() {
 export default function Dashboard() {
   const { activeWorkspace, user } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
-  const { readings, zonesById, loading } = useTelemetrySource(greenhouseId);
+  const { readings, zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
   const { thresholds } = useThresholds(greenhouseId);
-  const { alerts, markAttended } = useAlerts(greenhouseId);
+  const { alerts, attend, attendState } = useAlerts(greenhouseId);
   // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
   const { zonesById: registeredZones } = useZones(greenhouseId);
   const zoneName = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => ({
@@ -289,6 +289,13 @@ export default function Dashboard() {
           <span style={{ width: 20, height: 20, border: '2px solid var(--track)', borderTopColor: 'var(--leaf)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
           <span>Cargando lecturas…</span>
         </div>
+      ) : telemetryError ? (
+        <div role="alert" className="glass" style={{ padding: 'var(--space-lg) var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <span className="icon-well icon-well--offline">
+            <WifiOff size={20} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+          <p style={{ margin: 0 }}>{telemetryError}</p>
+        </div>
       ) : sortedZones.length === 0 ? (
         <EmptyState />
       ) : (
@@ -375,14 +382,25 @@ export default function Dashboard() {
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                         {alert && (
-                          <button type="button" className="btn-primary" onClick={() => markAttended(alert.id)}>
-                            Ya lo revisé
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => attend(alert.id)}
+                            disabled={attendState[alert.id] === 'busy'}
+                            aria-busy={attendState[alert.id] === 'busy'}
+                          >
+                            {attendState[alert.id] === 'busy' ? 'Guardando…' : 'Ya lo revisé'}
                           </button>
                         )}
                         <button type="button" className="btn-secondary" onClick={() => openZone(p.zone.zoneId)}>
                           Ver la {z.name}
                         </button>
                       </div>
+                      {alert && attendState[alert.id] === 'error' && (
+                        <p role="alert" style={{ margin: 0, fontSize: '0.875rem', color: 'var(--status-crit-text)' }}>
+                          No se pudo guardar. Intenta de nuevo.
+                        </p>
+                      )}
                     </article>
                   );
                 })}

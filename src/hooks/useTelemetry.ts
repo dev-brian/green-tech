@@ -26,6 +26,8 @@ export type TelemetryReading = {
 interface Snapshot<T> {
   greenhouseId: string;
   data: T;
+  /** La suscripción falló (sin permiso, sin red y sin caché…). */
+  failed?: boolean;
 }
 
 export function useTelemetry(greenhouseId: string | null) {
@@ -54,7 +56,7 @@ export function useTelemetry(greenhouseId: string | null) {
       },
       (err) => {
         console.error('Error fetching state/latest:', err);
-        setStateSnap({ greenhouseId, data: {} });
+        setStateSnap({ greenhouseId, data: {}, failed: true });
       },
     );
 
@@ -88,7 +90,7 @@ export function useTelemetry(greenhouseId: string | null) {
       },
       (error) => {
         console.error('Error fetching telemetry readings:', error);
-        setReadingsSnap({ greenhouseId, data: [] });
+        setReadingsSnap({ greenhouseId, data: [], failed: true });
         setFallbackSnap({ greenhouseId, data: {} });
       },
     );
@@ -115,10 +117,21 @@ export function useTelemetry(greenhouseId: string | null) {
   }, [fallbackZones, stateZones, now]);
 
   const activeReadings = readings ?? [];
+  // Auditoría A5: un error no debe verse como "todavía no llegan lecturas".
+  // Solo se avisa si no hay nada que mostrar; si una de las dos lecturas
+  // funcionó, el tablero sigue con lo que tiene.
+  const isCurrent = (snap: Snapshot<unknown> | null) => !!snap && snap.greenhouseId === greenhouseId;
+  const stateFailed = isCurrent(stateSnap) && !!stateSnap?.failed;
+  const readingsFailed = isCurrent(readingsSnap) && !!readingsSnap?.failed;
+  const error =
+    greenhouseId && Object.keys(zonesById).length === 0 && (stateFailed || readingsFailed)
+      ? 'No se pudieron leer los datos del invernadero. Revisa tu conexión e intenta de nuevo.'
+      : null;
   return {
     readings: activeReadings,
     latestReading: activeReadings.length > 0 ? activeReadings[activeReadings.length - 1] : null,
     zonesById,
     loading: greenhouseId ? readings === null && stateZones === null : false,
+    error,
   };
 }

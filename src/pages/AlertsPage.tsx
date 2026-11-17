@@ -63,10 +63,12 @@ function AlertItem({
   alert,
   zoneName,
   onMarkAttended,
+  attendState,
 }: {
   alert: FirestoreAlert;
   zoneName: string;
   onMarkAttended: (id: string) => void;
+  attendState?: 'busy' | 'error';
 }) {
   const severityColor = alert.severity === 'red'
     ? 'var(--status-red)'
@@ -141,8 +143,12 @@ function AlertItem({
 
         {/* Acción "Marcar como atendida" */}
         {alert.status === 'new' && (
+          <>
           <button
+            type="button"
             onClick={() => onMarkAttended(alert.id)}
+            disabled={attendState === 'busy'}
+            aria-busy={attendState === 'busy'}
             style={{
               marginTop: 'var(--space-xs)',
               display: 'inline-flex',
@@ -163,8 +169,14 @@ function AlertItem({
             onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
           >
             <CheckCircle2 size={14} strokeWidth={1.5} />
-            Marcar como atendida
+            {attendState === 'busy' ? 'Guardando…' : 'Marcar como atendida'}
           </button>
+          {attendState === 'error' && (
+            <p role="alert" style={{ margin: 0, marginTop: 4, fontSize: '0.8125rem', color: 'var(--status-crit-text)' }}>
+              No se pudo guardar. Intenta de nuevo.
+            </p>
+          )}
+          </>
         )}
         {alert.status === 'attended' && alert.attendedAt && (
           <p style={{ margin: 0, marginTop: 4, fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
@@ -647,7 +659,7 @@ export default function AlertsPage() {
   const { activeWorkspace, isAdmin } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
 
-  const { alerts, loading, unattendedCount, filters, setFilters, markAttended } =
+  const { alerts, loading, error: alertsError, unattendedCount, filters, setFilters, attend, attendState } =
     useAlerts(greenhouseId);
 
   // Zonas para el filtro (T4.2 #65): las registradas, las que aparecen en
@@ -720,6 +732,10 @@ export default function AlertsPage() {
                   <div key={i} className="nm-flat" style={{ height: 88, borderRadius: 'var(--radius-lg)', opacity: 0.4 + i * 0.1 }} />
                 ))}
               </div>
+            ) : alertsError ? (
+              <p role="alert" className="nm-concave" style={{ padding: 'var(--space-md)', margin: 0, borderRadius: 'var(--radius-lg)', color: 'var(--text-primary)' }}>
+                {alertsError}
+              </p>
             ) : alerts.length === 0 ? (
               <div className="nm-concave" style={{ padding: 'var(--space-2xl)', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
                 <BellOff size={28} strokeWidth={1.2} color="var(--text-disabled)" style={{ marginBottom: 'var(--space-sm)' }} />
@@ -730,7 +746,7 @@ export default function AlertsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {alerts.map((alert) => (
-                  <AlertItem key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onMarkAttended={markAttended} />
+                  <AlertItem key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onMarkAttended={attend} attendState={attendState[alert.id]} />
                 ))}
               </div>
             )}

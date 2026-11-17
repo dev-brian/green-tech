@@ -139,6 +139,10 @@ export function evaluateLevel(value: number, range: VariableThresholdRange): Ale
   return 'ok';
 }
 
+export const ZONE_ID_PATTERN = /^[a-z0-9-]{1,40}$/;
+/** Ids automáticos de Firestore (20 caracteres) y los de prueba, sin '/'. */
+export const GREENHOUSE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
 export interface IngestTelemetryRequest {
   greenhouseId: string;
   zoneId: string;
@@ -183,6 +187,14 @@ export function validateIngestPayload(
   }
   if (!zoneId) {
     return { valid: false, status: 400, error: 'El campo zoneId es obligatorio.' };
+  }
+  // Auditoría C3: los ids se usan como id de documento y como clave del mapa
+  // state/latest. Mismo patrón que las reglas de zones (firestore.rules).
+  if (!ZONE_ID_PATTERN.test(zoneId)) {
+    return { valid: false, status: 400, error: 'zoneId solo admite minúsculas, números y guiones (máx. 40).' };
+  }
+  if (!GREENHOUSE_ID_PATTERN.test(greenhouseId)) {
+    return { valid: false, status: 400, error: 'greenhouseId no tiene un formato válido.' };
   }
 
   const crop: CropType = raw.crop === 'lechuga' ? 'lechuga' : 'jitomate';

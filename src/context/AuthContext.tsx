@@ -17,7 +17,6 @@ import {
   getDocs,
   query,
   where,
-  updateDoc,
   arrayUnion,
   arrayRemove,
   writeBatch
@@ -291,20 +290,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const regenerateInviteCode = useCallback(async (workspaceId: string): Promise<string> => {
     if (!user) throw new Error('Debes estar autenticado.');
-    const newCode = generateInviteCode();
-    const batch = writeBatch(db);
     const greenhouseRef = doc(db, 'greenhouses', workspaceId);
-    batch.update(greenhouseRef, {
-      inviteCode: newCode,
-      inviteCodeCreatedAt: new Date().toISOString()
-    });
-    const inviteRef = doc(db, 'greenhouse_invites', newCode);
-    batch.set(inviteRef, {
-      greenhouseId: workspaceId,
-      createdAt: new Date().toISOString()
-    });
-    await batch.commit();
-    return newCode;
+    const snap = await getDoc(greenhouseRef);
+    const oldCode = snap.exists() ? String(snap.data().inviteCode || '') : '';
+    return rotateInviteCode(workspaceId, oldCode);
   }, [user]);
 
   const leaveWorkspace = useCallback(async (workspaceId: string): Promise<void> => {
@@ -353,13 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (docSnap.exists()) {
       const data = docSnap.data();
       if (data.inviteCode) return data.inviteCode;
-      
-      const newCode = generateInviteCode();
-      await updateDoc(doc(db, 'greenhouses', workspaceId), {
-        inviteCode: newCode,
-        inviteCodeCreatedAt: new Date().toISOString()
-      });
-      return newCode;
+      return rotateInviteCode(workspaceId, '');
     }
     throw new Error('Invernadero no encontrado.');
   }, []);
@@ -403,6 +386,32 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
+}
+
+// Cambia el código del invernadero y su índice greenhouse_invites en un solo
+// batch. El documento del código anterior se borra para que deje de resolver
+// al invernadero (auditoría C1).
+async function rotateInviteCode(workspaceId: string, oldCode: string): Promise<string> {
+  const newCode = generateInviteCode();
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'greenhouses', workspaceId), {
+    inviteCode: newCode,
+    inviteCodeCreatedAt: new Date().toISOString()
+  });
+  batch.set(doc(db, 'greenhouse_invites', newCode), {
+    greenhouseId: workspaceId,
+    createdAt: new Date().toISOString()
+  });
+  if (oldCode && oldCode !== newCode) {
+    const oldInviteRef = doc(db, 'greenhouse_invites', oldCode);
+    const oldInvite = await getDoc(oldInviteRef);
+    // Solo se borra si existe y apunta a este invernadero (las reglas lo exigen).
+    if (oldInvite.exists() && oldInvite.data().greenhouseId === workspaceId) {
+      batch.delete(oldInviteRef);
+    }
+  }
+  await batch.commit();
+  return newCode;
 }
 
 function generateInviteCode(): string {

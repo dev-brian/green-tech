@@ -3,6 +3,7 @@ import {
   getThresholds,
   updateThresholds,
   resetThresholds,
+  validateThresholds,
   DEFAULT_THRESHOLDS,
   type GreenhouseThresholds,
 } from '../lib/thresholdsService';
@@ -41,6 +42,12 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
   const save = useCallback(
     async (next: GreenhouseThresholds) => {
       if (!greenhouseId) return;
+      const invalid = validateThresholds(next);
+      if (invalid) {
+        setError(invalid);
+        setSuccessMsg(null);
+        return;
+      }
       setSaving(true);
       setError(null);
       setSuccessMsg(null);

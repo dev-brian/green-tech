@@ -35,6 +35,20 @@ Convenciones: nombres de campos en `camelCase` inglés; fechas como `Timestamp` 
 | `reqs` | map | `{ tempMin, tempMax, humidity, soilMoisture, lightHours }` |
 | `createdAt` | string ISO | Obligatorio: `getPlants` ordena por este campo |
 
+### `greenhouses/{greenhouseId}/zones/{zoneId}` (HU-04, T4.1 #64)
+
+Zonas de cultivo. El `zoneId` es el **mismo** que manda el sensor en `POST /ingestTelemetry` (`zona-1`, `zona-2`…), así `readings`, `state/latest` y `alerts` se unen a la zona sin migrar nada. Solo `[a-z0-9-]`, 1 a 40 caracteres.
+
+| Campo | Tipo | Notas |
+| --- | --- | --- |
+| `name` | string | 1 a 60 caracteres. Se muestra en el dashboard, el filtro de alertas y el texto de la alerta |
+| `crop` | `"jitomate"` \| `"lechuga"` | Cultivo asignado |
+| `createdAt`, `updatedAt` | Timestamp | |
+
+- Lectura: cualquier miembro. Crear, editar y borrar: solo el admin; las reglas rechazan otros campos u otros cultivos.
+- **Umbrales por cultivo:** al llegar una lectura, el backend lee la zona y, si tiene `crop`, evalúa con los umbrales de ese cultivo aunque el sensor mande otro. Si la zona no está registrada, usa el `crop` del sensor.
+- Borrar una zona no borra sus lecturas ni alertas; si el sensor sigue mandando datos, la PWA la muestra como "sin registrar".
+
 ## 2. Esquema v1 (hidropónico)
 
 Todo cuelga del invernadero, para que las reglas se resuelvan con `isMember(greenhouseId)`. Las lecturas, el último estado y las alertas los escribe **solo el backend** (proceso Node en servidor/GitHub Actions bajo el Plan B gratuito Spark, o Cloud Functions). Las apps leen; lo único que escriben los clientes es atender una alerta y su propio token de push.
@@ -55,7 +69,7 @@ Todo cuelga del invernadero, para que las reglas se resuelvan con `isMember(gree
 
 ### 2.2 `greenhouses/{greenhouseId}/readings/{readingId}`
 
-Una lectura **por minuto por zona**. Se conservan **7 días**; una tarea programada borra las más viejas.
+Una lectura **por minuto por zona**. Se conservan **7 días**; el workflow `alert-engine.yml` borra las más viejas en cada corrida (`simulator/cli.ts --prune`, T7.1 #75).
 
 | Campo | Tipo | Notas |
 | --- | --- | --- |
@@ -63,11 +77,15 @@ Una lectura **por minuto por zona**. Se conservan **7 días**; una tarea program
 | `timestamp` | Timestamp | Hora de la medición |
 | `airTemp` … `tankLevel` | number | Las 7 variables de 2.1 |
 
-Consulta del histórico de 24 h: `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp`. Necesita el índice compuesto `zoneId ASC, timestamp ASC`.
+Consulta del histórico de 24 h (página Histórico, T7.2 #76): `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp desc`, `limit 1500`. Se ordena de la más nueva a la más vieja para que el tope corte las lecturas antiguas. Usa el índice compuesto `zoneId ASC, timestamp DESC`; `zoneId ASC, timestamp ASC` queda para las consultas en orden ascendente. Los dos están en `firestore.indexes.json`.
 
 ### 2.3 `greenhouses/{greenhouseId}/readingsHourly/{zoneId}_{yyyyMMddHH}`
 
 Promedios por hora, para las gráficas de 7 y 30 días sin leer miles de lecturas. Se conservan **30 días**.
+
+- La hora del id (`yyyyMMddHH`) y el campo `hour` van en **UTC**. Ejemplo: la lectura de `2026-11-15T04:37Z` de `zona-1` entra en `zona-1_2026111504`.
+- Los escribe la ingesta: cada lectura que entra por `POST /ingestTelemetry` actualiza el documento de su zona y hora en una transacción (`simulator/core/hourlyAggregation.ts`). Para las lecturas que ya existían antes de este cambio, `pnpm backfill:hourly` rellena la colección una vez.
+- Consulta de 7 y 30 días: `where zoneId == Z`, `where hour >= desde`, `orderBy hour`. Necesita el índice compuesto `zoneId ASC, hour ASC`, declarado en `firestore.indexes.json`.
 
 | Campo | Tipo | Notas |
 | --- | --- | --- |
@@ -75,6 +93,10 @@ Promedios por hora, para las gráficas de 7 y 30 días sin leer miles de lectura
 | `hour` | Timestamp | Inicio de la hora |
 | `count` | number | Lecturas que entraron en el promedio |
 | `airTemp` … `tankLevel` | map | `{ avg, min, max }` por variable |
+
+### 2.3.1 Índices compuestos
+
+Viven en `firestore.indexes.json` (referenciado desde `firebase.json`) y se publican con `firebase deploy --only firestore:indexes`. Sin ellos, Firestore rechaza las consultas de histórico con `failed-precondition`.
 
 ### 2.4 `greenhouses/{greenhouseId}/state/latest`
 
@@ -92,7 +114,9 @@ Un solo documento con el último estado de cada zona, que el backend sobrescribe
 ```
 
 - `level` ∈ `"ok"` · `"warn"` · `"critical"` y **lo calcula el backend** con los umbrales del invernadero. Ninguna app tiene rangos propios.
-- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de 5 minutos.
+- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de **15 minutos** (tres ciclos del motor de alertas, que corre cada 5 min en un cron que suele retrasarse).
+- La vigencia se calcula **con el reloj del cliente**, no solo cuando llega un snapshot: si el sensor deja de enviar no llega ningún snapshot. La PWA la recalcula cada 30 s (`src/lib/zoneFreshness.ts`).
+- Sin `timestamp`, o con una hora más de 5 min en el futuro, la zona se muestra en gris. Si falta una variable se muestra "sin dato", nunca un valor por defecto.
 
 ### 2.5 `greenhouses/{greenhouseId}/alerts/{alertId}`
 
@@ -109,8 +133,12 @@ Las crea **solo** el motor del backend al evaluar los umbrales tras llegar una l
 | `createdAt` | Timestamp | |
 | `attendedBy` | string \| null | UID |
 | `attendedAt`, `resolvedAt` | Timestamp \| null | |
+| `supersededBy` | string \| null | Solo en copias que dejó el error de duplicados (auditoría C4): id de la alerta que quedó abierta |
 
-- **Sin duplicados:** el backend no crea otra alerta si ya hay una con el mismo `zoneId` y `variable` en `status == "new"`. Cuando la variable vuelve a `ok`, la marca `auto_resolved`.
+- **Abierta = sin `resolvedAt`:** una alerta sigue abierta mientras `status` sea `"new"` o `"attended"` y no tenga `resolvedAt`. Atenderla **no** la cierra: solo dice que alguien ya la vio.
+- **Sin duplicados:** hay como máximo una alerta abierta por `zoneId` + `variable`. El backend guarda su id en `state/openAlerts` (`{ "zona-1": { "ph": "<alertId>" } }`) y la lee y escribe en una transacción, así dos lecturas simultáneas no crean dos alertas. Las apps no necesitan leer ese documento.
+- **Escalar:** si una alerta abierta pasa de `warn` a `critical`, el backend sube `severity`, actualiza `value` y `message` y la regresa a `status: "new"` (aunque ya estuviera atendida), y manda el push una vez.
+- **Cerrar (histéresis):** el backend la marca `auto_resolved` con `resolvedAt` cuando el valor vuelve al rango ideal **con un margen** del 5 % del ancho del rango, del lado por el que salió (pH 5.5–6.5 que salió por arriba: se cierra con 6.45 o menos). Así un valor que oscila en el límite no abre y cierra alertas sin parar. Se conservan `attendedBy` y `attendedAt`.
 - **Atender:** un miembro puede actualizar **solo** `status` (a `"attended"`), `attendedBy` (su propio UID) y `attendedAt`. Cualquier otro campo se rechaza en las reglas.
 - **Push:** al crear una alerta `critical`, la función envía la notificación a los tokens de todos los miembros del invernadero (2.6).
 
@@ -128,7 +156,7 @@ Solo el propio usuario puede leer y escribir sus tokens.
 
 ### 2.7 Ingesta y Actuadores Virtuales (Endpoints HTTP)
 
-- **`POST /ingestTelemetry`**: cabecera `x-device-key`. La llama el simulador (`simulator/cli.ts`) cada minuto por zona. Valida la clave, las unidades y los rangos físicos de 2.1; guarda la lectura en `readings`, actualiza `state/latest`, evalúa alertas (`alerts`) y actualiza los actuadores virtuales (`actuators`).
+- **`POST /ingestTelemetry`**: cabecera `x-device-key`. La llaman el simulador interactivo (`greenhouse-sim/`), el simulador de línea de comandos (`simulator/cli.ts`) y, más adelante, los sensores reales: una lectura por minuto por zona. Valida la clave, las unidades y los rangos físicos de 2.1; guarda la lectura en `readings`, actualiza `state/latest`, evalúa alertas (`alerts`) y actualiza los actuadores virtuales (`actuators`).
 
 ```json
 {
@@ -148,3 +176,7 @@ Solo el propio usuario puede leer y escribir sus tokens.
 - Solo el admin edita el invernadero y sus miembros; un usuario solo puede unirse a sí mismo como operador con un código válido (`T11.1 #26`).
 - `readings`, `readingsHourly`, `state` y `alerts`: lectura para miembros; escritura solo del backend, salvo atender alertas (2.5).
 - `users/{uid}/fcmTokens`: solo el propio usuario.
+
+### 2.9 Quién publica
+
+Cualquier dispositivo que envíe el cuerpo de 2.7 con una `x-device-key` válida. Hoy es el simulador interactivo (`greenhouse-sim/`, ver su README), que no escribe en Firestore ni calcula semáforos: solo publica por HTTP. La ingesta se levanta como servicio propio con `pnpm ingest` (memoria) o `pnpm ingest:firestore`. No existe clave por defecto: sin `DEVICE_INGEST_KEY` la ingesta no arranca.

@@ -23,10 +23,10 @@ type PlantFormData = {
 };
 
 const STATUS_CONFIG: Record<PlantStatus, { color: string; glow: string; label: string }> = {
-  'En Espera': { color: 'var(--text-disabled)',  glow: 'rgba(74,85,104,0.35)',           label: 'En Espera' },
-  'Creciendo': { color: 'var(--status-blue)',    glow: 'rgba(59,130,246,0.35)',           label: 'Creciendo' },
-  'Óptimo':    { color: 'var(--status-green)',   glow: 'rgba(16,185,129,0.35)',           label: 'Óptimo'    },
-  'Cosecha':   { color: 'var(--status-yellow)',  glow: 'rgba(245,158,11,0.35)',           label: 'Cosecha'   },
+  'En Espera': { color: 'var(--text-disabled)',  glow: 'var(--status-offline-soft)',           label: 'En Espera' },
+  'Creciendo': { color: 'var(--status-blue)',    glow: 'var(--status-blue)',           label: 'Creciendo' },
+  'Óptimo':    { color: 'var(--status-green)',   glow: 'var(--leaf)',           label: 'Óptimo'    },
+  'Cosecha':   { color: 'var(--status-yellow)',  glow: 'var(--status-warn)',           label: 'Cosecha'   },
 };
 
 function StatusDot({ status }: { status: string }) {
@@ -52,7 +52,7 @@ function ParamRow({ icon, label, value }: { icon: React.ReactNode; label: string
       justifyContent: 'space-between',
       gap: 'var(--space-xs)',
       padding: 'var(--space-xs) 0',
-      borderBottom: '1px solid rgba(255,255,255,0.03)',
+      borderBottom: '1px solid var(--line)',
     }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
         {icon}
@@ -97,7 +97,7 @@ function PlantCard({
         borderRadius: 'var(--radius-md)',
         ...(isActive && {
           borderLeft: '3px solid var(--accent)',
-          boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 20px rgba(16,185,129,0.04)`,
+          boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 20px var(--status-ok-soft)`,
         }),
       }}
     >
@@ -287,7 +287,7 @@ function PlantModal({
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: 'var(--space-md)',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          borderBottom: '1px solid var(--line)',
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
@@ -370,7 +370,7 @@ function PlantModal({
                         display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                         textAlign: 'left',
                         padding: 'var(--space-sm)',
-                        border: isSelected ? `1px solid ${cfg.color}` : '1px solid rgba(255,255,255,0.03)',
+                        border: isSelected ? `1px solid ${cfg.color}` : '1px solid var(--line)',
                         cursor: 'pointer',
                         gap: 4,
                         ...(isSelected && { boxShadow: `5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light), inset 0 0 12px ${cfg.glow}` }),
@@ -476,7 +476,7 @@ function PlantModal({
         {/* Footer del modal */}
         <div style={{
           padding: 'var(--space-md)',
-          borderTop: '1px solid rgba(255,255,255,0.04)',
+          borderTop: '1px solid var(--line)',
           flexShrink: 0,
           display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)',
         }}>
@@ -505,7 +505,7 @@ function PlantModal({
             >
               {isSaving ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+                  <span style={{ width: 16, height: 16, border: '2px solid var(--text-disabled)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
                   Guardando...
                 </span>
               ) : 'Guardar Cultivo'}

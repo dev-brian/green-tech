@@ -36,7 +36,7 @@ function ModeCard({
         padding: 'var(--space-sm)',
         border: selected
           ? `1px solid ${accent}`
-          : '1px solid rgba(255,255,255,0.03)',
+          : '1px solid var(--line)',
         cursor: 'pointer',
         width: '100%',
         transition: 'border-color 0.2s ease, box-shadow 0.2s ease',

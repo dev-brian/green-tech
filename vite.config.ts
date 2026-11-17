@@ -26,8 +26,8 @@ export default defineConfig(({ mode }) => ({
         start_url: PAGES_BASE,
         scope: PAGES_BASE,
         display: 'standalone',
-        background_color: '#1e222b',
-        theme_color: '#1e222b',
+        background_color: '#EEF1EA',
+        theme_color: '#0A0909',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Workbox omite sin error los archivos de más de 2 MiB, lo que dejaría la app incompleta
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Muestra las notificaciones push FCM de alertas críticas (T6.4 #51)
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

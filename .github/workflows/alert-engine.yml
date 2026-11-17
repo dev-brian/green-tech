@@ -10,9 +10,17 @@ on:
   workflow_dispatch:
     inputs:
       scenario:
-        description: 'Escenario hidropónico (normal, ph-alto, ec-baja, tanque-bajo, solucion-caliente, ola-de-calor)'
+        description: 'Escenario hidropónico'
+        type: choice
         required: false
         default: 'normal'
+        options:
+          - normal
+          - ph-alto
+          - ec-baja
+          - tanque-bajo
+          - solucion-caliente
+          - ola-de-calor
 
 permissions:
   contents: read
@@ -38,15 +46,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ejecutar ciclo de ingesta y motor de alertas en Firestore
+      - name: Ejecutar ciclo de ingesta, motor de alertas y purga (7 y 30 días) en Firestore
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GREENHOUSE_ID: ${{ secrets.GREENHOUSE_ID }}
           DEVICE_INGEST_KEY: ${{ secrets.DEVICE_INGEST_KEY }}
+          # Al tocar un push de alerta crítica se abre la bandeja de la PWA publicada
+          PWA_URL: https://dev-brian.github.io/green-tech/
+          # Auditoría A7: el valor del formulario pasa por env, nunca se inserta
+          # en el script; así no puede ejecutar comandos con la cuenta de servicio.
+          SCENARIO: ${{ github.event.inputs.scenario || 'normal' }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$GREENHOUSE_ID" ] || [ -z "$DEVICE_INGEST_KEY" ]; then
             echo "::error::Faltan secretos requeridos en GitHub (FIREBASE_SERVICE_ACCOUNT, GREENHOUSE_ID o DEVICE_INGEST_KEY)."
             exit 1
           fi
-          SCENARIO="${{ github.event.inputs.scenario || 'normal' }}"
-          node simulator/cli.ts --firestore --once --scenario="$SCENARIO"
+          case "$SCENARIO" in
+            normal|ph-alto|ec-baja|tanque-bajo|solucion-caliente|ola-de-calor) ;;
+            *) echo "::error::Escenario no válido."; exit 1 ;;
+          esac
+          node simulator/cli.ts --firestore --once --prune --scenario="$SCENARIO"

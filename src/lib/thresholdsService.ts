@@ -50,6 +50,24 @@ export async function getThresholds(
 }
 
 /**
+ * Revisa que cada rango cumpla redMin ≤ yellowMin ≤ yellowMax ≤ redMax con
+ * números finitos. Devuelve el mensaje de error o null. Las reglas de Firestore
+ * rechazan lo mismo; validar aquí da un mensaje claro antes de guardar.
+ */
+export function validateThresholds(thresholds: GreenhouseThresholds): string | null {
+  for (const [variable, r] of Object.entries(thresholds) as [string, ThresholdRange][]) {
+    const values = [r.redMin, r.yellowMin, r.yellowMax, r.redMax];
+    if (!values.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+      return `Los umbrales de ${variable} deben ser números.`;
+    }
+    if (!(r.redMin <= r.yellowMin && r.yellowMin <= r.yellowMax && r.yellowMax <= r.redMax)) {
+      return `Los umbrales de ${variable} deben ir en orden: crítico mín ≤ precaución mín ≤ precaución máx ≤ crítico máx.`;
+    }
+  }
+  return null;
+}
+
+/**
  * Guarda los umbrales en Firestore. Solo debe llamarse con rol admin
  * (lo hace cumplir `firestore.rules`: `allow update: if isAdmin(...)`).
  */

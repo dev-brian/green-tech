@@ -6,17 +6,21 @@ del aire, humedad relativa, luz, pH, conductividad (EC), temperatura de la
 solución y nivel del tanque— y la app las muestra con semáforo de estado,
 alertas, histórico gráfico y exportación a CSV/PDF.
 
-El backend (ingesta de lecturas, motor de alertas y actuadores virtuales) corre
-en el **plan gratuito de Firebase (Spark)** mediante un proceso Node y GitHub
-Actions, sin Cloud Functions. Todo el intercambio de datos sigue el contrato
-publicado en [`docs/contrato-datos.md`](docs/contrato-datos.md).
+El backend (ingesta de lecturas, motor de alertas, notificaciones push y
+actuadores virtuales) corre en el **plan gratuito de Firebase (Spark)** mediante
+un proceso Node y GitHub Actions, sin Cloud Functions. Todo el intercambio de
+datos sigue el contrato publicado en [`docs/contrato-datos.md`](docs/contrato-datos.md).
 
 ## 🌟 Características principales
 
 - **Estado por zona (semáforo)**: las 7 variables con niveles `ok` / `warn` /
   `critical` calculados por el backend, con las zonas más urgentes primero.
+- **Zonas de cultivo**: cada invernadero se divide en zonas con su propio
+  cultivo, freshness y histórico por separado.
 - **Alertas**: el motor evalúa los umbrales tras cada lectura y crea alertas sin
   duplicados; cualquier miembro puede marcar una alerta como atendida.
+- **Notificaciones push (FCM)**: con permiso explícito (opt-in) y deep link a la
+  bandeja de alertas desde el aviso.
 - **Histórico y exportación**: gráficas por zona con exportación a **CSV** y
   **PDF** (botones visibles solo para administradores).
 - **Roles y trabajo en equipo**: administrador y operador por invernadero, unión
@@ -63,9 +67,11 @@ publicado en [`docs/contrato-datos.md`](docs/contrato-datos.md).
    ```bash
    cp .env.local.example .env.local
    ```
-   El `.env.local` tiene dos bloques: las llaves del cliente Firebase
-   (`VITE_FIREBASE_*`, las que usa la PWA) y las del backend/simulador
-   (`FIREBASE_SERVICE_ACCOUNT`, `GREENHOUSE_ID`, `DEVICE_INGEST_KEY`).
+   El `.env.local` tiene tres bloques: las llaves del cliente Firebase
+   (`VITE_FIREBASE_*`, incluida la VAPID para push, las que usa la PWA), las del
+   backend/simulador (`FIREBASE_SERVICE_ACCOUNT`, `GREENHOUSE_ID`,
+   `DEVICE_INGEST_KEY`) y las opcionales del simulador interactivo
+   (`INGEST_URL`, `SIM_PORT`, `SIM_PUBLISH_INTERVAL`).
    **Estas llaves NO están en el repositorio** (por seguridad) — pídeselas a un
    administrador del proyecto por un canal privado (WhatsApp, Slack, gestor de
    contraseñas, etc.), nunca las pegues en un commit ni en un chat público.
@@ -85,7 +91,7 @@ publicado en [`docs/contrato-datos.md`](docs/contrato-datos.md).
 
 ```bash
 pnpm lint         # ESLint
-pnpm test         # unitarias: semáforo, ingesta/alertas, exportación CSV/PDF
+pnpm test         # unitarias: semáforo, ingesta/alertas, exportación CSV/PDF, zonas, push
 pnpm test:rules   # reglas de Firestore (requiere Java + Firebase Emulator)
 pnpm build        # type-check (tsc) + bundle de producción
 ```
@@ -106,21 +112,38 @@ pnpm sim:firestore   # publica lecturas en Firestore usando el contrato v0.2
 También hay `pnpm seed:telemetry` para sembrar datos de ejemplo y
 `pnpm simulator` para la CLI en modo memoria.
 
+## 🧪 Simulador interactivo de invernadero
+
+Para probar la PWA sin sensores hay un invernadero simulado con interfaz visual
+y escenarios ("sube el pH", "falla una bomba", "corte de luz"). Publica por el
+mismo endpoint que usarán los sensores reales.
+
+```bash
+pnpm sim:demo   # demo local, sin tocar Firestore: http://localhost:4100
+```
+
+Detalles y uso con Firestore en [`greenhouse-sim/README.md`](greenhouse-sim/README.md).
+
 ## 📁 Estructura del proyecto
 
 ```text
 ├── docs/
-│   └── contrato-datos.md     # Contrato de datos vigente (Firestore v0.2)
+│   ├── contrato-datos.md     # Contrato de datos vigente (Firestore)
+│   ├── push-fcm.md           # Notificaciones push
+│   └── deuda-conocida.md     # Deuda técnica registrada
+├── greenhouse-sim/           # Invernadero simulado con UI y escenarios
 ├── src/
-│   ├── components/           # Navegación, alertas, exportación CSV/PDF, PWA
+│   ├── components/           # Navegación, alertas, exportación CSV/PDF, push, PWA
 │   ├── context/              # Sesión, espacios de trabajo y roles
-│   ├── hooks/                # useTelemetry, useAlerts, useThresholds, PWA
-│   ├── lib/                  # Firebase, servicios, umbrales, csvExport/pdfExport
+│   ├── hooks/                # useTelemetry, useAlerts, useThresholds, useHistory, PWA
+│   ├── lib/                  # Firebase, servicios, umbrales, cropProfiles, csv/pdf
 │   ├── pages/
 │   │   ├── Landing.tsx              # Presentación pública
 │   │   ├── auth/LoginPage.tsx       # Inicio de sesión
 │   │   ├── OnboardingWizard.tsx     # Alta de invernadero
 │   │   ├── Dashboard.tsx            # Estado actual, histórico y exportación
+│   │   ├── ZonesPage.tsx            # Zonas del invernadero
+│   │   ├── HistoryPage.tsx          # Histórico gráfico + exportación
 │   │   ├── AlertsPage.tsx           # Alertas + umbrales (admin)
 │   │   ├── ControlPanel.tsx         # Actuadores y configuración
 │   │   └── PlantManagement.tsx      # Catálogo de cultivos (admin)
@@ -137,6 +160,7 @@ También hay `pnpm seed:telemetry` para sembrar datos de ejemplo y
 
 - [`docs/contrato-datos.md`](docs/contrato-datos.md) — **especificación vigente**
   de datos: colecciones, campos, unidades, endpoints de ingesta y reglas.
+- [`docs/deuda-conocida.md`](docs/deuda-conocida.md) — deuda técnica conocida.
 - [`SPECS.md`](SPECS.md) — **visión futura** de la plataforma completa
   (reportes firmados, analítica predictiva, API REST); no describe lo que hoy
   está implementado.

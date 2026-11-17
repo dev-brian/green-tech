@@ -8,11 +8,15 @@
  *   node simulator/cli.ts --once
  *   node simulator/cli.ts --once --scenario=ph-alto
  *   node simulator/cli.ts --firestore --greenhouseId=<ID_INVERNADERO> --scenario=normal
+ *   node simulator/cli.ts --firestore --once --prune   (además borra lecturas de más de 7 días
+ *                                                       y promedios por hora de más de 30, T7.1 #75)
  */
 
 import type { AddressInfo } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import { createIngestHttpServer } from './server.ts';
 import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
+import { FcmPushNotifier } from './core/fcmPushNotifier.ts';
 import {
   DEFAULT_SIMULATED_ZONES,
   createInitialReadings,
@@ -64,22 +68,41 @@ async function runCli() {
   const greenhouseId = String(
     args.greenhouseId ?? process.env.GREENHOUSE_ID ?? 'demo-greenhouse',
   );
-  const deviceKey = String(
-    args.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? 'gt-dev-device-key-2026',
-  );
+  const deviceKey = String(args.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? '').trim();
+  if (!deviceKey) {
+    throw new Error(
+      'Falta la clave de dispositivo: define DEVICE_INGEST_KEY en .env.local o usa --deviceKey=<clave>.',
+    );
+  }
   const intervalSec = Math.max(1, Number(args.interval ?? 60));
   const once = Boolean(args.once);
   const useFirestore =
     Boolean(args.firestore) || process.env.USE_FIRESTORE === 'true';
+  const prune = Boolean(args.prune);
 
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
+
+  // Purga de lecturas de más de 7 días y promedios de más de 30 (T7.1 #75)
+  if (prune) {
+    if (useFirestore && !baseUrl) {
+      const { readingsDeleted, hourlyDeleted } =
+        await new FirestoreTelemetryStorage().pruneExpired(greenhouseId);
+      console.log(
+        `[Simulador] Purga: ${readingsDeleted} lecturas y ${hourlyDeleted} promedios por hora vencidos borrados.`,
+      );
+    } else {
+      console.warn('[Simulador] --prune solo funciona con --firestore y sin --ingestUrl; se omite.');
+    }
+  }
 
   if (!baseUrl) {
     const storage = useFirestore
       ? new FirestoreTelemetryStorage()
       : undefined;
-    const { server } = createIngestHttpServer({ deviceKey, storage });
+    // Con Firestore también se envían push FCM de alertas críticas (T6.5 #52)
+    const notifier = useFirestore ? new FcmPushNotifier() : undefined;
+    const { server } = createIngestHttpServer({ deviceKey, storage, notifier });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const addr = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${addr.port}`;
@@ -97,7 +120,12 @@ async function runCli() {
       // 1. Consultar estado actual de actuadores (lazo cerrado T8.3)
       const actuatorsRes = await fetch(
         `${baseUrl}/actuatorsState?greenhouseId=${encodeURIComponent(greenhouseId)}&zoneId=${encodeURIComponent(zone.zoneId)}`,
+        // Auditoría C3: /actuatorsState también exige la clave.
+        { headers: { 'x-device-key': deviceKey } },
       );
+      if (!actuatorsRes.ok) {
+        console.warn(`[Simulador] ${zone.zoneId}: /actuatorsState respondió ${actuatorsRes.status}; se sigue sin lazo cerrado.`);
+      }
       const actuators = actuatorsRes.ok
         ? ((await actuatorsRes.json()) as ZoneActuatorsState)
         : undefined;
@@ -158,7 +186,8 @@ async function runCli() {
   }, intervalSec * 1000);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL convierte bien las rutas de Windows (C:\...) a file:///C:/...
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCli().catch((err) => {
     console.error('[Simulador] Fallo fatal:', err);
     process.exit(1);

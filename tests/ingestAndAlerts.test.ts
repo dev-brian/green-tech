@@ -16,6 +16,12 @@ import {
   stepZoneReadings,
 } from '../simulator/core/simulatorEngine.ts';
 import { createIngestHttpServer } from '../simulator/server.ts';
+import {
+  RecordingPushNotifier,
+  buildCriticalAlertMessage,
+  findStaleTokenIndexes,
+  type AlertPushNotifier,
+} from '../simulator/core/pushNotifier.ts';
 
 const DEVICE_KEY = 'test-device-key-123';
 
@@ -220,6 +226,7 @@ describe('T2.2 (#38), T2.3 (#39) y T8.3 (#69) — Simulador hidropónico, escena
 
       const actRes = await fetch(
         `${baseUrl}/actuatorsState?greenhouseId=gh-http&zoneId=zona-1`,
+        { headers: { 'x-device-key': DEVICE_KEY } },
       );
       assert.equal(actRes.status, 200);
       const actJson = (await actRes.json()) as {
@@ -263,5 +270,204 @@ describe('T11.4 (#29) y T6.2 (#49) — Eliminación de datos locales, alertas en
     assert.match(storageSrc, /firebase-admin\/firestore/);
     assert.doesNotMatch(storageSrc, /ingestKey/);
     assert.doesNotMatch(storageSrc, /gt-dev-device-key-2026/);
+  });
+});
+
+describe('T6.5 (#52) — Push FCM a los miembros cuando una alerta llega a crítico', () => {
+  const baseReadings = {
+    airTemp: 23.0,
+    humidity: 65,
+    light: 28000,
+    ph: 6.0,
+    ec: 2.6,
+    solutionTemp: 21.0,
+    tankLevel: 80,
+  };
+  const ingest = (
+    storage: InMemoryTelemetryStorage,
+    notifier: AlertPushNotifier,
+    minute: number,
+    ph: number,
+  ) =>
+    processIngestedReading(
+      {
+        greenhouseId: 'gh-push',
+        zoneId: 'zona-1',
+        crop: 'jitomate',
+        timestamp: `2026-11-08T12:0${minute}:00.000Z`,
+        readings: { ...baseReadings, ph },
+      },
+      storage,
+      notifier,
+    );
+
+  it('notifica al crear una alerta crítica y no repite mientras sigue activa', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const notifier = new RecordingPushNotifier();
+
+    await ingest(storage, notifier, 0, 7.5);
+    assert.equal(notifier.calls.length, 1);
+    assert.equal(notifier.calls[0].greenhouseId, 'gh-push');
+    assert.equal(notifier.calls[0].alert.variable, 'ph');
+    assert.equal(notifier.calls[0].alert.severity, 'critical');
+
+    await ingest(storage, notifier, 1, 7.6);
+    assert.equal(notifier.calls.length, 1, 'la alerta activa no vuelve a notificar');
+  });
+
+  it('no notifica alertas de precaución, pero sí cuando suben a crítico', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const notifier = new RecordingPushNotifier();
+
+    const warn = await ingest(storage, notifier, 0, 6.8);
+    assert.equal(warn.createdAlerts[0].severity, 'warn');
+    assert.equal(notifier.calls.length, 0);
+
+    await ingest(storage, notifier, 1, 7.4);
+    assert.equal(notifier.calls.length, 1);
+    assert.equal(notifier.calls[0].alert.id, warn.createdAlerts[0].id);
+    assert.equal(notifier.calls[0].alert.severity, 'critical');
+    assert.equal(notifier.calls[0].alert.value, 7.4);
+  });
+
+  it('un fallo del envío de push no rompe la ingesta', async () => {
+    const storage = new InMemoryTelemetryStorage();
+    const failing: AlertPushNotifier = {
+      async notifyCriticalAlert() {
+        throw new Error('FCM caído');
+      },
+    };
+    const res = await ingest(storage, failing, 0, 7.5);
+    assert.equal(res.createdAlerts.length, 1);
+    assert.equal(storage.alerts['gh-push'].length, 1);
+  });
+
+  it('arma el mensaje con datos en texto y detecta tokens inválidos', () => {
+    const msg = buildCriticalAlertMessage('gh-push', {
+      id: 'alert-9',
+      zoneId: 'zona-2',
+      variable: 'tankLevel',
+      severity: 'critical',
+      value: 8,
+      message: '',
+      status: 'new',
+      createdAt: '2026-11-08T12:00:00.000Z',
+      attendedBy: null,
+      attendedAt: null,
+      resolvedAt: null,
+    });
+    assert.match(msg.title, /crítica/);
+    assert.match(msg.body, /zona-2/);
+    assert.deepEqual(msg.data, {
+      type: 'alert',
+      greenhouseId: 'gh-push',
+      alertId: 'alert-9',
+      zoneId: 'zona-2',
+      variable: 'tankLevel',
+      severity: 'critical',
+      value: '8',
+    });
+    for (const v of Object.values(msg.data)) assert.equal(typeof v, 'string');
+
+    const stale = findStaleTokenIndexes([
+      { success: true },
+      { success: false, error: { code: 'messaging/registration-token-not-registered' } },
+      { success: false, error: { code: 'messaging/internal-error' } },
+      { success: false, error: { code: 'messaging/invalid-registration-token' } },
+    ]);
+    assert.deepEqual(stale, [1, 3]);
+  });
+
+  it('el service worker de la PWA importa el manejador de push', () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
+    assert.match(viteConfig, /importScripts:\s*\['push-sw\.js'\]/);
+    const sw = readFileSync(resolve(process.cwd(), 'public/push-sw.js'), 'utf8');
+    assert.match(sw, /addEventListener\('push'/);
+    assert.match(sw, /addEventListener\('notificationclick'/);
+  });
+});
+
+describe('endurecimiento del servidor de ingesta (auditoría C3)', () => {
+  const KEY = 'clave-de-prueba-c3';
+  const reading = (overrides: Record<string, unknown> = {}) => ({
+    greenhouseId: 'gh-ok',
+    zoneId: 'zona-1',
+    crop: 'lechuga',
+    timestamp: new Date('2026-11-17T12:00:00Z').toISOString(),
+    readings: { airTemp: 22, humidity: 65, light: 15000, ph: 6, ec: 1, solutionTemp: 20, tankLevel: 80 },
+    ...overrides,
+  });
+
+  async function withServer(
+    opts: Parameters<typeof createIngestHttpServer>[0],
+    fn: (base: string) => Promise<void>,
+  ) {
+    const { server } = createIngestHttpServer(opts);
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as { port: number };
+    try {
+      await fn(`http://127.0.0.1:${port}`);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  }
+
+  const post = (base: string, body: unknown, key = KEY) =>
+    fetch(`${base}/ingestTelemetry`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-device-key': key },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+
+  const now = () => Date.parse('2026-11-17T12:00:00Z');
+
+  it('GET /actuatorsState exige la clave', async () => {
+    await withServer({ deviceKey: KEY, now }, async (base) => {
+      const res = await fetch(`${base}/actuatorsState?greenhouseId=gh-ok&zoneId=zona-1`);
+      assert.equal(res.status, 401);
+    });
+  });
+
+  it('rechaza un cuerpo de más de 16 KB con 413', async () => {
+    await withServer({ deviceKey: KEY, now }, async (base) => {
+      const res = await post(base, { ...reading(), relleno: 'x'.repeat(20_000) });
+      assert.equal(res.status, 413);
+    });
+  });
+
+  it('rechaza zoneId con caracteres que no van en un id de documento', async () => {
+    await withServer({ deviceKey: KEY, now }, async (base) => {
+      for (const zoneId of ['Zona 1', 'zona/1', 'a'.repeat(41), 'zona.1']) {
+        const res = await post(base, reading({ zoneId }));
+        assert.equal(res.status, 400, zoneId);
+      }
+    });
+  });
+
+  it('rechaza una hora más de 5 min en el futuro', async () => {
+    await withServer({ deviceKey: KEY, now }, async (base) => {
+      const future = new Date(now() + 10 * 60_000).toISOString();
+      assert.equal((await post(base, reading({ timestamp: future }))).status, 400);
+      const slightly = new Date(now() + 60_000).toISOString();
+      assert.equal((await post(base, reading({ timestamp: slightly }))).status, 201);
+    });
+  });
+
+  it('con lista de invernaderos, la clave no escribe en otro', async () => {
+    await withServer({ deviceKey: KEY, now, allowedGreenhouseIds: ['gh-ok'] }, async (base) => {
+      assert.equal((await post(base, reading())).status, 201);
+      assert.equal((await post(base, reading({ greenhouseId: 'gh-ajeno' }))).status, 403);
+      const act = await fetch(`${base}/actuatorsState?greenhouseId=gh-ajeno&zoneId=zona-1`, {
+        headers: { 'x-device-key': KEY },
+      });
+      assert.equal(act.status, 403);
+    });
+  });
+
+  it('una clave incorrecta de la misma longitud tampoco pasa', async () => {
+    await withServer({ deviceKey: KEY, now }, async (base) => {
+      const wrong = KEY.slice(0, -1) + 'X';
+      assert.equal((await post(base, reading(), wrong)).status, 401);
+    });
   });
 });

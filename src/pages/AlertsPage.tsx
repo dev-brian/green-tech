@@ -4,11 +4,14 @@ import {
   CheckCircle2, Clock, AlertTriangle, ChevronDown,
   ChevronUp, RotateCcw, Save, Filter, X,
 } from 'lucide-react';
+import { useZones } from '../hooks/useZones';
+import { mergeZoneIds, zoneDisplayName, zoneLabel, type Zone } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert, type AlertFilters } from '../hooks/useAlerts';
 import { useThresholds, type GreenhouseThresholds } from '../hooks/useThresholds';
 import { validateThresholds, hasThresholdErrors } from '../lib/thresholdValidation';
 import { CROP_OPTIONS, type CropType } from '../lib/cropProfiles';
+import PushNotificationsToggle from '../components/PushNotificationsToggle';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,19 +63,23 @@ function VariableIcon({ variable, color }: { variable: string; color: string }) 
 
 function AlertItem({
   alert,
+  zoneName,
   onMarkAttended,
+  attendState,
 }: {
   alert: FirestoreAlert;
+  zoneName: string;
   onMarkAttended: (id: string) => void;
+  attendState?: 'busy' | 'error';
 }) {
   const severityColor = alert.severity === 'red'
     ? 'var(--status-red)'
     : 'var(--status-yellow)';
 
   const statusConfig = {
-    new:           { label: 'Nueva',     bg: 'rgba(239,68,68,0.12)',   text: 'var(--status-red)'    },
-    attended:      { label: 'Atendida',  bg: 'rgba(16,185,129,0.12)',  text: 'var(--status-green)'  },
-    auto_resolved: { label: 'Resuelta',  bg: 'rgba(148,163,184,0.12)', text: 'var(--text-secondary)' },
+    new:           { label: 'Nueva',     bg: 'var(--status-crit-soft)',   text: 'var(--status-red)'    },
+    attended:      { label: 'Atendida',  bg: 'var(--status-ok-soft)',  text: 'var(--status-green)'  },
+    auto_resolved: { label: 'Resuelta',  bg: 'var(--status-offline-soft)', text: 'var(--text-secondary)' },
   }[alert.status];
 
   return (
@@ -129,7 +136,7 @@ function AlertItem({
             {relativeTime(alert.createdAt)}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-            {alert.sector}
+            {zoneName}
           </span>
           <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
             {VARIABLE_LABELS[alert.variable]}: <strong style={{ color: severityColor }}>{alert.value}{VARIABLE_UNITS[alert.variable]}</strong>
@@ -138,15 +145,19 @@ function AlertItem({
 
         {/* Acción "Marcar como atendida" */}
         {alert.status === 'new' && (
+          <>
           <button
+            type="button"
             onClick={() => onMarkAttended(alert.id)}
+            disabled={attendState === 'busy'}
+            aria-busy={attendState === 'busy'}
             style={{
               marginTop: 'var(--space-xs)',
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: 'rgba(16,185,129,0.08)',
-              border: '1px solid rgba(16,185,129,0.2)',
+              background: 'var(--status-ok-soft)',
+              border: '1px solid var(--leaf)',
               color: 'var(--accent)',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 12px',
@@ -156,12 +167,18 @@ function AlertItem({
               minHeight: 36,
               transition: 'background 0.15s ease',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.16)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
           >
             <CheckCircle2 size={14} strokeWidth={1.5} />
-            Marcar como atendida
+            {attendState === 'busy' ? 'Guardando…' : 'Marcar como atendida'}
           </button>
+          {attendState === 'error' && (
+            <p role="alert" style={{ margin: 0, marginTop: 4, fontSize: '0.8125rem', color: 'var(--status-crit-text)' }}>
+              No se pudo guardar. Intenta de nuevo.
+            </p>
+          )}
+          </>
         )}
         {alert.status === 'attended' && alert.attendedAt && (
           <p style={{ margin: 0, marginTop: 4, fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
@@ -193,10 +210,12 @@ function FilterBar({
   filters,
   onFiltersChange,
   sectors,
+  zonesById,
 }: {
   filters: AlertFilters;
   onFiltersChange: (f: AlertFilters) => void;
   sectors: string[];
+  zonesById: Record<string, Zone>;
 }) {
   const hasActiveFilter = !!(filters.severity || filters.status || filters.sector);
 
@@ -218,8 +237,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.severity === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.severity === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -244,8 +263,8 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.status === opt.value
-              ? 'rgba(16,185,129,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-ok-soft)'
+              : 'var(--line)',
             color: filters.status === opt.value
               ? 'var(--accent)'
               : 'var(--text-secondary)',
@@ -270,14 +289,14 @@ function FilterBar({
             cursor: 'pointer',
             minHeight: 30,
             background: filters.sector === s
-              ? 'rgba(59,130,246,0.15)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'var(--status-blue-glow)'
+              : 'var(--line)',
             color: filters.sector === s
               ? 'var(--status-blue)'
               : 'var(--text-secondary)',
           }}
         >
-          {s}
+          {zoneLabel(s, zonesById)}
         </button>
       ))}
 
@@ -294,7 +313,7 @@ function FilterBar({
             border: 'none',
             cursor: 'pointer',
             minHeight: 30,
-            background: 'rgba(239,68,68,0.08)',
+            background: 'var(--status-crit-soft)',
             color: 'var(--status-red)',
           }}
         >
@@ -523,8 +542,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
           style={{
             padding: 'var(--space-sm)',
             borderRadius: 'var(--radius-md)',
-            background: 'rgba(16,185,129,0.10)',
-            border: '1px solid rgba(16,185,129,0.25)',
+            background: 'var(--status-ok-soft)',
+            border: '1px solid var(--leaf)',
             color: 'var(--status-green)',
             fontSize: '0.875rem',
             fontWeight: 600,
@@ -543,8 +562,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
         <div style={{
           padding: 'var(--space-sm)',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(239,68,68,0.10)',
-          border: '1px solid rgba(239,68,68,0.25)',
+          background: 'var(--status-crit-soft)',
+          border: '1px solid var(--status-crit)',
           color: 'var(--status-red)',
           fontSize: '0.875rem',
         }}>
@@ -565,8 +584,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
             gap: 4,
             padding: 4,
             borderRadius: 'var(--radius-sm)',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--line)',
+            border: '1px solid var(--line)',
           }}
         >
           {CROP_OPTIONS.map((option) => {
@@ -629,8 +648,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
           style={{
             padding: 'var(--space-sm)',
             borderRadius: 'var(--radius-md)',
-            background: 'rgba(239,68,68,0.10)',
-            border: '1px solid rgba(239,68,68,0.25)',
+            background: 'var(--status-crit-soft)',
+            border: '1px solid var(--status-crit)',
             color: 'var(--status-red)',
             fontSize: '0.875rem',
             fontWeight: 600,
@@ -647,8 +666,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
           style={{
             padding: 'var(--space-sm)',
             borderRadius: 'var(--radius-md)',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--line)',
+            border: '1px solid var(--line)',
             color: 'var(--text-secondary)',
             fontSize: '0.875rem',
           }}
@@ -683,7 +702,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                     padding: '8px 16px',
                     borderRadius: 'var(--radius-sm)',
                     border: 'none',
-                    background: 'rgba(255,255,255,0.06)',
+                    background: 'var(--line)',
                     color: 'var(--text-secondary)',
                     fontSize: '0.875rem',
                     fontWeight: 600,
@@ -700,7 +719,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                     padding: '8px 16px',
                     borderRadius: 'var(--radius-sm)',
                     border: 'none',
-                    background: 'rgba(239,68,68,0.15)',
+                    background: 'var(--status-crit-soft)',
                     color: 'var(--status-red)',
                     fontSize: '0.875rem',
                     fontWeight: 700,
@@ -725,7 +744,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                 padding: '8px 16px',
                 borderRadius: 'var(--radius-sm)',
                 border: 'none',
-                background: 'rgba(255,255,255,0.04)',
+                background: 'var(--line)',
                 color: 'var(--text-secondary)',
                 fontSize: '0.875rem',
                 fontWeight: 600,
@@ -748,8 +767,8 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
               padding: '8px 20px',
               borderRadius: 'var(--radius-sm)',
               border: 'none',
-              background: draft && !saving && !invalid ? 'var(--accent)' : 'rgba(16,185,129,0.2)',
-              color: draft && !saving && !invalid ? '#fff' : 'var(--text-disabled)',
+              background: draft && !saving && !invalid ? 'var(--ink-block)' : 'var(--track)',
+              color: draft && !saving && !invalid ? 'var(--text-on-ink)' : 'var(--text-secondary)',
               fontSize: '0.875rem',
               fontWeight: 700,
               cursor: (saving || !draft || invalid) ? 'not-allowed' : 'pointer',
@@ -776,11 +795,17 @@ export default function AlertsPage() {
   const { activeWorkspace, isAdmin } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
 
-  const { alerts, loading, unattendedCount, filters, setFilters, markAttended } =
+  const { alerts, loading, error: alertsError, unattendedCount, filters, setFilters, attend, attendState } =
     useAlerts(greenhouseId);
 
-  // Sectores únicos presentes en las alertas (para el filtro)
-  const sectors = [...new Set(alerts.map((a) => a.sector))].filter(Boolean).sort();
+  // Zonas para el filtro (T4.2 #65): las registradas, las que aparecen en
+  // alertas y la elegida, para que el filtro no desaparezca al aplicarlo.
+  const { zones, zonesById } = useZones(greenhouseId);
+  const sectors = mergeZoneIds(
+    zones.map((z) => z.id),
+    alerts.map((a) => a.sector),
+    filters.sector ? [filters.sector] : [],
+  );
 
   return (
     <div className="container animate-fade-in" style={{ paddingTop: 'var(--space-md)', paddingBottom: 'var(--space-2xl)' }}>
@@ -794,9 +819,9 @@ export default function AlertsPage() {
           {unattendedCount > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 4,
-              background: 'rgba(239,68,68,0.12)',
+              background: 'var(--status-crit-soft)',
               color: 'var(--status-red)',
-              border: '1px solid rgba(239,68,68,0.25)',
+              border: '1px solid var(--status-crit)',
               borderRadius: 'var(--radius-full)',
               padding: '2px 10px',
               fontSize: '0.6875rem',
@@ -812,6 +837,9 @@ export default function AlertsPage() {
           {activeWorkspace ? `Invernadero: ${activeWorkspace.name}` : 'Selecciona un invernadero'}
         </p>
       </div>
+
+      {/* ─── Push FCM de alertas críticas (T6.4 #51) ─────────────── */}
+      {activeWorkspace && <PushNotificationsToggle />}
 
       {!activeWorkspace ? (
         <div className="nm-concave" style={{ padding: 'var(--space-2xl)', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
@@ -829,7 +857,7 @@ export default function AlertsPage() {
 
             {/* Filtros */}
             <div style={{ marginBottom: 'var(--space-sm)' }}>
-              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} />
+              <FilterBar filters={filters} onFiltersChange={setFilters} sectors={sectors} zonesById={zonesById} />
             </div>
 
             {/* Lista */}
@@ -840,6 +868,10 @@ export default function AlertsPage() {
                   <div key={i} className="nm-flat" style={{ height: 88, borderRadius: 'var(--radius-lg)', opacity: 0.4 + i * 0.1 }} />
                 ))}
               </div>
+            ) : alertsError ? (
+              <p role="alert" className="nm-concave" style={{ padding: 'var(--space-md)', margin: 0, borderRadius: 'var(--radius-lg)', color: 'var(--text-primary)' }}>
+                {alertsError}
+              </p>
             ) : alerts.length === 0 ? (
               <div className="nm-concave" style={{ padding: 'var(--space-2xl)', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
                 <BellOff size={28} strokeWidth={1.2} color="var(--text-disabled)" style={{ marginBottom: 'var(--space-sm)' }} />
@@ -850,7 +882,7 @@ export default function AlertsPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
                 {alerts.map((alert) => (
-                  <AlertItem key={alert.id} alert={alert} onMarkAttended={markAttended} />
+                  <AlertItem key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onMarkAttended={attend} attendState={attendState[alert.id]} />
                 ))}
               </div>
             )}

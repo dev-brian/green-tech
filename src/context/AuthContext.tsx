@@ -11,7 +11,6 @@ import { auth, db, googleProvider } from '../lib/firebase';
 import { signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
 import { clearIndexedDbPersistence, terminate } from 'firebase/firestore';
 import { authErrorMessage, shouldFallBackToRedirect } from '../lib/authErrors';
-import { disablePush } from '../lib/pushService';
 import {
   doc,
   getDoc,
@@ -193,8 +192,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     // Dar de baja el token push antes de salir: después ya no hay permiso para borrarlo.
-    if (auth.currentUser) {
-      await disablePush(auth.currentUser.uid).catch(() => undefined);
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      // Import dinámico: Firebase Messaging no entra en el paquete inicial (auditoría A8).
+      await import('../lib/pushService')
+        .then((m) => m.disablePush(uid))
+        .catch(() => undefined);
     }
     await signOut(auth);
     // Auditoría A9: en un celular compartido no deben quedar lecturas ni

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -5,17 +6,30 @@ import Navigation from './components/Navigation';
 import AlertSystem from './components/AlertSystem';
 import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 import PushPermissionPrompt from './components/PushPermissionPrompt';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
+// La landing va en el paquete inicial; el resto se carga por ruta (auditoría A8)
+// para que la primera visita no descargue Recharts ni las pantallas con sesión.
+// El service worker precachea todos los .js, así que siguen abriendo sin red.
 import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import ControlPanel from './pages/ControlPanel';
-import PlantManagement from './pages/PlantManagement';
-import LoginPage from './pages/auth/LoginPage';
-import OnboardingWizard from './pages/OnboardingWizard';
-import AlertsPage from './pages/AlertsPage';
-import ZonesPage from './pages/ZonesPage';
-import HistoryPage from './pages/HistoryPage';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ControlPanel = lazy(() => import('./pages/ControlPanel'));
+const PlantManagement = lazy(() => import('./pages/PlantManagement'));
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'));
+const AlertsPage = lazy(() => import('./pages/AlertsPage'));
+const ZonesPage = lazy(() => import('./pages/ZonesPage'));
+const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+
+function PageFallback() {
+  return (
+    <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)', padding: 'var(--space-2xl) 0', color: 'var(--text-secondary)' }}>
+      <span style={{ width: 20, height: 20, border: '2px solid var(--track)', borderTopColor: 'var(--leaf)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} aria-hidden="true" />
+      <span>Cargando…</span>
+    </div>
+  );
+}
 
 
 // ─── Auth pages don't show the nav/alert bar ──────────────────────────────────
@@ -34,6 +48,10 @@ function AppShell() {
       {!isAuthPage && <AlertSystem />}
 
       <main style={{ flex: 1 }}>
+        {/* El ErrorBoundary va por fuera del Suspense: también atrapa una página
+            que no se pudo descargar (por ejemplo, tras publicar una versión nueva). */}
+        <ErrorBoundary resetKey={location.pathname}>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* ── Public routes ── */}
           <Route path="/" element={<Landing />} />
@@ -108,6 +126,8 @@ function AppShell() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   );

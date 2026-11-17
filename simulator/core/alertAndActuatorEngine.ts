@@ -84,6 +84,9 @@ export const ALERT_RESOLVE_MARGIN = 0.05;
  * true si el valor ya volvió al rango ideal con margen suficiente para cerrar
  * la alerta. El margen solo se pide del lado por el que salió (`triggerValue`),
  * porque hay rangos que llegan al tope físico (tanque 40–100 %).
+ * Si el admin cambió los umbrales y el valor que disparó la alerta ya queda
+ * dentro del rango, no hay lado del que alejarse: basta con estar en rango
+ * (si no, un tanque al 100 % nunca cerraría su alerta).
  */
 export function isClearOfThreshold(
   value: number,
@@ -93,8 +96,8 @@ export function isClearOfThreshold(
   const margin = (range.yellowMax - range.yellowMin) * ALERT_RESOLVE_MARGIN;
   const low = triggerValue < range.yellowMin;
   const high = triggerValue > range.yellowMax;
-  const aboveLow = value >= range.yellowMin + (low || !high ? margin : 0);
-  const belowHigh = value <= range.yellowMax - (high || !low ? margin : 0);
+  const aboveLow = value >= range.yellowMin + (low ? margin : 0);
+  const belowHigh = value <= range.yellowMax - (high ? margin : 0);
   return aboveLow && belowHigh;
 }
 

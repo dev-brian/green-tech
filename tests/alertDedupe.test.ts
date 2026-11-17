@@ -145,6 +145,14 @@ describe('C4 — histéresis (isClearOfThreshold)', () => {
     assert.equal(isClearOfThreshold(41, tank, 30), false);
     assert.equal(isClearOfThreshold(43, tank, 30), true);
   });
+
+  it('si los umbrales cambiaron y el valor que la disparó ya está en rango, cierra sin margen', () => {
+    const tank = DEFAULT_CROP_THRESHOLDS.jitomate.tankLevel;
+    // La alerta se abrió con 45 % bajo un umbral anterior más estricto; hoy 45 está en rango.
+    assert.equal(isClearOfThreshold(100, tank, 45), true, 'el tanque lleno debe cerrarla');
+    assert.equal(isClearOfThreshold(40, tank, 45), true);
+    assert.equal(isClearOfThreshold(39, tank, 45), false);
+  });
 });
 
 describe('C4 — decideAlertChange', () => {

@@ -136,4 +136,36 @@ describe('C4 — FirestoreTelemetryStorage', () => {
     const pointer = await adminDb.doc(`greenhouses/${GH}/state/${OPEN_ALERTS_DOC}`).get();
     assert.equal(pointer.get('zona-1')?.ph, 'old-3');
   });
+
+  it('una alerta atendida vieja que nunca se cerró no se traga un incidente nuevo', async () => {
+    // El motor anterior nunca cerraba las atendidas. Si solo queda una así, su
+    // incidente ya terminó: el siguiente valor crítico debe crear alerta nueva.
+    const col = adminDb.collection(`greenhouses/${GH}/alerts`);
+    await col.doc('vieja').set({
+      zoneId: 'zona-1',
+      variable: 'ph',
+      severity: 'warn',
+      value: 6.8,
+      message: 'pH en precaución',
+      status: 'attended',
+      createdAt: Timestamp.fromDate(new Date(Date.UTC(2026, 10, 10, 8, 0))),
+      attendedBy: 'uid-op',
+      attendedAt: null,
+      resolvedAt: null,
+    });
+
+    const r = await ingest({ ph: 7.5 });
+    assert.equal(r.createdAlerts.length, 1, 'el incidente nuevo crea su propia alerta');
+    assert.equal(r.createdAlerts[0].severity, 'critical');
+
+    const vieja = await col.doc('vieja').get();
+    assert.equal(vieja.get('status'), 'auto_resolved');
+    assert.ok(vieja.get('resolvedAt') instanceof Timestamp);
+
+    const pointer = await adminDb.doc(`greenhouses/${GH}/state/${OPEN_ALERTS_DOC}`).get();
+    assert.equal(pointer.get('zona-1')?.ph, r.createdAlerts[0].id);
+
+    const again = await ingest({ ph: 7.5 });
+    assert.equal(again.createdAlerts.length, 0);
+  });
 });

@@ -214,8 +214,12 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
           if (isAlertOpen(rec)) open = rec;
         }
       } else {
-        // Alertas creadas antes de state/openAlerts: se adopta la más reciente
-        // y se cierran las copias que dejó el error de C4.
+        // Alertas creadas antes de state/openAlerts: se adopta la copia `new`
+        // más reciente y se cierran las demás que dejó el error de C4.
+        // Con el motor anterior, mientras el valor seguía fuera de rango había
+        // siempre una copia `new`; las `attended` nunca se cerraban. Por eso una
+        // `attended` sola es de un incidente que ya terminó: se cierra y no se
+        // adopta, para que un incidente nuevo sí cree su alerta y mande su push.
         const legacy = await tx.get(
           alertsCol
             .where('zoneId', '==', zoneId)
@@ -227,8 +231,8 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
           .map((d) => alertFromFirestore(d.id, d.data(), zoneId))
           .filter(isAlertOpen)
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        open = openLegacy[0] ?? null;
-        duplicates = openLegacy.slice(1).map((a) => a.id);
+        open = openLegacy.find((a) => a.status === 'new') ?? null;
+        duplicates = openLegacy.filter((a) => a !== open).map((a) => a.id);
       }
 
       const change = decide(open);
@@ -252,7 +256,7 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
           tx.update(alertsCol.doc(id), {
             status: 'auto_resolved',
             resolvedAt: closedAt,
-            supersededBy: open?.id ?? null,
+            supersededBy: result?.id ?? null,
           });
         }
       }

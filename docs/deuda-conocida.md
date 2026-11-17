@@ -68,3 +68,4 @@ Lo ya corregido de la auditoría: C1 (#114), C4 (#115), A4 (#113), C2 (#116), A2
 | `PlantManagement` usa `alert()` y `confirm()` nativos | Reemplazarlos pide un diálogo propio; va con el rediseño visual | A5 |
 | La app Flutter no calcula "sin datos" | Se queda en verde si el sensor deja de enviar; misma regla que la PWA: gris a los 15 min | C2 |
 | Login en la PWA instalada en iPhone sin probar | No tenemos iPhone con la PWA instalada | A9 |
+| Subir a Firebase 13 | Las vulnerabilidades que quedan en `pnpm audit` son transitivas de `firebase` y `firebase-admin`; el salto de versión mayor se deja para después del MVP | A4 |

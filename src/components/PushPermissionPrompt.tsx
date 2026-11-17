@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { BellRing, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePwaInstalled } from '../hooks/usePwaInstall';
-import { enablePush, getPushStatus } from '../lib/pushService';
+// Firebase Messaging se carga solo cuando hace falta (auditoría A8).
+const loadPush = () => import('../lib/pushService');
 
 /** Tras "Ahora no" se vuelve a ofrecer después de unos días. */
 const DISMISSED_KEY = 'gt-push-prompt-dismissed-at';
@@ -41,7 +42,7 @@ export default function PushPermissionPrompt() {
   useEffect(() => {
     if (!user || !installed || wasDismissedRecently()) return;
     let cancelled = false;
-    void getPushStatus().then((status) => {
+    void loadPush().then((m) => m.getPushStatus()).then((status) => {
       // Solo se ofrece si nunca se ha pedido: ni bloqueado, ni ya activo, ni sin soporte.
       if (!cancelled && status === 'default') setVisible(true);
     });
@@ -55,7 +56,7 @@ export default function PushPermissionPrompt() {
   const activate = async () => {
     setBusy(true);
     try {
-      const status = await enablePush(user.uid);
+      const status = await (await loadPush()).enablePush(user.uid);
       // Si cerró el aviso del navegador sin responder, se le vuelve a ofrecer más tarde.
       if (status === 'default') rememberDismissed();
     } catch {

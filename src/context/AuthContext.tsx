@@ -8,7 +8,9 @@ import {
   type ReactNode,
 } from 'react';
 import { auth, db, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged } from 'firebase/auth';
+import { clearIndexedDbPersistence, terminate } from 'firebase/firestore';
+import { authErrorMessage, shouldFallBackToRedirect } from '../lib/authErrors';
 import { disablePush } from '../lib/pushService';
 import {
   doc,
@@ -169,9 +171,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al iniciar sesión con Google';
-      setError(msg);
+    } catch (popupErr: unknown) {
+      console.error('Error al iniciar sesión con Google:', popupErr);
+      let err = popupErr;
+      // Auditoría A9: en la PWA instalada (sobre todo iOS) la ventana emergente
+      // suele fallar; se intenta con redirección. onAuthStateChanged recoge el
+      // resultado al volver.
+      if (shouldFallBackToRedirect(popupErr)) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr) {
+          console.error('Error al iniciar sesión con redirección:', redirectErr);
+          err = redirectErr;
+        }
+      }
+      setError(authErrorMessage(err));
       setLoading(false);
     }
   }, []);
@@ -182,6 +197,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await disablePush(auth.currentUser.uid).catch(() => undefined);
     }
     await signOut(auth);
+    // Auditoría A9: en un celular compartido no deben quedar lecturas ni
+    // alertas del invernadero en IndexedDB. Hay que cerrar Firestore antes de
+    // borrar su caché, y después recargar porque `db` ya no se puede usar.
+    // Si otra pestaña sigue abierta el borrado falla; se recarga igual.
+    try {
+      sessionStorage.clear();
+    } catch {
+      // Almacenamiento bloqueado: no hay nada que limpiar.
+    }
+    try {
+      await terminate(db);
+      await clearIndexedDbPersistence(db);
+    } catch (err) {
+      console.warn('No se pudo borrar la caché local de Firestore:', err);
+    }
+    window.location.replace(`${import.meta.env.BASE_URL}#/login`);
   }, []);
 
   // Legacy stubs

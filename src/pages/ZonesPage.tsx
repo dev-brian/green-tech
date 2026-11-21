@@ -32,7 +32,7 @@ const fieldStyle = {
   padding: 'var(--space-xs) 0',
   color: 'var(--text-primary)',
   fontSize: '0.9375rem',
-  minHeight: 40,
+  minHeight: 48,
 } as const;
 
 function errorMessage(err: unknown): string {
@@ -56,7 +56,7 @@ function CropPicker({ value, onChange, name }: { value: ZoneCrop; onChange: (c: 
               alignItems: 'center',
               gap: 6,
               padding: '0 var(--space-sm)',
-              minHeight: 44,
+              minHeight: 48,
               borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               fontWeight: selected ? 700 : 600,
@@ -158,10 +158,10 @@ function ZoneForm({
       )}
 
       <div style={{ display: 'flex', gap: 'var(--space-xs)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <button type="button" onClick={onCancel} className="btn-secondary" style={{ minHeight: 44 }} disabled={saving}>
+        <button type="button" onClick={onCancel} className="btn-secondary" style={{ minHeight: 48 }} disabled={saving}>
           Cancelar
         </button>
-        <button type="submit" className="btn-primary" style={{ minHeight: 44 }} disabled={saving}>
+        <button type="submit" className="btn-primary" style={{ minHeight: 48 }} disabled={saving}>
           {saving ? 'Guardando…' : submitLabel}
         </button>
       </div>
@@ -214,11 +214,11 @@ function ZoneRow({
         {isAdmin && !confirming && (
           <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
             <button type="button" onClick={onEdit} className="nm-flat" aria-label={`Editar ${zone.name}`}
-              style={{ border: 'none', minWidth: 44, minHeight: 44, borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+              style={{ border: 'none', minWidth: 48, minHeight: 48, borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
               <Pencil size={16} strokeWidth={1.5} />
             </button>
             <button type="button" onClick={() => setConfirming(true)} className="nm-flat" aria-label={`Borrar ${zone.name}`}
-              style={{ border: 'none', minWidth: 44, minHeight: 44, borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-red)' }}>
+              style={{ border: 'none', minWidth: 48, minHeight: 48, borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--status-red)' }}>
               <Trash2 size={16} strokeWidth={1.5} />
             </button>
           </div>
@@ -230,10 +230,10 @@ function ZoneRow({
           <span style={{ flex: 1, minWidth: 200, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
             ¿Borrar “{zone.name}”? Sus lecturas y alertas pasadas se conservan.
           </span>
-          <button type="button" onClick={() => setConfirming(false)} className="btn-secondary" style={{ minHeight: 40 }} disabled={busy}>
+          <button type="button" onClick={() => setConfirming(false)} className="btn-secondary" style={{ minHeight: 48 }} disabled={busy}>
             <X size={14} /> No
           </button>
-          <button type="button" onClick={remove} className="btn-nm-danger" style={{ minHeight: 40 }} disabled={busy}>
+          <button type="button" onClick={remove} className="btn-nm-danger" style={{ minHeight: 48 }} disabled={busy}>
             <Check size={14} /> {busy ? 'Borrando…' : 'Sí, borrar'}
           </button>
         </div>
@@ -286,7 +286,7 @@ export default function ZonesPage() {
           </p>
         </div>
         {isAdmin && !editing && (
-          <button type="button" onClick={startCreate} className="btn-primary" style={{ minHeight: 44 }}>
+          <button type="button" onClick={startCreate} className="btn-primary" style={{ minHeight: 48 }}>
             <Plus size={16} /> Nueva zona
           </button>
         )}
@@ -365,7 +365,7 @@ export default function ZonesPage() {
                   <button
                     type="button"
                     className="btn-secondary"
-                    style={{ minHeight: 40 }}
+                    style={{ minHeight: 48 }}
                     onClick={() =>
                       setEditing({
                         mode: 'create',

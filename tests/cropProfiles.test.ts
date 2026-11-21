@@ -4,7 +4,9 @@ import {
   CROP_PROFILES,
   CROP_OPTIONS,
   defaultThresholdsFor,
+  resolveCropThresholds,
 } from '../src/lib/cropProfiles.ts';
+import { resolveStoredThresholds } from '../simulator/core/storedThresholds.ts';
 import { validateThresholds } from '../src/lib/thresholdValidation.ts';
 import { DEFAULT_CROP_THRESHOLDS } from '../simulator/core/hydroponicModel.ts';
 
@@ -107,5 +109,44 @@ describe('CROP_PROFILES ↔ DEFAULT_CROP_THRESHOLDS (sincronía PWA/backend)', (
 
   it('los dos objetos completos son idénticos (detecta claves de más o de menos)', () => {
     assert.deepEqual(CROP_PROFILES, DEFAULT_CROP_THRESHOLDS);
+  });
+});
+
+describe('Umbrales guardados por cultivo (thresholdsByCrop)', () => {
+  const lechugaEc = { redMin: 0.4, yellowMin: 0.7, yellowMax: 1.1, redMax: 1.5 };
+
+  it('editar lechuga no cambia cómo se evalúa jitomate', () => {
+    const data = { thresholdsByCrop: { lechuga: { ec: lechugaEc } } };
+    assert.deepEqual(resolveCropThresholds(data, 'lechuga').ec, lechugaEc);
+    assert.deepEqual(resolveCropThresholds(data, 'jitomate'), CROP_PROFILES.jitomate);
+  });
+
+  it('el campo viejo `thresholds` solo aplica a jitomate', () => {
+    const data = { thresholds: { ph: { redMin: 4.8, yellowMin: 5.4, yellowMax: 6.4, redMax: 7.2 } } };
+    assert.equal(resolveCropThresholds(data, 'jitomate').ph.redMin, 4.8);
+    assert.deepEqual(resolveCropThresholds(data, 'lechuga'), CROP_PROFILES.lechuga);
+  });
+
+  it('thresholdsByCrop.jitomate manda sobre el campo viejo', () => {
+    const data = {
+      thresholds: { ph: { redMin: 4.8 } },
+      thresholdsByCrop: { jitomate: { ph: { redMin: 4.9 } } },
+    };
+    assert.equal(resolveCropThresholds(data, 'jitomate').ph.redMin, 4.9);
+  });
+
+  it('PWA y backend resuelven igual', () => {
+    const samples = [
+      undefined,
+      {},
+      { thresholds: { ec: { yellowMin: 2.2 } } },
+      { thresholdsByCrop: { lechuga: { ec: lechugaEc } } },
+      { thresholds: { ph: { redMin: 4.8 } }, thresholdsByCrop: { jitomate: { airTemp: { redMax: 35 } } } },
+    ];
+    for (const data of samples) {
+      for (const crop of CROP_OPTIONS) {
+        assert.deepEqual(resolveCropThresholds(data, crop), resolveStoredThresholds(data, crop));
+      }
+    }
   });
 });

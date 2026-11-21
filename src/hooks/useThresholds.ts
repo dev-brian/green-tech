@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getThresholds,
+  getThresholdsByCrop,
   updateThresholds,
   resetThresholds,
   validateThresholds,
   DEFAULT_THRESHOLDS,
   type GreenhouseThresholds,
 } from '../lib/thresholdsService';
-import { defaultThresholdsFor } from '../lib/cropProfiles';
+import { CROP_PROFILES, defaultThresholdsFor, type CropType } from '../lib/cropProfiles';
 
 export type { GreenhouseThresholds };
 export { DEFAULT_THRESHOLDS };
@@ -52,7 +53,7 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
       setError(null);
       setSuccessMsg(null);
       try {
-        await updateThresholds(greenhouseId, next);
+        await updateThresholds(greenhouseId, crop, next);
         setThresholds(next);
         setSuccessMsg('Umbrales actualizados correctamente.');
         setTimeout(() => setSuccessMsg(null), 3500);
@@ -62,7 +63,7 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
         setSaving(false);
       }
     },
-    [greenhouseId],
+    [greenhouseId, crop],
   );
 
   const reset = useCallback(async () => {
@@ -83,4 +84,29 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
   }, [greenhouseId, crop]);
 
   return { thresholds, loading, saving, error, successMsg, save, reset };
+}
+
+/**
+ * Umbrales de los dos cultivos a la vez, para pantallas que muestran zonas de
+ * jitomate y de lechuga juntas. `forCrop(crop)` devuelve los del cultivo
+ * (jitomate si no se sabe).
+ */
+export function useThresholdsByCrop(greenhouseId: string | null) {
+  const [byCrop, setByCrop] = useState<Record<CropType, GreenhouseThresholds>>(CROP_PROFILES);
+
+  useEffect(() => {
+    if (!greenhouseId) return;
+    let cancelled = false;
+    getThresholdsByCrop(greenhouseId)
+      .then((t) => { if (!cancelled) setByCrop(t); })
+      .catch(() => { /* se quedan los perfiles por defecto */ });
+    return () => { cancelled = true; };
+  }, [greenhouseId]);
+
+  const forCrop = useCallback(
+    (crop?: string | null): GreenhouseThresholds => (crop === 'lechuga' ? byCrop.lechuga : byCrop.jitomate),
+    [byCrop],
+  );
+
+  return { forCrop };
 }

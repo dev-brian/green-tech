@@ -54,3 +54,39 @@ export const CROP_OPTIONS: readonly CropType[] = ['jitomate', 'lechuga'];
 export function defaultThresholdsFor(crop?: string | null): GreenhouseThresholds {
   return crop === 'lechuga' ? CROP_PROFILES.lechuga : CROP_PROFILES.jitomate;
 }
+
+type PartialThresholds = Partial<Record<keyof GreenhouseThresholds, Partial<GreenhouseThresholds[keyof GreenhouseThresholds]>>>;
+
+/**
+ * Umbrales efectivos de un cultivo a partir del documento `greenhouses/{id}`.
+ *
+ * Cada cultivo guarda sus umbrales personalizados en
+ * `thresholdsByCrop.{cultivo}`; así, editar lechuga ya no cambia cómo se
+ * evalúan las zonas de jitomate. El campo viejo `thresholds` (uno solo para
+ * todo el invernadero, de antes de los perfiles) se respeta solo para
+ * jitomate, que era el cultivo por defecto cuando se guardó.
+ *
+ * Debe coincidir con `resolveStoredThresholds` de
+ * `simulator/core/storedThresholds.ts` (lo comprueba
+ * `tests/cropProfiles.test.ts`).
+ */
+export function resolveCropThresholds(
+  data: Record<string, unknown> | undefined | null,
+  crop?: string | null,
+): GreenhouseThresholds {
+  const key: CropType = crop === 'lechuga' ? 'lechuga' : 'jitomate';
+  const base = CROP_PROFILES[key];
+  const byCrop = data?.thresholdsByCrop as Partial<Record<CropType, PartialThresholds>> | undefined;
+  const stored: PartialThresholds | undefined =
+    byCrop?.[key] ?? (key === 'jitomate' ? (data?.thresholds as PartialThresholds | undefined) : undefined);
+  if (!stored) return base;
+  return {
+    airTemp:      { ...base.airTemp,      ...stored.airTemp      },
+    humidity:     { ...base.humidity,     ...stored.humidity     },
+    light:        { ...base.light,        ...stored.light        },
+    ph:           { ...base.ph,           ...stored.ph           },
+    ec:           { ...base.ec,           ...stored.ec           },
+    solutionTemp: { ...base.solutionTemp, ...stored.solutionTemp },
+    tankLevel:    { ...base.tankLevel,    ...stored.tankLevel    },
+  };
+}

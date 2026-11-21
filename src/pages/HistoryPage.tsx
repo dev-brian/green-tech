@@ -15,7 +15,7 @@ import { RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useZones } from '../hooks/useZones';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
-import { useThresholds } from '../hooks/useThresholds';
+import { useThresholdsByCrop } from '../hooks/useThresholds';
 import { useHistory } from '../hooks/useHistory';
 import { mergeZoneIds, zoneLabel } from '../lib/zones';
 import {
@@ -60,7 +60,9 @@ export default function HistoryPage() {
   const zoneId = pickedZone && zoneIds.includes(pickedZone) ? pickedZone : (zoneIds[0] ?? null);
   const [range, setRange] = useState<HistoryRange>('24h');
 
-  const { thresholds } = useThresholds(greenhouseId);
+  // Umbrales del cultivo de la zona elegida (jitomate o lechuga).
+  const { forCrop } = useThresholdsByCrop(greenhouseId);
+  const thresholds = forCrop(zoneId ? (zonesById[zoneId]?.crop ?? liveZones[zoneId]?.crop) : null);
   const { points, loading, error, reload } = useHistory(greenhouseId, zoneId, range);
 
   return (

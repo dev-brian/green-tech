@@ -14,6 +14,7 @@
 
 import { createIngestHttpServer } from './server.ts';
 import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
+import { FcmPushNotifier } from './core/fcmPushNotifier.ts';
 
 function flag(name: string): string | boolean | undefined {
   for (const arg of process.argv.slice(2)) {
@@ -32,6 +33,10 @@ function main(): void {
 
   const { server } = createIngestHttpServer({
     storage: useFirestore ? new FirestoreTelemetryStorage() : undefined,
+    // Con Firestore también se envían push de alertas críticas, igual que el
+    // ciclo programado (simulator/cli.ts). Sin esto, en la demo con
+    // greenhouse-sim las alertas aparecían pero no llegaba ningún push.
+    notifier: useFirestore ? new FcmPushNotifier() : undefined,
   });
 
   server.on('error', (err) => {

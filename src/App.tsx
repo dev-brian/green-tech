@@ -45,7 +45,8 @@ function AppShell() {
   return (
     <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {!isAuthPage && <Navigation />}
-      {!isAuthPage && <AlertSystem />}
+      {/* En Alertas ya está la lista completa; los avisos flotantes la tapaban (T3.2 #72) */}
+      {!isAuthPage && location.pathname !== '/alerts' && <AlertSystem />}
 
       <main style={{ flex: 1 }}>
         {/* El ErrorBoundary va por fuera del Suspense: también atrapa una página

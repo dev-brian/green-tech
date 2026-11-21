@@ -1,57 +1,51 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
+import { ROUTE_ROLES, decideRoute } from '../lib/routeAccess';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  /** Optional: restrict to specific roles. Omit to allow any authenticated user. */
-  requiredRole?: UserRole;
-  /** Optional: list of allowed roles. Omit to allow any authenticated user. */
+  /**
+   * Roles que pueden entrar. Si se omite, se usa la tabla de
+   * `lib/routeAccess.ts` para la ruta actual (la misma que filtra el menú).
+   */
   allowedRoles?: UserRole[];
-  /** Whether the user must have an active workspace (default: true) */
+  /** Si exige tener un invernadero activo (por defecto, sí). */
   requireWorkspace?: boolean;
 }
 
 export default function ProtectedRoute({
   children,
-  requiredRole,
   allowedRoles,
   requireWorkspace = true,
 }: ProtectedRouteProps) {
   const { user, loading, activeWorkspace, currentRole } = useAuth();
   const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-900">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin" />
-          <span className="text-slate-400 text-sm">Cargando sesión…</span>
+  const decision = decideRoute({
+    loading,
+    signedIn: !!user,
+    hasWorkspace: !!activeWorkspace,
+    requireWorkspace,
+    role: currentRole,
+    allowedRoles: allowedRoles ?? ROUTE_ROLES[location.pathname],
+  });
+
+  switch (decision.kind) {
+    case 'loading':
+      return (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)', minHeight: '60vh', color: 'var(--text-secondary)' }}>
+          <span style={{ width: 20, height: 20, border: '2px solid var(--track)', borderTopColor: 'var(--leaf)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} aria-hidden="true" />
+          <span>Cargando sesión…</span>
         </div>
-      </div>
-    );
-  }
-
-  // Not authenticated → redirect to login
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // If requires workspace but none is active → onboarding
-  if (requireWorkspace && !activeWorkspace) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // Role checks
-  if (allowedRoles && allowedRoles.length > 0) {
-    if (!allowedRoles.includes(currentRole)) {
+      );
+    case 'login':
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    case 'onboarding':
+      return <Navigate to="/onboarding" replace />;
+    case 'dashboard':
       return <Navigate to="/dashboard" replace />;
-    }
+    default:
+      return <>{children}</>;
   }
-
-  if (requiredRole && currentRole !== requiredRole) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <>{children}</>;
 }

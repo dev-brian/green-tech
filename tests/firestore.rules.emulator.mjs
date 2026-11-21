@@ -467,4 +467,37 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
       },
     }));
   });
+
+  it('D: umbrales por cultivo: el admin guarda lechuga sin tocar jitomate; nada de cultivos inventados', async () => {
+    const db = testEnv.authenticatedContext('uid-admin').firestore();
+    await assertSucceeds(updateDoc(gh(db), {
+      'thresholdsByCrop.lechuga': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+    await assertFails(updateDoc(gh(db), {
+      'thresholdsByCrop.fresa': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+    await assertFails(updateDoc(gh(db), {
+      'thresholdsByCrop.jitomate': { ph: { redMin: 9, yellowMin: 8, yellowMax: 1, redMax: 0 } },
+    }));
+    // Los dos perfiles completos guardados: editar uno no rebasa el límite de
+    // 1000 expresiones de las reglas (fallaba al validar ambos cada vez).
+    const PERFIL = {
+      airTemp: { redMin: 10, yellowMin: 15, yellowMax: 24, redMax: 28 },
+      humidity: { redMin: 45, yellowMin: 60, yellowMax: 80, redMax: 90 },
+      light: { redMin: 4000, yellowMin: 12000, yellowMax: 40000, redMax: 60000 },
+      ph: { redMin: 5.0, yellowMin: 5.5, yellowMax: 6.5, redMax: 7.0 },
+      ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 },
+      solutionTemp: { redMin: 14, yellowMin: 18, yellowMax: 24, redMax: 26 },
+      tankLevel: { redMin: 20, yellowMin: 40, yellowMax: 100, redMax: 100 },
+    };
+    await assertSucceeds(updateDoc(gh(db), { 'thresholdsByCrop.jitomate': PERFIL }));
+    await assertSucceeds(updateDoc(gh(db), { 'thresholdsByCrop.lechuga': PERFIL }));
+    await assertSucceeds(updateDoc(gh(db), { 'thresholdsByCrop.jitomate': PERFIL }));
+    await assertSucceeds(updateDoc(gh(db), { 'thresholdsByCrop.lechuga': { ...PERFIL, ec: { redMin: 0.4, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } } }));
+    await assertFails(updateDoc(gh(db), { 'thresholdsByCrop.lechuga': { ...PERFIL, ec: { redMin: 2, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } } }));
+    const operator = testEnv.authenticatedContext('uid-operador').firestore();
+    await assertFails(updateDoc(gh(operator), {
+      'thresholdsByCrop.lechuga': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+  });
 });

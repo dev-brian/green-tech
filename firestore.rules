@@ -12,7 +12,8 @@ service cloud.firestore {
     //   - inviteCode: string (required, 1..32 chars)
     //   - inviteCodeCreatedAt: string | timestamp (optional)
     //   - memberIds: list<string> (required, UIDs of members)
-    //   - thresholds: map (optional, edited only by admin)
+    //   - thresholds: map (optional, legacy: solo aplica a jitomate)
+    //   - thresholdsByCrop: map {jitomate?, lechuga?} (optional, edited only by admin)
     //   - createdAt: string | timestamp (optional)
     //
     // Subcollection: /greenhouses/{greenhouseId}/members/{memberId}
@@ -185,13 +186,25 @@ service cloud.firestore {
           && (!('tankLevel' in t)    || isValidRange(t.tankLevel));
     }
 
+    // ─── Helper: umbrales por cultivo (thresholdsByCrop.{jitomate|lechuga})
+    // Solo se valida el cultivo que cambió: validar los dos perfiles completos
+    // en cada escritura rebasa el límite de 1000 expresiones de las reglas.
+    function isValidThresholdsByCropUpdate() {
+      let next = request.resource.data.thresholdsByCrop;
+      let changedCrops = next.diff(resource.data.get('thresholdsByCrop', {})).affectedKeys();
+      return next is map
+          && next.keys().hasOnly(['jitomate', 'lechuga'])
+          && (!('jitomate' in changedCrops) || isValidThresholds(next.jitomate))
+          && (!('lechuga' in changedCrops)  || isValidThresholds(next.lechuga));
+    }
+
     // ─── Helper: edición del invernadero por su admin ────────────────────────
     // Solo claves conocidas; memberIds solo puede perder miembros (expulsar o
     // salir), nunca ganar UIDs sin su documento de miembro.
     function isValidAdminGreenhouseUpdate(greenhouseId) {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       return isAdmin(greenhouseId)
-          && changed.hasOnly(['name', 'inviteCode', 'inviteCodeCreatedAt', 'memberIds', 'thresholds'])
+          && changed.hasOnly(['name', 'inviteCode', 'inviteCodeCreatedAt', 'memberIds', 'thresholds', 'thresholdsByCrop'])
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 200
@@ -200,7 +213,8 @@ service cloud.firestore {
           && request.resource.data.inviteCode.size() <= 32
           && request.resource.data.memberIds is list
           && resource.data.memberIds.hasAll(request.resource.data.memberIds)
-          && (!('thresholds' in changed) || isValidThresholds(request.resource.data.thresholds));
+          && (!('thresholds' in changed) || isValidThresholds(request.resource.data.thresholds))
+          && (!('thresholdsByCrop' in changed) || isValidThresholdsByCropUpdate());
     }
 
     // ─── Helper: documento de zona válido (T4.1 #64) ─────────────────────────

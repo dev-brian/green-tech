@@ -11,6 +11,7 @@
     "seed:telemetry": "node scripts/seedTelemetry.mjs",
     "simulator": "node simulator/cli.ts",
     "sim:firestore": "node simulator/cli.ts --firestore",
+    "sim:soak": "node scripts/soak.mjs",
     "backfill:hourly": "node simulator/backfillHourly.ts",
     "ingest": "node simulator/serve.ts",
     "ingest:firestore": "node simulator/serve.ts --firestore",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "firebase": "^12.19.0",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.73.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

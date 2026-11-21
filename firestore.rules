@@ -334,21 +334,6 @@ service cloud.firestore {
       }
     }
 
-    // ─── Telemetría de Sensores (Colección raíz legacy) ──────────────────────
-    match /telemetry_data/{docId} {
-      allow read: if isSignedIn() && isMember(resource.data.greenhouseId);
-      allow write: if false;
-    }
-
-    // ─── Alertas (Colección raíz legacy) ─────────────────────────────────────
-    match /alerts/{alertId} {
-      allow read: if isSignedIn() && isMember(resource.data.greenhouseId);
-      allow create, delete: if false;
-      allow update: if isSignedIn()
-                    && isMember(resource.data.greenhouseId)
-                    && isValidAlertAcknowledge();
-    }
-
     // ─── Tokens FCM por Usuario ──────────────────────────────────────────────
     match /users/{uid}/fcmTokens/{tokenId} {
       allow read, write: if isSignedIn() && request.auth.uid == uid;

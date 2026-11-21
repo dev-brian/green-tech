@@ -1,13 +1,30 @@
 # SPECS.md - Plataforma Web GREEN TECH
 
+> [!IMPORTANT]
+> **Visión futura (roadmap) — no es la especificación vigente.**
+> Este documento describe la plataforma completa que se aspira a construir
+> (reportes SENASICA firmados, analítica predictiva, API REST, Cloud Functions,
+> plan Blaze). **Gran parte de esto aún no está implementado.**
+>
+> La **especificación vigente** es [`docs/contrato-datos.md`](docs/contrato-datos.md)
+> (contrato de datos v0.2: 7 variables hidropónicas, endpoints de ingesta y
+> reglas de Firestore). Usa ese documento para desarrollar; usa este para
+> planificar a futuro.
+
 **Proyecto:** Sistema Inteligente de Automatización GREEN TECH
 **Equipo:** Palarix — Universidad Tecnológica de Tlaxcala (UTT)
-**Versión del documento:** 1.0
-**Estado:** Fuente única de la verdad (Single Source of Truth) para desarrollo Frontend/Backend
+**Versión del documento:** 1.1
+**Estado:** ⏳ Visión futura / roadmap — la especificación vigente es
+[`docs/contrato-datos.md`](docs/contrato-datos.md)
 
 ---
 
 ## 0. Resumen Ejecutivo
+
+> ℹ️ **Nota:** el estado actual del proyecto (variables hidropónicas, Firebase
+> Spark, backend Node en GitHub Actions) se describe en
+> [`docs/contrato-datos.md`](docs/contrato-datos.md) y en el
+> [`README.md`](README.md). Lo siguiente es la visión a futuro.
 
 GREEN TECH es una red sensorial inalámbrica (nodos ESP32/Arduino) que monitorea condiciones ambientales de invernaderos de jitomate y alimenta una plataforma web/móvil sobre Firebase, actuando como "cerebro" del sistema. El objetivo es reducir pérdidas de cultivo por estrés térmico e hídrico mediante una interfaz de "tecnología invisible": simple, basada en códigos de color, pensada para productores con brecha digital, sin sacrificar la trazabilidad exigida para exportación (SENASICA, EE. UU., Canadá) ni el cumplimiento de la LFPDPPP.
 

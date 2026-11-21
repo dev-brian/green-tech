@@ -467,4 +467,21 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
       },
     }));
   });
+
+  it('D: umbrales por cultivo: el admin guarda lechuga sin tocar jitomate; nada de cultivos inventados', async () => {
+    const db = testEnv.authenticatedContext('uid-admin').firestore();
+    await assertSucceeds(updateDoc(gh(db), {
+      'thresholdsByCrop.lechuga': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+    await assertFails(updateDoc(gh(db), {
+      'thresholdsByCrop.fresa': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+    await assertFails(updateDoc(gh(db), {
+      'thresholdsByCrop.jitomate': { ph: { redMin: 9, yellowMin: 8, yellowMax: 1, redMax: 0 } },
+    }));
+    const operator = testEnv.authenticatedContext('uid-operador').firestore();
+    await assertFails(updateDoc(gh(operator), {
+      'thresholdsByCrop.lechuga': { ec: { redMin: 0.5, yellowMin: 0.8, yellowMax: 1.2, redMax: 1.6 } },
+    }));
+  });
 });

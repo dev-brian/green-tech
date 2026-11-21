@@ -35,6 +35,7 @@ import {
   type HydroponicVariable,
   VARIABLE_KEYS,
 } from './hydroponicModel.ts';
+import { resolveStoredThresholds } from './storedThresholds.ts';
 import {
   hourlyDocId,
   mergeIntoHourly,
@@ -104,19 +105,7 @@ export class FirestoreTelemetryStorage implements TelemetryStorageAdapter {
     try {
       const snap = await this.db.collection('greenhouses').doc(greenhouseId).get();
       if (!snap.exists) return DEFAULT_CROP_THRESHOLDS[crop];
-      const data = snap.data() ?? {};
-      const stored = data.thresholds as Partial<CropThresholds> | undefined;
-      if (!stored) return DEFAULT_CROP_THRESHOLDS[crop];
-      const base = DEFAULT_CROP_THRESHOLDS[crop];
-      return {
-        airTemp: { ...base.airTemp, ...stored.airTemp },
-        humidity: { ...base.humidity, ...stored.humidity },
-        light: { ...base.light, ...stored.light },
-        ph: { ...base.ph, ...stored.ph },
-        ec: { ...base.ec, ...stored.ec },
-        solutionTemp: { ...base.solutionTemp, ...stored.solutionTemp },
-        tankLevel: { ...base.tankLevel, ...stored.tankLevel },
-      };
+      return resolveStoredThresholds(snap.data(), crop);
     } catch {
       return DEFAULT_CROP_THRESHOLDS[crop];
     }

@@ -3,6 +3,8 @@ packages:
 
 allowBuilds:
   '@firebase/util': true
+  # Viene de jspdf/canvg (exportación PDF, T7.4): postinstall inocuo.
+  core-js: true
   protobufjs: true
 
 # Versiones parcheadas de dependencias indirectas (issue #125).

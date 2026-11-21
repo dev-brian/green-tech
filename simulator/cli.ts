@@ -13,6 +13,7 @@
  */
 
 import type { AddressInfo } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import { createIngestHttpServer } from './server.ts';
 import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
 import { FcmPushNotifier } from './core/fcmPushNotifier.ts';
@@ -119,7 +120,12 @@ async function runCli() {
       // 1. Consultar estado actual de actuadores (lazo cerrado T8.3)
       const actuatorsRes = await fetch(
         `${baseUrl}/actuatorsState?greenhouseId=${encodeURIComponent(greenhouseId)}&zoneId=${encodeURIComponent(zone.zoneId)}`,
+        // Auditoría C3: /actuatorsState también exige la clave.
+        { headers: { 'x-device-key': deviceKey } },
       );
+      if (!actuatorsRes.ok) {
+        console.warn(`[Simulador] ${zone.zoneId}: /actuatorsState respondió ${actuatorsRes.status}; se sigue sin lazo cerrado.`);
+      }
       const actuators = actuatorsRes.ok
         ? ((await actuatorsRes.json()) as ZoneActuatorsState)
         : undefined;
@@ -180,7 +186,8 @@ async function runCli() {
   }, intervalSec * 1000);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL convierte bien las rutas de Windows (C:\...) a file:///C:/...
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCli().catch((err) => {
     console.error('[Simulador] Fallo fatal:', err);
     process.exit(1);

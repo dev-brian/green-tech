@@ -77,7 +77,7 @@ Una lectura **por minuto por zona**. Se conservan **7 días**; el workflow `aler
 | `timestamp` | Timestamp | Hora de la medición |
 | `airTemp` … `tankLevel` | number | Las 7 variables de 2.1 |
 
-Consulta del histórico de 24 h: `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp`. Necesita el índice compuesto `zoneId ASC, timestamp ASC`, declarado en `firestore.indexes.json`.
+Consulta del histórico de 24 h (página Histórico, T7.2 #76): `where zoneId == Z`, `where timestamp >= desde`, `orderBy timestamp desc`, `limit 1500`. Se ordena de la más nueva a la más vieja para que el tope corte las lecturas antiguas. Usa el índice compuesto `zoneId ASC, timestamp DESC`; `zoneId ASC, timestamp ASC` queda para las consultas en orden ascendente. Los dos están en `firestore.indexes.json`.
 
 ### 2.3 `greenhouses/{greenhouseId}/readingsHourly/{zoneId}_{yyyyMMddHH}`
 
@@ -114,7 +114,9 @@ Un solo documento con el último estado de cada zona, que el backend sobrescribe
 ```
 
 - `level` ∈ `"ok"` · `"warn"` · `"critical"` y **lo calcula el backend** con los umbrales del invernadero. Ninguna app tiene rangos propios.
-- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de 5 minutos.
+- Cada zona trae su `timestamp`, para mostrar "última lectura hace X" y pasar a gris si tiene más de **15 minutos** (tres ciclos del motor de alertas, que corre cada 5 min en un cron que suele retrasarse).
+- La vigencia se calcula **con el reloj del cliente**, no solo cuando llega un snapshot: si el sensor deja de enviar no llega ningún snapshot. La PWA la recalcula cada 30 s (`src/lib/zoneFreshness.ts`).
+- Sin `timestamp`, o con una hora más de 5 min en el futuro, la zona se muestra en gris. Si falta una variable se muestra "sin dato", nunca un valor por defecto.
 
 ### 2.5 `greenhouses/{greenhouseId}/alerts/{alertId}`
 
@@ -131,8 +133,12 @@ Las crea **solo** el motor del backend al evaluar los umbrales tras llegar una l
 | `createdAt` | Timestamp | |
 | `attendedBy` | string \| null | UID |
 | `attendedAt`, `resolvedAt` | Timestamp \| null | |
+| `supersededBy` | string \| null | Solo en copias que dejó el error de duplicados (auditoría C4): id de la alerta que quedó abierta |
 
-- **Sin duplicados:** el backend no crea otra alerta si ya hay una con el mismo `zoneId` y `variable` en `status == "new"`. Cuando la variable vuelve a `ok`, la marca `auto_resolved`.
+- **Abierta = sin `resolvedAt`:** una alerta sigue abierta mientras `status` sea `"new"` o `"attended"` y no tenga `resolvedAt`. Atenderla **no** la cierra: solo dice que alguien ya la vio.
+- **Sin duplicados:** hay como máximo una alerta abierta por `zoneId` + `variable`. El backend guarda su id en `state/openAlerts` (`{ "zona-1": { "ph": "<alertId>" } }`) y la lee y escribe en una transacción, así dos lecturas simultáneas no crean dos alertas. Las apps no necesitan leer ese documento.
+- **Escalar:** si una alerta abierta pasa de `warn` a `critical`, el backend sube `severity`, actualiza `value` y `message` y la regresa a `status: "new"` (aunque ya estuviera atendida), y manda el push una vez.
+- **Cerrar (histéresis):** el backend la marca `auto_resolved` con `resolvedAt` cuando el valor vuelve al rango ideal **con un margen** del 5 % del ancho del rango, del lado por el que salió (pH 5.5–6.5 que salió por arriba: se cierra con 6.45 o menos). Así un valor que oscila en el límite no abre y cierra alertas sin parar. Se conservan `attendedBy` y `attendedAt`.
 - **Atender:** un miembro puede actualizar **solo** `status` (a `"attended"`), `attendedBy` (su propio UID) y `attendedAt`. Cualquier otro campo se rechaza en las reglas.
 - **Push:** al crear una alerta `critical`, la función envía la notificación a los tokens de todos los miembros del invernadero (2.6).
 

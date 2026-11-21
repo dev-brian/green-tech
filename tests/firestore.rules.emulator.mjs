@@ -4,6 +4,7 @@
  *   pnpm test:rules
  */
 import { describe, it, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -18,7 +19,10 @@ import {
   updateDoc,
   deleteDoc,
   writeBatch,
+  arrayUnion,
+  arrayRemove,
   Timestamp,
+  serverTimestamp,
   setLogLevel,
 } from 'firebase/firestore';
 
@@ -106,6 +110,13 @@ beforeEach(async () => {
       attendedAt: null,
       resolvedAt: null,
     });
+    await setDoc(doc(adminDb, 'greenhouse_invites', VALID_CODE), { greenhouseId: GREENHOUSE_ID });
+    // Invernadero con un solo miembro que NO es admin (caso B de la auditoría)
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-solo'), { name: 'Solo', inviteCode: 'GT-ZZZZ9', memberIds: ['uid-solo'] });
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-solo', 'members', 'uid-solo'), { role: 'operador' });
+    // Otro invernadero con su propio admin (caso C)
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-otro'), { name: 'Otro', inviteCode: 'GT-OTRO1', memberIds: ['uid-admin-otro'] });
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-otro', 'members', 'uid-admin-otro'), { role: 'admin' });
     await setDoc(doc(adminDb, 'users', 'uid-operador', 'fcmTokens', 'tok-1'), {
       token: 'fcm-token-operador',
       updatedAt: '2026-11-02T00:00:00.000Z',
@@ -277,5 +288,183 @@ describe('Firebase Emulator — Reglas de Firestore (HU-11 y Seguridad Backend)'
         ventilation: { on: true, updatedBy: 'uid-admin' },
       }),
     );
+  });
+});
+
+// Huecos de la auditoría (C1 y relacionados). El PoC reproducía cada ataque
+// con assertSucceeds; ahora todos deben fallar.
+describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
+  const gh = (db, id = GREENHOUSE_ID) => doc(db, 'greenhouses', id);
+  const member = (db, uid, id = GREENHOUSE_ID) => doc(db, 'greenhouses', id, 'members', uid);
+
+  it('A: un extraño no puede unirse solo con arrayUnion(memberIds) sin código', async () => {
+    const db = testEnv.authenticatedContext('uid-intruso').firestore();
+    await assertFails(updateDoc(gh(db), { memberIds: arrayUnion('uid-intruso') }));
+    // Tampoco reescribiendo el mismo inviteCode para "probar" que lo conoce
+    await assertFails(updateDoc(gh(db), { memberIds: arrayUnion('uid-intruso'), inviteCode: VALID_CODE }));
+    // Ni creando solo el documento de miembro sin entrar a memberIds
+    await assertFails(setDoc(member(db, 'uid-intruso'), { role: 'operador', inviteCode: VALID_CODE }));
+    // Y por lo tanto no ve miembros ni atiende alertas
+    await assertFails(getDoc(member(db, 'uid-admin')));
+    await assertFails(
+      updateDoc(doc(db, 'greenhouses', GREENHOUSE_ID, 'alerts', 'alert-sub-1'), { status: 'attended', attendedBy: 'uid-intruso' }),
+    );
+  });
+
+  it('A: la unión legítima en batch con arrayUnion + members/{uid} y código vigente sigue funcionando', async () => {
+    const db = testEnv.authenticatedContext('uid-nuevo').firestore();
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayUnion('uid-nuevo') });
+    batch.set(member(db, 'uid-nuevo'), {
+      role: 'operador', email: 'nuevo@greentech.mx', name: 'Nuevo', joinedAt: '2026-11-17T00:00:00.000Z', inviteCode: VALID_CODE,
+    });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(getDoc(gh(db)));
+  });
+
+  it('A: un expulsado no vuelve a entrar con el código viejo tras regenerarlo', async () => {
+    const adminDb = testEnv.authenticatedContext('uid-admin').firestore();
+    // Expulsar al operador y regenerar el código (como removeMember + regenerateInviteCode)
+    const kick = writeBatch(adminDb);
+    kick.update(gh(adminDb), { memberIds: arrayRemove('uid-operador') });
+    kick.delete(member(adminDb, 'uid-operador'));
+    await assertSucceeds(kick.commit());
+    const rotate = writeBatch(adminDb);
+    rotate.update(gh(adminDb), { inviteCode: 'GT-NUEVO7', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z' });
+    rotate.set(doc(adminDb, 'greenhouse_invites', 'GT-NUEVO7'), { greenhouseId: GREENHOUSE_ID, createdAt: '2026-11-17T00:00:00.000Z' });
+    rotate.delete(doc(adminDb, 'greenhouse_invites', VALID_CODE));
+    await assertSucceeds(rotate.commit());
+
+    const kickedDb = testEnv.authenticatedContext('uid-operador').firestore();
+    const oldInvite = await assertSucceeds(getDoc(doc(kickedDb, 'greenhouse_invites', VALID_CODE)));
+    assert.equal(oldInvite.exists(), false, 'el código viejo ya no debe resolver al invernadero');
+    const rejoin = writeBatch(kickedDb);
+    rejoin.update(gh(kickedDb), { memberIds: arrayUnion('uid-operador') });
+    rejoin.set(member(kickedDb, 'uid-operador'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(rejoin.commit());
+    await assertFails(updateDoc(gh(kickedDb), { memberIds: arrayUnion('uid-operador') }));
+  });
+
+  it('A: la unión de la app Flutter (email y name nulos) funciona y puede atender alertas', async () => {
+    // Mismo batch que GreenhouseRepository.joinWithCode en green-tech-app.
+    const db = testEnv.authenticatedContext('uid-app').firestore();
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayUnion('uid-app') });
+    batch.set(member(db, 'uid-app'), {
+      role: 'operador', email: null, name: null, joinedAt: '2026-11-17T00:00:00.000Z', inviteCode: VALID_CODE,
+    });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(
+      updateDoc(doc(db, 'greenhouses', GREENHOUSE_ID, 'alerts', 'alert-sub-1'), {
+        status: 'attended', attendedBy: 'uid-app', attendedAt: serverTimestamp(),
+      }),
+    );
+  });
+
+  it('A: nadie une a otra persona ni cambia otros campos al unirse', async () => {
+    const db = testEnv.authenticatedContext('uid-nuevo').firestore();
+    const other = writeBatch(db);
+    other.update(gh(db), { memberIds: arrayUnion('uid-amigo') });
+    other.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(other.commit());
+    const two = writeBatch(db);
+    two.update(gh(db), { memberIds: arrayUnion('uid-nuevo', 'uid-amigo') });
+    two.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(two.commit());
+    const rename = writeBatch(db);
+    rename.update(gh(db), { memberIds: arrayUnion('uid-nuevo'), name: 'tomado' });
+    rename.set(member(db, 'uid-nuevo'), { role: 'operador', inviteCode: VALID_CODE });
+    await assertFails(rename.commit());
+  });
+
+  it('A: quien quedó en memberIds sin documento de miembro (intruso anterior a C1) no llega a admin', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(gh(context.firestore()), { memberIds: arrayUnion('uid-colado') });
+    });
+    const db = testEnv.authenticatedContext('uid-colado').firestore();
+    await assertFails(setDoc(member(db, 'uid-colado'), { role: 'admin' }));
+    await assertFails(setDoc(member(db, 'uid-colado'), { role: 'admin', inviteCode: VALID_CODE }));
+    await assertFails(updateDoc(gh(db), { name: 'tomado' }));
+    // El admin sí puede sacarlo aunque no tenga documento de miembro
+    const adminDb = testEnv.authenticatedContext('uid-admin').firestore();
+    const kick = writeBatch(adminDb);
+    kick.update(gh(adminDb), { memberIds: arrayRemove('uid-colado') });
+    kick.delete(member(adminDb, 'uid-colado'));
+    await assertSucceeds(kick.commit());
+  });
+
+  it('A: un ex admin que dejó su documento de miembro no reentra con él', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(member(context.firestore(), 'uid-exadmin'), { role: 'admin' });
+    });
+    const db = testEnv.authenticatedContext('uid-exadmin').firestore();
+    await assertFails(updateDoc(gh(db), { memberIds: arrayUnion('uid-exadmin') }));
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayUnion('uid-exadmin') });
+    batch.update(member(db, 'uid-exadmin'), { inviteCode: VALID_CODE });
+    await assertFails(batch.commit());
+  });
+
+  it('B: un miembro único sin rol admin no puede borrar y recrear su documento como admin', async () => {
+    const db = testEnv.authenticatedContext('uid-solo').firestore();
+    await assertFails(deleteDoc(member(db, 'uid-solo', 'gh-solo')));
+    await assertFails(setDoc(member(db, 'uid-solo', 'gh-solo'), { role: 'admin' }));
+    await assertFails(updateDoc(gh(db, 'gh-solo'), { name: 'tomado' }));
+  });
+
+  it('B: salir del invernadero (memberIds + borrar el propio documento en batch) sigue permitido', async () => {
+    const db = testEnv.authenticatedContext('uid-operador').firestore();
+    const batch = writeBatch(db);
+    batch.update(gh(db), { memberIds: arrayRemove('uid-operador') });
+    batch.delete(member(db, 'uid-operador'));
+    await assertSucceeds(batch.commit());
+  });
+
+  it('B: crear invernadero nuevo con su admin e invitación en batch sigue permitido', async () => {
+    const db = testEnv.authenticatedContext('uid-creador').firestore();
+    const batch = writeBatch(db);
+    batch.set(gh(db, 'gh-nuevo'), {
+      name: 'Nuevo', inviteCode: 'GT-NEW22', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z', memberIds: ['uid-creador'], createdAt: '2026-11-17T00:00:00.000Z',
+    });
+    batch.set(member(db, 'uid-creador', 'gh-nuevo'), { role: 'admin', email: 'c@x.mx', name: 'C', joinedAt: '2026-11-17T00:00:00.000Z' });
+    batch.set(doc(db, 'greenhouse_invites', 'GT-NEW22'), { greenhouseId: 'gh-nuevo', createdAt: '2026-11-17T00:00:00.000Z' });
+    await assertSucceeds(batch.commit());
+  });
+
+  it('C: el admin de otro invernadero no puede sobrescribir ni borrar un código ajeno', async () => {
+    const db = testEnv.authenticatedContext('uid-admin-otro').firestore();
+    await assertFails(setDoc(doc(db, 'greenhouse_invites', VALID_CODE), { greenhouseId: 'gh-otro' }));
+    await assertFails(deleteDoc(doc(db, 'greenhouse_invites', VALID_CODE)));
+    // Tampoco crear un código que no es el vigente de su invernadero
+    await assertFails(setDoc(doc(db, 'greenhouse_invites', 'GT-LIBRE1'), { greenhouseId: 'gh-otro' }));
+    // Ni el admin dueño puede redirigir su código a otro invernadero
+    const adminDb = testEnv.authenticatedContext('uid-admin').firestore();
+    await assertFails(setDoc(doc(adminDb, 'greenhouse_invites', VALID_CODE), { greenhouseId: 'gh-otro' }));
+  });
+
+  it('D: el admin no puede guardar umbrales invertidos, basura ni claves arbitrarias', async () => {
+    const db = testEnv.authenticatedContext('uid-admin').firestore();
+    await assertFails(updateDoc(gh(db), { thresholds: { ph: { redMin: 9, yellowMin: 8, yellowMax: 1, redMax: 0 } } }));
+    await assertFails(updateDoc(gh(db), { thresholds: { ph: { redMin: 'a', yellowMin: 5.5, yellowMax: 6.5, redMax: 7 } } }));
+    await assertFails(updateDoc(gh(db), { thresholds: { ph: { redMin: 5, yellowMin: 5.5, yellowMax: 6.5, redMax: 7, extra: 1 } } }));
+    await assertFails(updateDoc(gh(db), { thresholds: { co2: { redMin: 1, yellowMin: 2, yellowMax: 3, redMax: 4 } } }));
+    await assertFails(updateDoc(gh(db), { x: 'a'.repeat(1000) }));
+    // El admin tampoco mete UIDs a memberIds sin su documento de miembro
+    await assertFails(updateDoc(gh(db), { memberIds: arrayUnion('uid-amigo') }));
+  });
+
+  it('D: el admin guarda umbrales válidos (los 7 por defecto)', async () => {
+    const db = testEnv.authenticatedContext('uid-admin').firestore();
+    await assertSucceeds(updateDoc(gh(db), {
+      thresholds: {
+        airTemp: { redMin: 12, yellowMin: 18, yellowMax: 28, redMax: 33 },
+        humidity: { redMin: 40, yellowMin: 55, yellowMax: 80, redMax: 90 },
+        light: { redMin: 2000, yellowMin: 8000, yellowMax: 35000, redMax: 45000 },
+        ph: { redMin: 5.0, yellowMin: 5.5, yellowMax: 6.5, redMax: 7.0 },
+        ec: { redMin: 0.8, yellowMin: 1.2, yellowMax: 2.4, redMax: 3.0 },
+        solutionTemp: { redMin: 14, yellowMin: 18, yellowMax: 24, redMax: 27 },
+        tankLevel: { redMin: 20, yellowMin: 40, yellowMax: 100, redMax: 100 },
+      },
+    }));
   });
 });

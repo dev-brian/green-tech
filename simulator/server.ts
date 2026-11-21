@@ -7,6 +7,7 @@
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { validateIngestPayload } from './core/hydroponicModel.ts';
 import {
   InMemoryTelemetryStorage,
@@ -15,8 +16,42 @@ import {
 } from './core/alertAndActuatorEngine.ts';
 import type { AlertPushNotifier } from './core/pushNotifier.ts';
 
+/** Una lectura pesa ~300 bytes; 16 KB deja margen y corta cuerpos abusivos. */
+export const MAX_BODY_BYTES = 16 * 1024;
+/** Hora del dispositivo aceptada hasta 5 min en el futuro (relojes sin NTP). */
+export const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+
+class PayloadTooLargeError extends Error {}
+
+/** Comparación de tiempo constante (auditoría C3): no filtra la clave por tiempos. */
+export function deviceKeyMatches(given: string | undefined, expected: string): boolean {
+  if (!given || !expected) return false;
+  const a = createHash('sha256').update(given).digest();
+  const b = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
+function headerKey(req: IncomingMessage): string | undefined {
+  const h = req.headers['x-device-key'];
+  return Array.isArray(h) ? h[0] : h;
+}
+
+/** Invernaderos aceptados, de INGEST_GREENHOUSE_IDS="id1,id2". Vacío = cualquiera. */
+function parseAllowedGreenhouses(raw: string | undefined): Set<string> | null {
+  const ids = (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return ids.length > 0 ? new Set(ids) : null;
+}
+
 export interface IngestServerOptions {
   deviceKey?: string;
+  /**
+   * Invernaderos que esta clave puede escribir (auditoría C3). Por defecto
+   * INGEST_GREENHOUSE_IDS; si no hay ninguno, se acepta cualquiera (modo de
+   * desarrollo con el simulador).
+   */
+  allowedGreenhouseIds?: string[];
+  /** Reloj inyectable para pruebas. */
+  now?: () => number;
   storage?: TelemetryStorageAdapter;
   /** Envío de push de alertas críticas (T6.5 #52); sin él no se notifica. */
   notifier?: AlertPushNotifier;
@@ -34,9 +69,15 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const declared = Number(req.headers['content-length']);
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) throw new PayloadTooLargeError();
   const chunks: Buffer[] = [];
+  let size = 0;
   for await (const chunk of req) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    const buf = typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer);
+    size += buf.length;
+    if (size > MAX_BODY_BYTES) throw new PayloadTooLargeError();
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (!raw) return null;
@@ -55,6 +96,10 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
     );
   }
   const storage = options.storage ?? new InMemoryTelemetryStorage();
+  const allowed = options.allowedGreenhouseIds
+    ? new Set(options.allowedGreenhouseIds)
+    : parseAllowedGreenhouses(process.env.INGEST_GREENHOUSE_IDS);
+  const now = options.now ?? Date.now;
 
   const server = createServer(async (req, res) => {
     try {
@@ -72,12 +117,21 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
 
       // T8.3: Endpoint de solo lectura del estado de actuadores
       if (req.method === 'GET' && url.pathname === '/actuatorsState') {
+        // Auditoría C3: antes no pedía clave.
+        if (!deviceKeyMatches(headerKey(req), expectedKey)) {
+          sendJson(res, 401, { error: 'Clave de dispositivo (x-device-key) inválida o ausente.' });
+          return;
+        }
         const greenhouseId = url.searchParams.get('greenhouseId')?.trim() ?? '';
         const zoneId = url.searchParams.get('zoneId')?.trim() ?? '';
         if (!greenhouseId || !zoneId) {
           sendJson(res, 400, {
             error: 'Parámetros greenhouseId y zoneId son obligatorios.',
           });
+          return;
+        }
+        if (allowed && !allowed.has(greenhouseId)) {
+          sendJson(res, 403, { error: 'Esta clave no puede leer ese invernadero.' });
           return;
         }
         const state = await storage.getActuatorsState(greenhouseId, zoneId);
@@ -87,15 +141,21 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
 
       // T2.1: Función HTTP ingestTelemetry
       if (req.method === 'POST' && url.pathname === '/ingestTelemetry') {
-        const deviceKeyHeader = req.headers['x-device-key'];
-        const headerVal = Array.isArray(deviceKeyHeader)
-          ? deviceKeyHeader[0]
-          : deviceKeyHeader;
+        const headerVal = headerKey(req);
+        // Se revisa la clave antes de leer el cuerpo, en tiempo constante.
+        if (!deviceKeyMatches(headerVal, expectedKey)) {
+          sendJson(res, 401, { error: 'Clave de dispositivo (x-device-key) inválida o ausente.' });
+          return;
+        }
 
         let body: unknown;
         try {
           body = await readJsonBody(req);
-        } catch {
+        } catch (err) {
+          if (err instanceof PayloadTooLargeError) {
+            sendJson(res, 413, { error: `El cuerpo supera ${MAX_BODY_BYTES} bytes.` });
+            return;
+          }
           sendJson(res, 400, { error: 'JSON malformado en el cuerpo de la petición.' });
           return;
         }
@@ -103,6 +163,15 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
         const validation = validateIngestPayload(body, headerVal, expectedKey);
         if (!validation.valid) {
           sendJson(res, validation.status, { error: validation.error });
+          return;
+        }
+        if (allowed && !allowed.has(validation.data.greenhouseId)) {
+          sendJson(res, 403, { error: 'Esta clave no puede escribir en ese invernadero.' });
+          return;
+        }
+        // Una hora en el futuro dejaría la zona "al día" para siempre.
+        if (Date.parse(validation.data.timestamp) - now() > MAX_FUTURE_SKEW_MS) {
+          sendJson(res, 400, { error: 'La hora de la lectura está en el futuro; revisa el reloj del dispositivo.' });
           return;
         }
 

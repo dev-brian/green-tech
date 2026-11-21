@@ -187,11 +187,15 @@ service cloud.firestore {
     }
 
     // ─── Helper: umbrales por cultivo (thresholdsByCrop.{jitomate|lechuga})
-    function isValidThresholdsByCrop(m) {
-      return m is map
-          && m.keys().hasOnly(['jitomate', 'lechuga'])
-          && (!('jitomate' in m) || isValidThresholds(m.jitomate))
-          && (!('lechuga' in m)  || isValidThresholds(m.lechuga));
+    // Solo se valida el cultivo que cambió: validar los dos perfiles completos
+    // en cada escritura rebasa el límite de 1000 expresiones de las reglas.
+    function isValidThresholdsByCropUpdate() {
+      let next = request.resource.data.thresholdsByCrop;
+      let changedCrops = next.diff(resource.data.get('thresholdsByCrop', {})).affectedKeys();
+      return next is map
+          && next.keys().hasOnly(['jitomate', 'lechuga'])
+          && (!('jitomate' in changedCrops) || isValidThresholds(next.jitomate))
+          && (!('lechuga' in changedCrops)  || isValidThresholds(next.lechuga));
     }
 
     // ─── Helper: edición del invernadero por su admin ────────────────────────
@@ -210,7 +214,7 @@ service cloud.firestore {
           && request.resource.data.memberIds is list
           && resource.data.memberIds.hasAll(request.resource.data.memberIds)
           && (!('thresholds' in changed) || isValidThresholds(request.resource.data.thresholds))
-          && (!('thresholdsByCrop' in changed) || isValidThresholdsByCrop(request.resource.data.thresholdsByCrop));
+          && (!('thresholdsByCrop' in changed) || isValidThresholdsByCropUpdate());
     }
 
     // ─── Helper: documento de zona válido (T4.1 #64) ─────────────────────────

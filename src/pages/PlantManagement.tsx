@@ -198,7 +198,7 @@ function PlantCard({
         <button
           onClick={() => onSetActive(plant.id)}
           className="btn-secondary"
-          style={{ width: '100%', minHeight: 44, fontSize: '0.8125rem' }}
+          style={{ width: '100%', minHeight: 48, fontSize: '0.8125rem' }}
         >
           Establecer como Cultivo
         </button>
@@ -341,7 +341,7 @@ function PlantModal({
                     width: '100%', background: 'transparent', border: 'none',
                     outline: 'none', padding: 'var(--space-xs) 0',
                     color: 'var(--text-primary)', fontSize: '0.9375rem',
-                    minHeight: 40,
+                    minHeight: 48,
                   }}
                 />
               </div>

@@ -553,6 +553,9 @@ input[type=range] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
+  /* T3.2 (#72): zona táctil de 48 px aunque la barra mida 6 px */
+  height: 48px;
+  margin: 0;
   background: transparent;
 }
 
@@ -611,7 +614,7 @@ input[type=range]::-moz-range-thumb {
   position: fixed;
   bottom: var(--space-md);
   right: var(--space-md);
-  z-index: 100;
+  z-index: 45; /* debajo de la barra (50): el menú móvil no queda tapado (T3.2 #72) */
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
@@ -621,6 +624,25 @@ input[type=range]::-moz-range-thumb {
 
 @media (min-width: 640px) {
   .alert-container { width: 380px; }
+}
+
+/* T3.2 (#72): en celular solo el primer aviso flotante; el resto, en un enlace. */
+.alert-more {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+@media (max-width: 639px) {
+  .alert-container > .alert-nm:not(:first-child) { display: none; }
+  .alert-more { display: flex; }
 }
 
 .alert-nm {
@@ -727,3 +749,8 @@ input[type=range]::-moz-range-thumb {
   .gh-ring { animation: gh-pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 }
 @keyframes gh-pulse { 0% { opacity: 0.9; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2); } }
+
+/* T3.2 (#72): nombre del invernadero en la barra; más corto en celular. */
+.ws-name { max-width: 120px; }
+@media (max-width: 639px) { .ws-name { max-width: 96px; } }
+@media (max-width: 479px) { .gh-callout { display: none !important; } }

@@ -7,6 +7,7 @@ import {
   DEFAULT_THRESHOLDS,
   type GreenhouseThresholds,
 } from '../lib/thresholdsService';
+import { trackWrite } from '../lib/pendingWrites';
 
 export type { GreenhouseThresholds };
 export { DEFAULT_THRESHOLDS };
@@ -37,11 +38,20 @@ export function useThresholds(greenhouseId: string | null) {
         setSuccessMsg(null);
         return;
       }
-      setSaving(true);
       setError(null);
       setSuccessMsg(null);
+      const write = trackWrite('Umbrales', updateThresholds(greenhouseId, next));
+      // Sin red, Firestore guarda el cambio en cola y lo manda solo al volver
+      // la conexión; su promesa no termina hasta entonces (T10.3 #61).
+      if (!navigator.onLine) {
+        write.catch(() => setError('No se pudieron enviar los umbrales guardados sin conexión.'));
+        setThresholds(next);
+        setSuccessMsg('Guardado en este equipo. Se enviará cuando vuelva la conexión.');
+        return;
+      }
+      setSaving(true);
       try {
-        await updateThresholds(greenhouseId, next);
+        await write;
         setThresholds(next);
         setSuccessMsg('Umbrales actualizados correctamente.');
         setTimeout(() => setSuccessMsg(null), 3500);
@@ -56,11 +66,18 @@ export function useThresholds(greenhouseId: string | null) {
 
   const reset = useCallback(async () => {
     if (!greenhouseId) return;
-    setSaving(true);
     setError(null);
     setSuccessMsg(null);
+    const write = trackWrite('Umbrales', resetThresholds(greenhouseId));
+    if (!navigator.onLine) {
+      write.catch(() => setError('No se pudieron enviar los umbrales guardados sin conexión.'));
+      setThresholds(DEFAULT_THRESHOLDS);
+      setSuccessMsg('Guardado en este equipo. Se enviará cuando vuelva la conexión.');
+      return;
+    }
+    setSaving(true);
     try {
-      await resetThresholds(greenhouseId);
+      await write;
       setThresholds(DEFAULT_THRESHOLDS);
       setSuccessMsg('Umbrales restaurados a valores de fábrica.');
       setTimeout(() => setSuccessMsg(null), 3500);

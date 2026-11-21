@@ -178,7 +178,13 @@ function AlertItem({
           )}
           </>
         )}
-        {alert.status === 'attended' && alert.attendedAt && (
+        {alert.pending && (
+          <p role="status" style={{ margin: 0, marginTop: 4, fontSize: '0.8125rem', fontWeight: 600, color: 'var(--status-warn-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Clock size={12} strokeWidth={1.75} aria-hidden="true" />
+            Pendiente de enviar · se guarda al volver la conexión
+          </p>
+        )}
+        {alert.status === 'attended' && alert.attendedAt && !alert.pending && (
           <p style={{ margin: 0, marginTop: 4, fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
             Atendida {relativeTime(alert.attendedAt)}
           </p>

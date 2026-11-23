@@ -21,6 +21,8 @@ const env = {
   INGEST_URL: `http://127.0.0.1:${INGEST_PORT}`,
   INGEST_PORT,
   USE_FIRESTORE: 'false',
+  // La demo no toca Firestore: usa siempre las 3 zonas de ejemplo.
+  SIM_ZONES: 'ejemplo',
   SIM_PUBLISH_INTERVAL: process.env.SIM_PUBLISH_INTERVAL ?? '5',
 };
 

@@ -42,12 +42,15 @@ pnpm sim --once          # un solo ciclo de publicación (para tareas programada
 | `--port` | `SIM_PORT` | `4100` | Puerto de la interfaz |
 | `--interval` | `SIM_PUBLISH_INTERVAL` | `60` | Segundos reales entre lecturas |
 | `--speed` | `SIM_SPEED` | `1` | Velocidad de la física |
+| `--zonas` | `SIM_ZONES` | `auto` | `auto`: las zonas del invernadero; `ejemplo`: las 3 de ejemplo |
 
 No hay clave por defecto: sin `DEVICE_INGEST_KEY` ni el simulador ni la ingesta arrancan.
 
 ## Qué simula
 
-Tres zonas, cada una con su circuito completo: tanque de 200 L, bomba de recirculación, camas, dosificadora de ácido, dosificadora de nutrientes, bomba de llenado, ventilación, lámparas y un nodo de sensores. Comparten clima exterior, red eléctrica e internet.
+Las zonas que el invernadero (`GREENHOUSE_ID`) registró en la PWA, con su cultivo: si registraste 2 zonas de jitomate, el simulador arma 2 naves de jitomate. Para leerlas necesita `FIREBASE_SERVICE_ACCOUNT` en `.env.local` (la misma que usa `pnpm ingest:firestore`). Si no la tiene, o el invernadero aún no tiene zonas, usa 3 zonas de ejemplo; el arranque dice cuáles usó. Los escenarios incluidos se escribieron para zona-1, zona-2 y zona-3 y se aplican a la zona real en la misma posición.
+
+Cada zona tiene su circuito completo: tanque de 200 L, bomba de recirculación, camas, dosificadora de ácido, dosificadora de nutrientes, bomba de llenado, ventilación, lámparas y un nodo de sensores. Comparten clima exterior, red eléctrica e internet.
 
 Las 7 variables salen de balances que se afectan entre sí (`model/world.ts`): la transpiración baja el nivel y concentra las sales, el agua de llenado diluye y sube el pH, las lámparas y el sol calientan el aire, la solución sigue al aire con retraso. Cada zona tiene un controlador local que mantiene todo en verde en operación normal, y además obedece las órdenes del backend (`GET /actuatorsState`).
 

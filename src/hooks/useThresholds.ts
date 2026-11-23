@@ -8,6 +8,7 @@ import {
   DEFAULT_THRESHOLDS,
   type GreenhouseThresholds,
 } from '../lib/thresholdsService';
+import { trackWrite } from '../lib/pendingWrites';
 import { CROP_PROFILES, defaultThresholdsFor, type CropType } from '../lib/cropProfiles';
 
 export type { GreenhouseThresholds };
@@ -49,11 +50,20 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
         setSuccessMsg(null);
         return;
       }
-      setSaving(true);
       setError(null);
       setSuccessMsg(null);
+      const write = trackWrite('Umbrales', updateThresholds(greenhouseId, crop, next));
+      // Sin red, Firestore guarda el cambio en cola y lo manda solo al volver
+      // la conexión; su promesa no termina hasta entonces (T10.3 #61).
+      if (!navigator.onLine) {
+        write.catch(() => setError('No se pudieron enviar los umbrales guardados sin conexión.'));
+        setThresholds(next);
+        setSuccessMsg('Guardado en este equipo. Se enviará cuando vuelva la conexión.');
+        return;
+      }
+      setSaving(true);
       try {
-        await updateThresholds(greenhouseId, crop, next);
+        await write;
         setThresholds(next);
         setSuccessMsg('Umbrales actualizados correctamente.');
         setTimeout(() => setSuccessMsg(null), 3500);
@@ -68,11 +78,18 @@ export function useThresholds(greenhouseId: string | null, crop?: string) {
 
   const reset = useCallback(async () => {
     if (!greenhouseId) return;
-    setSaving(true);
     setError(null);
     setSuccessMsg(null);
+    const write = trackWrite('Umbrales', resetThresholds(greenhouseId, crop));
+    if (!navigator.onLine) {
+      write.catch(() => setError('No se pudieron enviar los umbrales guardados sin conexión.'));
+      setThresholds(defaultThresholdsFor(crop));
+      setSuccessMsg('Guardado en este equipo. Se enviará cuando vuelva la conexión.');
+      return;
+    }
+    setSaving(true);
     try {
-      await resetThresholds(greenhouseId, crop);
+      await write;
       setThresholds(defaultThresholdsFor(crop));
       setSuccessMsg('Umbrales restaurados a valores de fábrica.');
       setTimeout(() => setSuccessMsg(null), 3500);

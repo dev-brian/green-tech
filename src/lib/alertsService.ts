@@ -12,6 +12,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { trackWrite } from './pendingWrites';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ export interface FirestoreAlert {
   attendedAt: Date | null;
   createdAt: Date;
   resolvedAt: Date | null;
+  /** T10.3 (#61): cambio hecho en este equipo que aún no llega al servidor. */
+  pending: boolean;
 }
 
 export interface AlertFilters {
@@ -80,6 +83,7 @@ function docToAlert(
   id: string,
   greenhouseId: string,
   data: Record<string, unknown>,
+  pending = false,
 ): FirestoreAlert {
   const rawVariable = String(data.variable ?? 'airTemp');
   const variable: AlertVariable =
@@ -97,6 +101,7 @@ function docToAlert(
     attendedAt:    toDateOrNull(data.attendedAt),
     createdAt:     toDate(data.createdAt),
     resolvedAt:    toDateOrNull(data.resolvedAt),
+    pending,
   };
 }
 
@@ -118,9 +123,11 @@ export function subscribeToAlerts(
     limit(100),
   );
 
-  return onSnapshot(q, (snapshot) => {
+  // includeMetadataChanges: avisa también cuando una alerta atendida sin red
+  // por fin llega al servidor, para quitarle la marca de pendiente (T10.3 #61).
+  return onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
     let alerts: FirestoreAlert[] = snapshot.docs.map((d) =>
-      docToAlert(d.id, greenhouseId, d.data() as Record<string, unknown>),
+      docToAlert(d.id, greenhouseId, d.data() as Record<string, unknown>, d.metadata.hasPendingWrites),
     );
 
     if (filters.severity) {
@@ -153,11 +160,11 @@ export async function markAlertAttended(
   const ref = greenhouseId
     ? doc(db, 'greenhouses', greenhouseId, 'alerts', alertId)
     : doc(db, 'alerts', alertId);
-  await updateDoc(ref, {
+  await trackWrite('Alerta atendida', updateDoc(ref, {
     status: 'attended',
     attendedBy: userId,
     attendedAt: serverTimestamp(),
-  });
+  }));
 }
 
 /**

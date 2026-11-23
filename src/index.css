@@ -750,6 +750,26 @@ input[type=range]::-moz-range-thumb {
 }
 @keyframes gh-pulse { 0% { opacity: 0.9; transform: scale(0.6); } 100% { opacity: 0; transform: scale(2); } }
 
+/* ── Aviso de conexión (T10.2 #60 / T10.3 #61) ───────────────────────────── */
+.connection-banner {
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  padding: 4px 0;
+}
+.connection-banner[data-state='offline'] {
+  background: linear-gradient(var(--status-warn-soft), var(--status-warn-soft)), var(--bg);
+  color: var(--status-warn-text);
+}
+.connection-banner[data-state='pending'] {
+  background: linear-gradient(var(--status-offline-soft), var(--status-offline-soft)), var(--bg);
+  color: var(--text-primary);
+}
+.connection-banner[data-state='back'] {
+  background: linear-gradient(var(--status-ok-soft), var(--status-ok-soft)), var(--bg);
+  color: var(--status-ok-text);
+}
+
 /* T3.2 (#72): nombre del invernadero en la barra; más corto en celular. */
 .ws-name { max-width: 120px; }
 @media (max-width: 639px) { .ws-name { max-width: 96px; } }

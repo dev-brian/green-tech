@@ -61,7 +61,9 @@ export function useAlerts(greenhouseId: string | null) {
   const [attendState, setAttendState] = useState<Record<string, 'busy' | 'error'>>({});
   const attend = useCallback(
     (alertId: string) => {
-      setAttendState((s) => ({ ...s, [alertId]: 'busy' }));
+      // Sin red la escritura queda en cola y la alerta ya se ve atendida (con
+      // marca de pendiente); no se deja el botón en "Guardando…" (T10.3 #61).
+      if (navigator.onLine) setAttendState((s) => ({ ...s, [alertId]: 'busy' }));
       markAttended(alertId)
         .then(() =>
           setAttendState((s) => {

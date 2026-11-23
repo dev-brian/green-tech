@@ -104,12 +104,15 @@ export default function GreenhouseIllustration({ zones, callout }: Props) {
 
       {pin && callout && (
         <div
-          className={`tnum chip--${STATUS_CLASS[callout.status]}`}
+          // gh-callout: se oculta en pantallas angostas, donde se salía por la
+          // izquierda; el pin y la frase de arriba ya dicen lo mismo (T3.2 #72).
+          className={`gh-callout tnum chip--${STATUS_CLASS[callout.status]}`}
           style={{
             position: 'absolute',
             left: `${((pin.x - 118) / 700) * 100}%`,
             top: `${((pin.y - 115) / 500) * 100}%`,
             transform: 'translate(-100%, -50%)',
+            whiteSpace: 'nowrap',
             padding: '8px 12px',
             borderRadius: 14,
             display: 'flex',

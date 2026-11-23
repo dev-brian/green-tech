@@ -164,7 +164,7 @@ function AlertItem({
               fontSize: '0.8125rem',
               fontWeight: 600,
               cursor: 'pointer',
-              minHeight: 36,
+              minHeight: 48,
               transition: 'background 0.15s ease',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--status-ok-soft)'; }}
@@ -235,7 +235,7 @@ function FilterBar({
             fontWeight: 600,
             border: 'none',
             cursor: 'pointer',
-            minHeight: 30,
+            minHeight: 48,
             background: filters.severity === opt.value
               ? 'var(--status-ok-soft)'
               : 'var(--line)',
@@ -261,7 +261,7 @@ function FilterBar({
             fontWeight: 600,
             border: 'none',
             cursor: 'pointer',
-            minHeight: 30,
+            minHeight: 48,
             background: filters.status === opt.value
               ? 'var(--status-ok-soft)'
               : 'var(--line)',
@@ -287,7 +287,7 @@ function FilterBar({
             fontWeight: 600,
             border: 'none',
             cursor: 'pointer',
-            minHeight: 30,
+            minHeight: 48,
             background: filters.sector === s
               ? 'var(--status-blue-glow)'
               : 'var(--line)',
@@ -312,7 +312,7 @@ function FilterBar({
             fontWeight: 600,
             border: 'none',
             cursor: 'pointer',
-            minHeight: 30,
+            minHeight: 48,
             background: 'var(--status-crit-soft)',
             color: 'var(--status-red)',
           }}
@@ -599,7 +599,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                 aria-pressed={active}
                 style={{
                   padding: '6px 14px',
-                  minHeight: 36,
+                  minHeight: 48,
                   borderRadius: 'var(--radius-sm)',
                   border: 'none',
                   background: active ? 'var(--accent)' : 'transparent',
@@ -707,7 +707,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    minHeight: 36,
+                    minHeight: 48,
                   }}
                 >
                   Cancelar
@@ -724,7 +724,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                     fontSize: '0.875rem',
                     fontWeight: 700,
                     cursor: saving ? 'not-allowed' : 'pointer',
-                    minHeight: 36,
+                    minHeight: 48,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
@@ -749,7 +749,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                 fontSize: '0.875rem',
                 fontWeight: 600,
                 cursor: saving ? 'not-allowed' : 'pointer',
-                minHeight: 36,
+                minHeight: 48,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -772,7 +772,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
               fontSize: '0.875rem',
               fontWeight: 700,
               cursor: (saving || !draft || invalid) ? 'not-allowed' : 'pointer',
-              minHeight: 36,
+              minHeight: 48,
               display: 'flex',
               alignItems: 'center',
               gap: 6,

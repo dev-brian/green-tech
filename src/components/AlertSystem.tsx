@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Thermometer, Droplets, Sprout, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert } from '../hooks/useAlerts';
@@ -47,8 +48,8 @@ const iconButtonStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minWidth: 32,
-  minHeight: 32,
+  minWidth: 48,
+  minHeight: 48,
   flexShrink: 0,
   transition: 'color 0.15s ease',
 };
@@ -90,7 +91,7 @@ function AlertBanner({
           onClick={() => onAttend(alert)}
           className="btn-nm-secondary"
           title="Marca la alerta como atendida para todo el equipo"
-          style={{ width: 'auto', minHeight: 36, padding: '0 14px', marginTop: 'var(--space-xs)', fontSize: '0.8125rem' }}
+          style={{ width: 'auto', minHeight: 48, padding: '0 16px', marginTop: 'var(--space-xs)', fontSize: '0.8125rem' }}
         >
           <Check size={14} strokeWidth={2} />
           Ya lo revisé
@@ -147,17 +148,24 @@ export default function AlertSystem() {
     [close, markAttended],
   );
 
-  const banners = alerts
-    .filter((a) => a.status === 'new' && !a.resolvedAt && !dismissed.has(dismissKey(a)))
-    .slice(0, 3);
+  const open = alerts.filter((a) => a.status === 'new' && !a.resolvedAt && !dismissed.has(dismissKey(a)));
+  const banners = open.slice(0, 3);
 
   if (banners.length === 0) return null;
 
+  // T3.2 (#72): en un celular de 360 px tres avisos tapaban media pantalla;
+  // ahí se muestra solo el primero y un enlace a los demás (ver index.css).
+  const more = open.length - 1;
   return (
     <div className="alert-container">
       {banners.map((alert) => (
         <AlertBanner key={alert.id} alert={alert} onClose={close} onAttend={attend} />
       ))}
+      {more > 0 && (
+        <Link to="/alerts" className="alert-more">
+          {more === 1 ? 'Ver 1 aviso más' : `Ver ${more} avisos más`}
+        </Link>
+      )}
     </div>
   );
 }

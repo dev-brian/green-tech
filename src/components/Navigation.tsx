@@ -93,11 +93,12 @@ function WorkspaceSelector() {
             display: 'flex', alignItems: 'center',
             gap: 'var(--space-xs)',
             padding: '0 var(--space-sm)',
-            minHeight: 40,
+            minHeight: 48,
             border: 'none',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             maxWidth: 180,
+            minWidth: 0,
           }}
         >
           <Sprout size={14} strokeWidth={1.5} color="var(--accent)" style={{ flexShrink: 0 }} />
@@ -105,8 +106,7 @@ function WorkspaceSelector() {
             fontSize: '0.8125rem', fontWeight: 600,
             color: 'var(--text-primary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            maxWidth: 120,
-          }}>
+          }} className="ws-name">
             {activeWorkspace.name}
           </span>
           <ChevronDown
@@ -117,13 +117,15 @@ function WorkspaceSelector() {
         </button>
 
         {/* Botón de configuración */}
+        {/* En celular se abre desde el menú del invernadero (T3.2 #72: 360 px) */}
         <button
           onClick={() => setShowSettingsModal(true)}
-          className="nm-flat"
+          className="nm-flat hidden sm:flex"
+          aria-label="Configuración del Invernadero"
           title="Configuración del Invernadero"
           style={{
-            width: 40, height: 40,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 48, height: 48,
+            alignItems: 'center', justifyContent: 'center',
             border: 'none', borderRadius: 'var(--radius-sm)',
             color: 'var(--text-secondary)', cursor: 'pointer',
           }}
@@ -263,7 +265,7 @@ function UserMenu() {
           display: 'flex', alignItems: 'center',
           gap: 'var(--space-xs)',
           padding: '0 var(--space-xs) 0 var(--space-xs)',
-          minHeight: 40, border: 'none',
+          minHeight: 48, minWidth: 48, justifyContent: 'center', border: 'none',
           borderRadius: 'var(--radius-md)', cursor: 'pointer',
         }}
       >
@@ -288,6 +290,7 @@ function UserMenu() {
         </span>
         <ChevronDown
           size={12} strokeWidth={1.5} color="var(--text-disabled)"
+          className="hidden sm:block"
           style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
         />
       </button>
@@ -399,7 +402,8 @@ export default function Navigation() {
         {/* Brand */}
         <Link
           to="/"
-          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', textDecoration: 'none', flex: '0 0 auto' }}
+          aria-label="GreenTech, inicio"
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', textDecoration: 'none', flex: '0 0 auto', minHeight: 48, minWidth: 48 }}
         >
           <img src={logoUrl} alt="GreenTech" style={{ width: 36, height: 36, objectFit: 'contain' }} />
           <span style={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: '1.125rem', color: 'var(--text-primary)' }} className="hidden sm:block">
@@ -441,13 +445,13 @@ export default function Navigation() {
 
 
         {/* Right: workspace selector + user menu + mobile toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', minWidth: 0 }}>
           {/* En móvil va dentro del menú para no desbordar la barra a 375px */}
           <div className="hidden lg:flex">
             <PwaInstallButton variant="bar" />
           </div>
 
-          <ThemeToggle />
+          <span className="hidden sm:flex"><ThemeToggle /></span>
 
           {user && (
             <>
@@ -517,6 +521,12 @@ export default function Navigation() {
             })}
 
             <PwaInstallButton variant="menu" />
+
+            {/* En celular el cambio de tema vive aquí para que la barra quepa en 360 px */}
+            <div className="flex sm:hidden" style={{ alignItems: 'center', gap: 'var(--space-sm)', padding: '0 var(--space-xs)', color: 'var(--text-secondary)', fontWeight: 600 }}>
+              <ThemeToggle />
+              Tema claro u oscuro
+            </div>
 
             {user && (
               <button

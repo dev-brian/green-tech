@@ -17,9 +17,11 @@ import { ConfigError, loadConfig, type SimConfig } from './config.ts';
 import { CommandError, parseCommand } from './model/commands.ts';
 import type { Scenario } from './model/types.ts';
 import { Publisher } from './publisher/publisher.ts';
+import { adaptScenarioZones } from './model/realZones.ts';
 import { BUILTIN_SCENARIOS } from './scenarios/library.ts';
 import { parseScenario } from './scenarios/runner.ts';
 import { INTERVAL_LIMITS, SPEED_LIMITS, Simulation, type LogEntry } from './simulation.ts';
+import { loadZones } from './zoneSource.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CUSTOM_SCENARIOS_FILE = join(HERE, 'data', 'scenarios.json');
@@ -103,14 +105,18 @@ async function main(): Promise<void> {
     deviceKey: config.deviceKey,
     greenhouseId: config.greenhouseId,
   });
+  // Las naves del simulador son las zonas que el invernadero registró en la PWA.
+  const { zones, origin } = await loadZones(config.greenhouseId, config.zoneMode);
   const sim = new Simulation({
     publisher,
     speed: config.speed,
     publishIntervalSec: config.publishIntervalSec,
+    zones,
   });
+  const builtinScenarios = BUILTIN_SCENARIOS.map((s) => adaptScenarioZones(s, sim.zoneIds));
 
   let customScenarios = loadCustomScenarios(sim.zoneIds);
-  const allScenarios = (): Scenario[] => [...BUILTIN_SCENARIOS, ...customScenarios];
+  const allScenarios = (): Scenario[] => [...builtinScenarios, ...customScenarios];
   const findScenario = (id: string): Scenario => {
     const found = allScenarios().find((s) => s.id === id);
     if (!found) throw new HttpError(404, `No existe el escenario ${id}.`);
@@ -119,6 +125,7 @@ async function main(): Promise<void> {
 
   const log = (text: string) => console.log(`[Simulador] ${text}`);
   log(`Ingesta: ${config.ingestUrl} · invernadero: ${config.greenhouseId}`);
+  log(`Zonas: ${origin} → ${zones.map((z) => `${z.id} (${z.crop})`).join(', ')}`);
 
   if (config.scenarioId) {
     const scenario = allScenarios().find((s) => s.id === config.scenarioId);

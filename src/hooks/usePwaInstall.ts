@@ -74,3 +74,12 @@ export function usePwaInstall() {
   const mode = useSyncExternalStore(subscribe, getMode);
   return { mode, promptInstall };
 }
+
+function getInstalled(): boolean {
+  return installed || isStandalone();
+}
+
+/** true si la PWA corre instalada o se acaba de instalar desde esta pestaña. */
+export function usePwaInstalled(): boolean {
+  return useSyncExternalStore(subscribe, getInstalled);
+}

@@ -28,7 +28,10 @@ import { useZones } from '../hooks/useZones';
 import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
-import { useThresholds } from '../hooks/useThresholds';
+import ExportCsvButton from '../components/ExportCsvButton';
+import ExportPdfButton from '../components/ExportPdfButton';
+import { useZoneReadings } from '../hooks/useZoneReadings';
+import { useThresholdsByCrop, type GreenhouseThresholds } from '../hooks/useThresholds';
 import { useAlerts } from '../hooks/useAlerts';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
 import type { HydroponicVariable, SensorStatus } from '../lib/sensorThresholds';
@@ -77,15 +80,26 @@ const STATUS_ICON: Record<SensorStatus, typeof CircleCheck> = {
 interface Problem {
   zone: ZoneLatestState;
   variable: HydroponicVariable;
+  value: number;
   status: 'red' | 'yellow';
 }
 
-function timeAgo(date: Date | undefined): string {
-  if (!date) return 'sin datos';
+function timeAgo(date: Date | null | undefined): string {
+  if (!date) return 'sin hora válida';
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return `hace ${Math.max(0, seconds)} s`;
   if (seconds < 3600) return `hace ${Math.floor(seconds / 60)} min`;
   return `a las ${date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** "última lectura hace 20 min" o, si la lectura no trae hora, decirlo. */
+function lastReadingText(date: Date | null): string {
+  return date ? `última lectura ${timeAgo(date)}` : 'la última lectura no trae hora';
+}
+
+/** Variables que la última lectura de una zona vigente no trajo. */
+function missingVariables(zone: ZoneLatestState): HydroponicVariable[] {
+  return zone.isStale ? [] : VARIABLE_ORDER.filter((v) => zone[v].value === null);
 }
 
 function greeting(): string {
@@ -113,23 +127,25 @@ function RangeGauge({
   showEnds,
 }: {
   variable: HydroponicVariable;
-  value: number;
+  value: number | null;
   status: SensorStatus;
-  thresholds: ReturnType<typeof useThresholds>['thresholds'];
+  thresholds: GreenhouseThresholds;
   showEnds?: boolean;
 }) {
   const t = thresholds[variable];
-  const g = gaugeGeometry(variable, value, t);
+  const g = gaugeGeometry(variable, value ?? 0, t);
   const ends = VARIABLES[variable].ends;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span
         className="gauge"
         role="img"
-        aria-label={`${formatValue(variable, value)}. ${idealText(variable, t)}.`}
+        aria-label={`${value === null ? 'Sin dato' : formatValue(variable, value)}. ${idealText(variable, t)}.`}
       >
         <span className="gauge__band" style={{ left: `${g.bandLeft}%`, width: `${g.bandWidth}%` }} />
-        <span className={`gauge__mark gauge__mark--${STATUS_CLASS[status]}`} style={{ left: `${g.mark}%` }} />
+        {value !== null && (
+          <span className={`gauge__mark gauge__mark--${STATUS_CLASS[status]}`} style={{ left: `${g.mark}%` }} />
+        )}
       </span>
       {showEnds && (
         <span className="metric-label" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }} aria-hidden="true">
@@ -168,15 +184,18 @@ function EmptyState() {
 export default function Dashboard() {
   const { activeWorkspace, user } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
-  const { readings, zonesById, loading } = useTelemetrySource(greenhouseId);
-  const { thresholds } = useThresholds(greenhouseId);
-  const { alerts, markAttended } = useAlerts(greenhouseId);
+  const { zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
+  // Cada zona se pinta con los umbrales de su cultivo (jitomate o lechuga).
+  const { forCrop } = useThresholdsByCrop(greenhouseId);
+  const { alerts, attend, attendState } = useAlerts(greenhouseId);
   // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
   const { zonesById: registeredZones } = useZones(greenhouseId);
   const zoneName = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => ({
     name: zoneDisplayName(zone.zoneId, registeredZones),
     crop: cropLabel(registeredZones[zone.zoneId]?.crop ?? zone.crop),
   });
+  const thresholdsOf = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) =>
+    forCrop(registeredZones[zone.zoneId]?.crop ?? zone.crop);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const readingsRef = useRef<HTMLElement>(null);
 
@@ -200,29 +219,32 @@ export default function Dashboard() {
     for (const zone of sortedZones) {
       if (zone.isStale) continue;
       for (const v of VARIABLE_ORDER) {
-        const s = zone[v].status;
-        if (s === 'red' || s === 'yellow') list.push({ zone, variable: v, status: s });
+        const { status: s, value } = zone[v];
+        if ((s === 'red' || s === 'yellow') && value !== null) list.push({ zone, variable: v, value, status: s });
       }
     }
     return list.sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]);
   }, [sortedZones]);
 
   const staleZones = sortedZones.filter((z) => z.isStale);
+  const zonesMissingData = sortedZones.filter((z) => missingVariables(z).length > 0);
   const critCount = problems.filter((p) => p.status === 'red').length;
   const warnCount = problems.length - critCount;
   const totalReadings = sortedZones.filter((z) => !z.isStale).length * VARIABLE_ORDER.length;
   const okReadings = totalReadings - problems.length;
-  const latest = sortedZones.reduce<Date | undefined>(
-    (acc, z) => (!acc || z.timestamp > acc ? z.timestamp : acc),
-    undefined,
+  const latest = sortedZones.reduce<Date | null>(
+    (acc, z) => (z.timestamp && (!acc || z.timestamp > acc) ? z.timestamp : acc),
+    null,
   );
 
   const activeZone =
     (selectedZoneId && zonesById[selectedZoneId]) || sortedZones[0] || null;
 
+  // Auditoría A6: la gráfica consulta solo la zona elegida; antes, si esa zona
+  // no tenía lecturas entre las 90 más recientes, mezclaba todas sin avisar.
+  const zoneReadings = useZoneReadings(greenhouseId, activeZone?.zoneId ?? null);
   const chartData = useMemo(() => {
-    const filtered = activeZone ? readings.filter((r: TelemetryReading) => r.zoneId === activeZone.zoneId) : readings;
-    return (filtered.length > 0 ? filtered : readings).map((r: TelemetryReading) => ({
+    return zoneReadings.readings.map((r: TelemetryReading) => ({
       time: r.timestamp.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
       airTemp: r.airTemp,
       humidity: r.humidity,
@@ -230,7 +252,7 @@ export default function Dashboard() {
       ec: r.ec,
       tankLevel: r.tankLevel,
     }));
-  }, [readings, activeZone]);
+  }, [zoneReadings.readings]);
 
   const openZone = (zoneId: string) => {
     setSelectedZoneId(zoneId);
@@ -247,18 +269,23 @@ export default function Dashboard() {
   if (top) {
     const n = problems.length;
     headline = n === 1 ? 'Hay 1 cosa por revisar' : `Hay ${n} cosas por revisar`;
-    const advice = adviceFor(top.variable, top.zone[top.variable].value, thresholds[top.variable]);
+    const advice = adviceFor(top.variable, top.value, thresholdsOf(top.zone)[top.variable]);
     subline = `${n > 1 ? 'La más urgente: ' : ''}${advice.title.charAt(0).toLowerCase()}${advice.title.slice(1)} en la ${zoneName(top.zone).name}.`;
   } else if (staleZones.length > 0) {
-    headline = 'No llegan datos de una zona';
-    subline = `${staleZones.map((z) => zoneName(z).name).join(', ')}: última lectura ${timeAgo(staleZones[0].timestamp)}. Revisa la conexión del sensor.`;
+    headline = staleZones.length === 1 ? 'No llegan datos de una zona' : `No llegan datos de ${staleZones.length} zonas`;
+    subline = `${staleZones.map((z) => zoneName(z).name).join(', ')}: ${lastReadingText(staleZones[0].timestamp)}. Revisa la conexión del sensor.`;
+  } else if (zonesMissingData.length > 0) {
+    const zone = zonesMissingData[0];
+    const names = missingVariables(zone).map((v) => VARIABLES[v].name.toLowerCase());
+    headline = 'Falta el dato de un sensor';
+    subline = `En la ${zoneName(zone).name} no llega: ${names.join(', ')}. Lo demás está dentro de rango.`;
   } else {
     headline = 'Todo en orden';
     subline = `${sortedZones.length === 1 ? 'La zona está' : `Las ${sortedZones.length} zonas están`} dentro de rango. Última lectura ${timeAgo(latest)}.`;
   }
 
   const firstName = user?.name?.split(' ')[0];
-  const topValue = top ? top.zone[top.variable].value : 0;
+  const topValue = top ? top.value : 0;
 
   return (
     <div
@@ -269,6 +296,13 @@ export default function Dashboard() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-sm)', padding: 'var(--space-2xl) 0', color: 'var(--text-secondary)' }}>
           <span style={{ width: 20, height: 20, border: '2px solid var(--track)', borderTopColor: 'var(--leaf)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
           <span>Cargando lecturas…</span>
+        </div>
+      ) : telemetryError ? (
+        <div role="alert" className="glass" style={{ padding: 'var(--space-lg) var(--space-md)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <span className="icon-well icon-well--offline">
+            <WifiOff size={20} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+          <p style={{ margin: 0 }}>{telemetryError}</p>
         </div>
       ) : sortedZones.length === 0 ? (
         <EmptyState />
@@ -286,6 +320,7 @@ export default function Dashboard() {
                 {critCount > 0 && <StatusChip status="red" label={critCount === 1 ? '1 crítica' : `${critCount} críticas`} />}
                 {warnCount > 0 && <StatusChip status="yellow" label={warnCount === 1 ? '1 en atención' : `${warnCount} en atención`} />}
                 {staleZones.length > 0 && <StatusChip status="offline" label={`${staleZones.length} sin datos`} />}
+                {zonesMissingData.length > 0 && staleZones.length === 0 && <StatusChip status="offline" label="Falta un dato" />}
                 {totalReadings > 0 && <StatusChip status="green" label={`${okReadings} de ${totalReadings} lecturas bien`} />}
               </div>
             </div>
@@ -313,8 +348,8 @@ export default function Dashboard() {
               <div className="grid-cards">
                 {problems.slice(0, 4).map((p) => {
                   const info = VARIABLES[p.variable];
-                  const t = thresholds[p.variable];
-                  const value = p.zone[p.variable].value;
+                  const t = thresholdsOf(p.zone)[p.variable];
+                  const value = p.value;
                   const advice = adviceFor(p.variable, value, t);
                   const Icon = ICONS[p.variable];
                   const alert = alertFor(p);
@@ -342,7 +377,7 @@ export default function Dashboard() {
                           </span>
                           <span className="metric-label">{idealText(p.variable, t)}</span>
                         </div>
-                        <RangeGauge variable={p.variable} value={value} status={p.status} thresholds={thresholds} showEnds />
+                        <RangeGauge variable={p.variable} value={value} status={p.status} thresholds={thresholdsOf(p.zone)} showEnds />
                       </div>
 
                       <div className="well" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.9375rem', lineHeight: 1.5 }}>
@@ -355,14 +390,25 @@ export default function Dashboard() {
 
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                         {alert && (
-                          <button type="button" className="btn-primary" onClick={() => markAttended(alert.id)}>
-                            Ya lo revisé
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => attend(alert.id)}
+                            disabled={attendState[alert.id] === 'busy'}
+                            aria-busy={attendState[alert.id] === 'busy'}
+                          >
+                            {attendState[alert.id] === 'busy' ? 'Guardando…' : 'Ya lo revisé'}
                           </button>
                         )}
                         <button type="button" className="btn-secondary" onClick={() => openZone(p.zone.zoneId)}>
                           Ver la {z.name}
                         </button>
                       </div>
+                      {alert && attendState[alert.id] === 'error' && (
+                        <p role="alert" style={{ margin: 0, fontSize: '0.875rem', color: 'var(--status-crit-text)' }}>
+                          No se pudo guardar. Intenta de nuevo.
+                        </p>
+                      )}
                     </article>
                   );
                 })}
@@ -382,13 +428,21 @@ export default function Dashboard() {
               {sortedZones.map((zone) => {
                 const z = zoneName(zone);
                 const bad = VARIABLE_ORDER.filter((v) => zone[v].status === 'red' || zone[v].status === 'yellow');
-                const okCount = zone.isStale ? 0 : VARIABLE_ORDER.length - bad.length;
+                const missing = missingVariables(zone);
+                const okCount = VARIABLE_ORDER.filter((v) => zone[v].status === 'green').length;
+                const firstBadValue = bad.length === 1 ? zone[bad[0]].value : null;
                 let sentence = 'Todo en orden.';
-                if (zone.isStale) sentence = `No llegan datos desde ${timeAgo(zone.timestamp)}.`;
-                else if (bad.length === 1) {
-                  const a = adviceFor(bad[0], zone[bad[0]].value, thresholds[bad[0]]);
+                if (zone.isStale) {
+                  sentence = zone.timestamp
+                    ? `No llegan datos desde ${timeAgo(zone.timestamp)}.`
+                    : 'La última lectura no trae hora; revisa el sensor.';
+                } else if (bad.length === 1 && firstBadValue !== null) {
+                  const a = adviceFor(bad[0], firstBadValue, thresholdsOf(zone)[bad[0]]);
                   sentence = `${a.title}. Lo demás, bien.`;
                 } else if (bad.length > 1) sentence = `${bad.length} lecturas por revisar.`;
+                else if (missing.length > 0) {
+                  sentence = `No llega el dato de ${missing.map((v) => VARIABLES[v].name.toLowerCase()).join(', ')}.`;
+                }
                 const selected = activeZone?.zoneId === zone.zoneId;
                 return (
                   <button
@@ -438,7 +492,7 @@ export default function Dashboard() {
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                 <h2 id="lecturas-titulo" className="section-title">Lecturas de la {zoneName(activeZone).name}</h2>
                 <span className="metric-label">
-                  {activeZone.isStale ? `Sin datos recientes · última lectura ${timeAgo(activeZone.timestamp)}` : `Actualizado ${timeAgo(activeZone.timestamp)}`}
+                  {activeZone.isStale ? `Sin datos recientes · ${lastReadingText(activeZone.timestamp)}` : `Actualizado ${timeAgo(activeZone.timestamp)}`}
                 </span>
               </div>
               {(['aire', 'agua'] as VariableGroup[]).map((group) => (
@@ -474,11 +528,11 @@ export default function Dashboard() {
                               {status !== 'green' && <span style={{ color: `var(--status-${sc}-text)` }}> · {STATUS_WORD[status]}</span>}
                             </span>
                             <span className="metric-label">
-                              {info.hint ? `${info.hint} · ` : ''}{idealText(v, thresholds[v])}
+                              {info.hint ? `${info.hint} · ` : ''}{idealText(v, thresholdsOf(activeZone)[v])}
                             </span>
                           </span>
                           <span style={{ flex: '1 1 160px', minWidth: 120 }}>
-                            <RangeGauge variable={v} value={value} status={status} thresholds={thresholds} />
+                            <RangeGauge variable={v} value={value} status={status} thresholds={thresholdsOf(activeZone)} />
                           </span>
                           <span
                             className="tnum"
@@ -490,8 +544,14 @@ export default function Dashboard() {
                               color: status === 'offline' ? 'var(--status-offline-text)' : isProblem ? `var(--status-${sc}-text)` : undefined,
                             }}
                           >
-                            {formatValue(v, value)}
-                            {info.unit && <span className="metric-label"> {info.unit}</span>}
+                            {value === null ? (
+                              <span className="metric-label">Sin dato</span>
+                            ) : (
+                              <>
+                                {formatValue(v, value)}
+                                {info.unit && <span className="metric-label"> {info.unit}</span>}
+                              </>
+                            )}
                           </span>
                         </div>
                       );
@@ -504,12 +564,21 @@ export default function Dashboard() {
           )}
 
           {/* Gráficas: a un toque, no en primer plano */}
-          {chartData.length > 0 && (
+          {activeZone && (
             <details className="glass" style={{ padding: 'var(--space-sm) var(--space-md)' }}>
               <summary style={{ minHeight: 48, display: 'flex', alignItems: 'center', cursor: 'pointer', fontWeight: 600 }}>
-                Ver cómo han cambiado las lecturas
+                Ver cómo han cambiado las lecturas de la {zoneName(activeZone).name}
               </summary>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', paddingBottom: 'var(--space-sm)' }}>
+                {zoneReadings.error ? (
+                  <p role="alert" style={{ margin: 0 }}>{zoneReadings.error}</p>
+                ) : zoneReadings.loading ? (
+                  <p role="status" style={{ margin: 0, color: 'var(--text-secondary)' }}>Cargando lecturas…</p>
+                ) : chartData.length === 0 ? (
+                  <p style={{ margin: 0 }}>Esta zona todavía no tiene lecturas guardadas.</p>
+                ) : (
+                <>
+                <div id="historico-charts">
                 <TrendChart
                   title="Temperatura del aire y humedad"
                   data={chartData}
@@ -527,6 +596,29 @@ export default function Dashboard() {
                     { key: 'tankLevel', name: 'Tanque (%)', color: 'var(--status-blue)', axis: 'right' },
                   ]}
                 />
+                <span className="metric-label">Últimas {chartData.length} lecturas de esta zona.</span>
+                </div>
+                </>
+                )}
+                <Link
+                  to={`/history?zona=${encodeURIComponent(activeZone.zoneId)}`}
+                  style={{ minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                >
+                  Ver el histórico de 24 h y 7 días <ChevronRight size={16} aria-hidden="true" />
+                </Link>
+
+                {/* Exportación del histórico (T7.3 CSV / T7.4 PDF, solo admin) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+                  <ExportCsvButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                  />
+                  <ExportPdfButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                    chartContainerId="historico-charts"
+                  />
+                </div>
               </div>
             </details>
           )}
@@ -542,7 +634,7 @@ function TrendChart({
   lines,
 }: {
   title: string;
-  data: Record<string, number | string>[];
+  data: Record<string, number | string | null>[];
   lines: { key: string; name: string; color: string; axis: 'left' | 'right' }[];
 }) {
   return (

@@ -20,14 +20,23 @@ interface SceneProps {
 }
 
 const BAY_W = 380;
-const BAY_X = [20, 410, 800];
+const BAY_GAP = 10;
+const SCENE_MIN_W = 1200;
+
+/** Ancho de la escena y posición de cada nave: tantas naves como zonas tenga el invernadero. */
+function bayLayout(count: number): { width: number; xs: number[] } {
+  const used = count * BAY_W + Math.max(0, count - 1) * BAY_GAP;
+  const width = Math.max(SCENE_MIN_W, used + 40);
+  const start = (width - used) / 2;
+  return { width, xs: Array.from({ length: count }, (_, i) => start + i * (BAY_W + BAY_GAP)) };
+}
 
 function mix(a: number[], b: number[], t: number): string {
   const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-function Sky({ snapshot }: { snapshot: Snapshot }) {
+function Sky({ snapshot, width }: { snapshot: Snapshot; width: number }) {
   const { env, hour } = snapshot;
   const day = Math.min(1, env.sun * 1.6);
   const top = mix([10, 14, 28], [46, 92, 150], day);
@@ -37,7 +46,7 @@ function Sky({ snapshot }: { snapshot: Snapshot }) {
   const dayT = (hour - 6.5) / 12;
   const nightT = ((hour + 24 - 18.5) % 24) / 12;
   const t = isDay ? dayT : nightT;
-  const x = 80 + 1040 * t;
+  const x = 80 + (width - 160) * t;
   const y = 104 - 78 * Math.sin(Math.PI * t);
 
   return (
@@ -48,7 +57,7 @@ function Sky({ snapshot }: { snapshot: Snapshot }) {
           <stop offset="1" stopColor={bottom} />
         </linearGradient>
       </defs>
-      <rect x="0" y="0" width="1200" height="600" fill="url(#sky)" />
+      <rect x="0" y="0" width={width} height="600" fill="url(#sky)" />
       {!isDay &&
         [[120, 30], [310, 58], [520, 24], [700, 66], [905, 36], [1090, 60], [430, 90], [980, 96]].map(
           ([sx, sy]) => <circle key={`${sx}-${sy}`} cx={sx} cy={sy} r="1.3" fill="#e2e8f0" opacity="0.7" />,
@@ -73,7 +82,7 @@ function Sky({ snapshot }: { snapshot: Snapshot }) {
           </g>
         ))}
       </g>
-      <rect x="0" y="560" width="1200" height="40" fill="#161a21" />
+      <rect x="0" y="560" width={width} height="40" fill="#161a21" />
     </g>
   );
 }
@@ -344,24 +353,25 @@ function Bay({ zone, x, power, network, selection, onSelect }: BayProps) {
 }
 
 export function Scene({ snapshot, selection, onSelect }: SceneProps) {
+  const layout = bayLayout(snapshot.zones.length);
   return (
     <svg
       className={`scene${snapshot.paused ? ' scene-paused' : ''}`}
-      viewBox="0 0 1200 600"
+      viewBox={`0 0 ${layout.width} 600`}
       role="group"
       aria-label="Invernadero simulado"
       onClick={() => onSelect(null)}
     >
-      <Sky snapshot={snapshot} />
+      <Sky snapshot={snapshot} width={layout.width} />
       <text x="24" y="30" className="svg-sub svg-on-sky">
         Exterior {snapshot.env.outsideTemp.toFixed(1)} °C · {snapshot.env.outsideRh.toFixed(0)} % HR
         {snapshot.env.cloud > 0 ? ` · nubosidad ${Math.round(snapshot.env.cloud * 100)} %` : ''}
       </text>
-      {snapshot.zones.slice(0, 3).map((zone, i) => (
+      {snapshot.zones.map((zone, i) => (
         <Bay
           key={zone.id}
           zone={zone}
-          x={BAY_X[i]}
+          x={layout.xs[i]}
           power={snapshot.power}
           network={snapshot.network}
           selection={selection}

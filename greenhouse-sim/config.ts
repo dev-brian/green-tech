@@ -12,6 +12,8 @@ export interface SimConfig {
   headless: boolean;
   once: boolean;
   scenarioId: string | null;
+  /** auto: zonas reales del invernadero si hay cuenta de servicio; ejemplo: las 3 de siempre. */
+  zoneMode: 'auto' | 'ejemplo';
 }
 
 /** Lee .env.local sin pisar lo que ya venga en el entorno. */
@@ -64,6 +66,10 @@ export function loadConfig(argv: string[] = process.argv.slice(2)): SimConfig {
   }
 
   const scenario = args.scenario;
+  const zonas = str('zonas', 'SIM_ZONES', 'auto');
+  if (zonas !== 'auto' && zonas !== 'ejemplo') {
+    throw new ConfigError('--zonas (SIM_ZONES) debe ser "auto" o "ejemplo".');
+  }
   return {
     ingestUrl: str('ingestUrl', 'INGEST_URL', 'http://127.0.0.1:8787'),
     deviceKey,
@@ -74,5 +80,6 @@ export function loadConfig(argv: string[] = process.argv.slice(2)): SimConfig {
     headless: args.headless === true || args.once === true,
     once: args.once === true,
     scenarioId: typeof scenario === 'string' ? scenario : null,
+    zoneMode: zonas,
   };
 }

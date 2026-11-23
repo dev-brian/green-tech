@@ -1,6 +1,7 @@
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { THRESHOLDS, type ThresholdRange } from './sensorThresholds';
+import type { ThresholdRange } from './sensorThresholds';
+import { CROP_PROFILES, defaultThresholdsFor, resolveCropThresholds, type CropType } from './cropProfiles';
 
 export type { ThresholdRange };
 
@@ -14,57 +15,78 @@ export interface GreenhouseThresholds {
   tankLevel:    ThresholdRange;
 }
 
-export const DEFAULT_THRESHOLDS: GreenhouseThresholds = {
-  airTemp:      THRESHOLDS.airTemp,
-  humidity:     THRESHOLDS.humidity,
-  light:        THRESHOLDS.light,
-  ph:           THRESHOLDS.ph,
-  ec:           THRESHOLDS.ec,
-  solutionTemp: THRESHOLDS.solutionTemp,
-  tankLevel:    THRESHOLDS.tankLevel,
-};
+/**
+ * Umbrales por defecto (T5.2 #45): perfil de **jitomate**, el mismo cultivo
+ * que usa el backend cuando una lectura no trae `crop`.
+ */
+export const DEFAULT_THRESHOLDS: GreenhouseThresholds = CROP_PROFILES.jitomate;
 
 /**
- * Lee los umbrales hidropónicos del invernadero. Si no existen en Firestore,
- * devuelve los valores por defecto.
+ * Lee los umbrales del cultivo indicado (`thresholdsByCrop.{cultivo}`). Si no
+ * hay personalizados, devuelve el perfil por defecto de ese cultivo.
  */
 export async function getThresholds(
   greenhouseId: string,
+  crop?: string,
 ): Promise<GreenhouseThresholds> {
   const snap = await getDoc(doc(db, 'greenhouses', greenhouseId));
-  if (!snap.exists()) return DEFAULT_THRESHOLDS;
+  return resolveCropThresholds(snap.exists() ? snap.data() : undefined, crop);
+}
 
-  const data = snap.data();
-  const stored = data.thresholds as Partial<GreenhouseThresholds> | undefined;
-
-  if (!stored) return DEFAULT_THRESHOLDS;
-
+/**
+ * Lee el documento del invernadero una vez y devuelve los umbrales efectivos
+ * de cada cultivo (para pantallas con zonas de cultivos distintos).
+ */
+export async function getThresholdsByCrop(
+  greenhouseId: string,
+): Promise<Record<CropType, GreenhouseThresholds>> {
+  const snap = await getDoc(doc(db, 'greenhouses', greenhouseId));
+  const data = snap.exists() ? snap.data() : undefined;
   return {
-    airTemp:      { ...DEFAULT_THRESHOLDS.airTemp,      ...stored.airTemp      },
-    humidity:     { ...DEFAULT_THRESHOLDS.humidity,     ...stored.humidity     },
-    light:        { ...DEFAULT_THRESHOLDS.light,        ...stored.light        },
-    ph:           { ...DEFAULT_THRESHOLDS.ph,           ...stored.ph           },
-    ec:           { ...DEFAULT_THRESHOLDS.ec,           ...stored.ec           },
-    solutionTemp: { ...DEFAULT_THRESHOLDS.solutionTemp, ...stored.solutionTemp },
-    tankLevel:    { ...DEFAULT_THRESHOLDS.tankLevel,    ...stored.tankLevel    },
+    jitomate: resolveCropThresholds(data, 'jitomate'),
+    lechuga: resolveCropThresholds(data, 'lechuga'),
   };
 }
 
 /**
- * Guarda los umbrales en Firestore. Solo debe llamarse con rol admin.
+ * Revisa que cada rango cumpla redMin ≤ yellowMin ≤ yellowMax ≤ redMax con
+ * números finitos. Devuelve el mensaje de error o null. Las reglas de Firestore
+ * rechazan lo mismo; validar aquí da un mensaje claro antes de guardar.
+ */
+export function validateThresholds(thresholds: GreenhouseThresholds): string | null {
+  for (const [variable, r] of Object.entries(thresholds) as [string, ThresholdRange][]) {
+    const values = [r.redMin, r.yellowMin, r.yellowMax, r.redMax];
+    if (!values.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+      return `Los umbrales de ${variable} deben ser números.`;
+    }
+    if (!(r.redMin <= r.yellowMin && r.yellowMin <= r.yellowMax && r.yellowMax <= r.redMax)) {
+      return `Los umbrales de ${variable} deben ir en orden: crítico mín ≤ precaución mín ≤ precaución máx ≤ crítico máx.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Guarda los umbrales de **un** cultivo en `thresholdsByCrop.{cultivo}`, sin
+ * tocar los del otro. Solo admin (lo hace cumplir `firestore.rules`).
  */
 export async function updateThresholds(
   greenhouseId: string,
+  crop: string | undefined,
   thresholds: GreenhouseThresholds,
 ): Promise<void> {
+  const key: CropType = crop === 'lechuga' ? 'lechuga' : 'jitomate';
   await updateDoc(doc(db, 'greenhouses', greenhouseId), {
-    thresholds,
+    [`thresholdsByCrop.${key}`]: thresholds,
   });
 }
 
 /**
- * Restaura los umbrales por defecto en Firestore.
+ * Restaura los umbrales por defecto del `crop` indicado en Firestore.
  */
-export async function resetThresholds(greenhouseId: string): Promise<void> {
-  await updateThresholds(greenhouseId, DEFAULT_THRESHOLDS);
+export async function resetThresholds(
+  greenhouseId: string,
+  crop?: string,
+): Promise<void> {
+  await updateThresholds(greenhouseId, crop, defaultThresholdsFor(crop));
 }

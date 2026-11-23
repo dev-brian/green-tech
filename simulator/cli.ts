@@ -10,16 +10,26 @@
  *   node simulator/cli.ts --firestore --greenhouseId=<ID_INVERNADERO> --scenario=normal
  *   node simulator/cli.ts --firestore --once --prune   (además borra lecturas de más de 7 días
  *                                                       y promedios por hora de más de 30, T7.1 #75)
+ *   node simulator/cli.ts --firestore --all --once --prune
+ *        (todos los invernaderos de Firestore, cada uno con las zonas y cultivos
+ *         que registró en la PWA; es lo que corre el ciclo programado)
  */
 
 import type { AddressInfo } from 'node:net';
+import { pathToFileURL } from 'node:url';
 import { createIngestHttpServer } from './server.ts';
-import { FirestoreTelemetryStorage, loadEnvLocal } from './core/firestoreStorage.ts';
+import {
+  FirestoreTelemetryStorage,
+  initFirestoreAdmin,
+  loadEnvLocal,
+} from './core/firestoreStorage.ts';
+import { capZones, discoverGreenhouses, MAX_ZONES_PER_RUN } from './core/zoneDiscovery.ts';
 import { FcmPushNotifier } from './core/fcmPushNotifier.ts';
 import {
   DEFAULT_SIMULATED_ZONES,
   createInitialReadings,
   stepZoneReadings,
+  type SimulatedZoneConfig,
   type SimulatorScenario,
 } from './core/simulatorEngine.ts';
 import type { HydroponicReadings } from './core/hydroponicModel.ts';
@@ -78,6 +88,34 @@ async function runCli() {
   const useFirestore =
     Boolean(args.firestore) || process.env.USE_FIRESTORE === 'true';
   const prune = Boolean(args.prune);
+  const all = Boolean(args.all);
+  if (all && !useFirestore) {
+    throw new Error('--all necesita --firestore: lee los invernaderos y sus zonas de Firestore.');
+  }
+
+  // Qué simular: con --all, cada invernadero con sus zonas registradas en la PWA;
+  // sin --all, un invernadero con las 3 zonas de siempre.
+  let targets: { greenhouseId: string; zones: SimulatedZoneConfig[] }[];
+  if (all) {
+    const found = await discoverGreenhouses(initFirestoreAdmin());
+    const totalZones = found.reduce((n, g) => n + g.zones.length, 0);
+    targets = capZones(found);
+    if (totalZones > MAX_ZONES_PER_RUN) {
+      console.warn(
+        `[Simulador] Hay ${totalZones} zonas; solo se simulan ${MAX_ZONES_PER_RUN} por ciclo para cuidar la cuota.`,
+      );
+    }
+    for (const g of found) {
+      console.log(
+        `[Simulador] ${g.greenhouseId}: ${g.zones.map((z) => `${z.zoneId} (${z.crop})`).join(', ')} [${g.source}]`,
+      );
+    }
+    if (targets.length === 0) {
+      console.log('[Simulador] Ningún invernadero tiene zonas registradas; no hay nada que simular.');
+    }
+  } else {
+    targets = [{ greenhouseId, zones: DEFAULT_SIMULATED_ZONES }];
+  }
 
   let baseUrl = typeof args.ingestUrl === 'string' ? args.ingestUrl : process.env.INGEST_URL;
   let embeddedServer: ReturnType<typeof createIngestHttpServer>['server'] | null = null;
@@ -85,11 +123,13 @@ async function runCli() {
   // Purga de lecturas de más de 7 días y promedios de más de 30 (T7.1 #75)
   if (prune) {
     if (useFirestore && !baseUrl) {
-      const { readingsDeleted, hourlyDeleted } =
-        await new FirestoreTelemetryStorage().pruneExpired(greenhouseId);
-      console.log(
-        `[Simulador] Purga: ${readingsDeleted} lecturas y ${hourlyDeleted} promedios por hora vencidos borrados.`,
-      );
+      const storage = new FirestoreTelemetryStorage();
+      for (const target of targets) {
+        const { readingsDeleted, hourlyDeleted } = await storage.pruneExpired(target.greenhouseId);
+        console.log(
+          `[Simulador] Purga ${target.greenhouseId}: ${readingsDeleted} lecturas y ${hourlyDeleted} promedios por hora vencidos borrados.`,
+        );
+      }
     } else {
       console.warn('[Simulador] --prune solo funciona con --firestore y sin --ingestUrl; se omite.');
     }
@@ -108,28 +148,38 @@ async function runCli() {
     embeddedServer = server;
   }
 
+  // Lecturas por invernadero y zona: dos cuentas pueden tener una "zona-1" cada una.
   const zoneReadings: Record<string, HydroponicReadings> = {};
-  for (const zone of DEFAULT_SIMULATED_ZONES) {
-    zoneReadings[zone.zoneId] = createInitialReadings(zone.crop);
+  const keyOf = (gh: string, zoneId: string) => `${gh}/${zoneId}`;
+  for (const target of targets) {
+    for (const zone of target.zones) {
+      zoneReadings[keyOf(target.greenhouseId, zone.zoneId)] = createInitialReadings(zone.crop);
+    }
   }
 
-  const executeTick = async () => {
+  const tickGreenhouse = async (greenhouseId: string, zones: SimulatedZoneConfig[]) => {
     const nowIso = new Date().toISOString();
-    for (const zone of DEFAULT_SIMULATED_ZONES) {
+    for (const zone of zones) {
+      const key = keyOf(greenhouseId, zone.zoneId);
       // 1. Consultar estado actual de actuadores (lazo cerrado T8.3)
       const actuatorsRes = await fetch(
         `${baseUrl}/actuatorsState?greenhouseId=${encodeURIComponent(greenhouseId)}&zoneId=${encodeURIComponent(zone.zoneId)}`,
+        // Auditoría C3: /actuatorsState también exige la clave.
+        { headers: { 'x-device-key': deviceKey } },
       );
+      if (!actuatorsRes.ok) {
+        console.warn(`[Simulador] ${zone.zoneId}: /actuatorsState respondió ${actuatorsRes.status}; se sigue sin lazo cerrado.`);
+      }
       const actuators = actuatorsRes.ok
         ? ((await actuatorsRes.json()) as ZoneActuatorsState)
         : undefined;
 
       // 2. Calcular siguiente lectura con deriva y escenario
-      const nextReading = stepZoneReadings(zoneReadings[zone.zoneId], zone.crop, {
+      const nextReading = stepZoneReadings(zoneReadings[key], zone.crop, {
         scenario,
         actuators,
       });
-      zoneReadings[zone.zoneId] = nextReading;
+      zoneReadings[key] = nextReading;
 
       // 3. Enviar a POST /ingestTelemetry con x-device-key (T2.1 / T2.2)
       const ingestRes = await fetch(`${baseUrl}/ingestTelemetry`, {
@@ -158,8 +208,24 @@ async function runCli() {
         resolvedAlertsCount: number;
       };
       console.log(
-        `[Simulador${useFirestore ? ' · Firestore' : ''}] ${zone.zoneId} (${zone.crop}) | escenario=${scenario} | pH=${nextReading.ph} EC=${nextReading.ec} Temp=${nextReading.airTemp}°C Tanque=${nextReading.tankLevel}% | alertasNuevas=${summary.createdAlertsCount} resueltas=${summary.resolvedAlertsCount}`,
+        `[Simulador${useFirestore ? ' · Firestore' : ''}] ${greenhouseId}/${zone.zoneId} (${zone.crop}) | escenario=${scenario} | pH=${nextReading.ph} EC=${nextReading.ec} Temp=${nextReading.airTemp}°C Tanque=${nextReading.tankLevel}% | alertasNuevas=${summary.createdAlertsCount} resueltas=${summary.resolvedAlertsCount}`,
       );
+    }
+  };
+
+  // Un invernadero con error (p. ej. zona mal escrita) no detiene a los demás.
+  const executeTick = async () => {
+    let failed = 0;
+    for (const target of targets) {
+      try {
+        await tickGreenhouse(target.greenhouseId, target.zones);
+      } catch (err) {
+        failed++;
+        console.error(`[Simulador] ${target.greenhouseId}: falló el ciclo:`, err);
+      }
+    }
+    if (failed > 0 && failed === targets.length) {
+      throw new Error('Falló el ciclo en todos los invernaderos.');
     }
   };
 
@@ -180,7 +246,8 @@ async function runCli() {
   }, intervalSec * 1000);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL convierte bien las rutas de Windows (C:\...) a file:///C:/...
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runCli().catch((err) => {
     console.error('[Simulador] Fallo fatal:', err);
     process.exit(1);

@@ -28,8 +28,10 @@ import { useZones } from '../hooks/useZones';
 import { cropLabel, zoneDisplayName } from '../lib/zones';
 import { useAuth } from '../context/AuthContext';
 import { useTelemetrySource } from '../hooks/useTelemetrySource';
+import ExportCsvButton from '../components/ExportCsvButton';
+import ExportPdfButton from '../components/ExportPdfButton';
 import { useZoneReadings } from '../hooks/useZoneReadings';
-import { useThresholds } from '../hooks/useThresholds';
+import { useThresholdsByCrop, type GreenhouseThresholds } from '../hooks/useThresholds';
 import { useAlerts } from '../hooks/useAlerts';
 import type { TelemetryReading, ZoneLatestState } from '../hooks/useTelemetry';
 import type { HydroponicVariable, SensorStatus } from '../lib/sensorThresholds';
@@ -127,7 +129,7 @@ function RangeGauge({
   variable: HydroponicVariable;
   value: number | null;
   status: SensorStatus;
-  thresholds: ReturnType<typeof useThresholds>['thresholds'];
+  thresholds: GreenhouseThresholds;
   showEnds?: boolean;
 }) {
   const t = thresholds[variable];
@@ -183,7 +185,8 @@ export default function Dashboard() {
   const { activeWorkspace, user } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
   const { zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
-  const { thresholds } = useThresholds(greenhouseId);
+  // Cada zona se pinta con los umbrales de su cultivo (jitomate o lechuga).
+  const { forCrop } = useThresholdsByCrop(greenhouseId);
   const { alerts, attend, attendState } = useAlerts(greenhouseId);
   // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
   const { zonesById: registeredZones } = useZones(greenhouseId);
@@ -191,6 +194,8 @@ export default function Dashboard() {
     name: zoneDisplayName(zone.zoneId, registeredZones),
     crop: cropLabel(registeredZones[zone.zoneId]?.crop ?? zone.crop),
   });
+  const thresholdsOf = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) =>
+    forCrop(registeredZones[zone.zoneId]?.crop ?? zone.crop);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const readingsRef = useRef<HTMLElement>(null);
 
@@ -264,7 +269,7 @@ export default function Dashboard() {
   if (top) {
     const n = problems.length;
     headline = n === 1 ? 'Hay 1 cosa por revisar' : `Hay ${n} cosas por revisar`;
-    const advice = adviceFor(top.variable, top.value, thresholds[top.variable]);
+    const advice = adviceFor(top.variable, top.value, thresholdsOf(top.zone)[top.variable]);
     subline = `${n > 1 ? 'La más urgente: ' : ''}${advice.title.charAt(0).toLowerCase()}${advice.title.slice(1)} en la ${zoneName(top.zone).name}.`;
   } else if (staleZones.length > 0) {
     headline = staleZones.length === 1 ? 'No llegan datos de una zona' : `No llegan datos de ${staleZones.length} zonas`;
@@ -343,7 +348,7 @@ export default function Dashboard() {
               <div className="grid-cards">
                 {problems.slice(0, 4).map((p) => {
                   const info = VARIABLES[p.variable];
-                  const t = thresholds[p.variable];
+                  const t = thresholdsOf(p.zone)[p.variable];
                   const value = p.value;
                   const advice = adviceFor(p.variable, value, t);
                   const Icon = ICONS[p.variable];
@@ -372,7 +377,7 @@ export default function Dashboard() {
                           </span>
                           <span className="metric-label">{idealText(p.variable, t)}</span>
                         </div>
-                        <RangeGauge variable={p.variable} value={value} status={p.status} thresholds={thresholds} showEnds />
+                        <RangeGauge variable={p.variable} value={value} status={p.status} thresholds={thresholdsOf(p.zone)} showEnds />
                       </div>
 
                       <div className="well" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.9375rem', lineHeight: 1.5 }}>
@@ -432,7 +437,7 @@ export default function Dashboard() {
                     ? `No llegan datos desde ${timeAgo(zone.timestamp)}.`
                     : 'La última lectura no trae hora; revisa el sensor.';
                 } else if (bad.length === 1 && firstBadValue !== null) {
-                  const a = adviceFor(bad[0], firstBadValue, thresholds[bad[0]]);
+                  const a = adviceFor(bad[0], firstBadValue, thresholdsOf(zone)[bad[0]]);
                   sentence = `${a.title}. Lo demás, bien.`;
                 } else if (bad.length > 1) sentence = `${bad.length} lecturas por revisar.`;
                 else if (missing.length > 0) {
@@ -523,11 +528,11 @@ export default function Dashboard() {
                               {status !== 'green' && <span style={{ color: `var(--status-${sc}-text)` }}> · {STATUS_WORD[status]}</span>}
                             </span>
                             <span className="metric-label">
-                              {info.hint ? `${info.hint} · ` : ''}{idealText(v, thresholds[v])}
+                              {info.hint ? `${info.hint} · ` : ''}{idealText(v, thresholdsOf(activeZone)[v])}
                             </span>
                           </span>
                           <span style={{ flex: '1 1 160px', minWidth: 120 }}>
-                            <RangeGauge variable={v} value={value} status={status} thresholds={thresholds} />
+                            <RangeGauge variable={v} value={value} status={status} thresholds={thresholdsOf(activeZone)} />
                           </span>
                           <span
                             className="tnum"
@@ -573,6 +578,7 @@ export default function Dashboard() {
                   <p style={{ margin: 0 }}>Esta zona todavía no tiene lecturas guardadas.</p>
                 ) : (
                 <>
+                <div id="historico-charts">
                 <TrendChart
                   title="Temperatura del aire y humedad"
                   data={chartData}
@@ -591,6 +597,7 @@ export default function Dashboard() {
                   ]}
                 />
                 <span className="metric-label">Últimas {chartData.length} lecturas de esta zona.</span>
+                </div>
                 </>
                 )}
                 <Link
@@ -599,6 +606,19 @@ export default function Dashboard() {
                 >
                   Ver el histórico de 24 h y 7 días <ChevronRight size={16} aria-hidden="true" />
                 </Link>
+
+                {/* Exportación del histórico (T7.3 CSV / T7.4 PDF, solo admin) */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+                  <ExportCsvButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                  />
+                  <ExportPdfButton
+                    readings={zoneReadings.readings}
+                    zoneLabel={zoneName(activeZone).name}
+                    chartContainerId="historico-charts"
+                  />
+                </div>
               </div>
             </details>
           )}

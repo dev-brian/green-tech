@@ -19,6 +19,7 @@ import {
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
 import AlertBadge from './AlertBadge';
+import { canAccess } from '../lib/routeAccess';
 import PwaInstallButton from './PwaInstallButton';
 import ThemeToggle from './ThemeToggle';
 import logoUrl from '../icons/icon_green-tech.svg';
@@ -30,8 +31,6 @@ interface NavItem {
   path: string;
   label: string;
   icon: React.ElementType;
-  /** Omit to allow all roles */
-  roles?: UserRole[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -41,7 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/history',   label: 'Histórico', icon: HistoryIcon },
   { path: '/control',   label: 'Equipos',   icon: Settings2 },
   { path: '/zones',     label: 'Zonas',     icon: MapPin },
-  { path: '/plants',    label: 'Plantas',   icon: Leaf, roles: ['admin'] },
+  { path: '/plants',    label: 'Plantas',   icon: Leaf },
 ];
 
 
@@ -379,10 +378,8 @@ export default function Navigation() {
     setIsOpen(false);
   }
 
-  // Filter nav items by role
-  const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.roles || item.roles.includes(currentRole)
-  );
+  // Mismo criterio que ProtectedRoute (lib/routeAccess.ts, T1.1 #34)
+  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.path, currentRole));
 
 
   return (

@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { statusFor, THRESHOLDS, worstOf, levelToStatus } from '../src/lib/sensorThresholds.ts';
+import { statusFor, worstOf, levelToStatus } from '../src/lib/sensorThresholds.ts';
+import { CROP_PROFILES } from '../src/lib/cropProfiles.ts';
+
+// Los valores fijos se borraron (T5.1 #44): se prueba con el perfil de jitomate.
+const THRESHOLDS = CROP_PROFILES.jitomate;
 
 describe('statusFor (7 variables hidropónicas)', () => {
   const t = THRESHOLDS.airTemp;
@@ -22,8 +26,8 @@ describe('statusFor (7 variables hidropónicas)', () => {
   it('evalúa pH, EC y nivel de tanque hidropónico correctamente', () => {
     assert.equal(statusFor(6.0, THRESHOLDS.ph), 'green');
     assert.equal(statusFor(4.8, THRESHOLDS.ph), 'red');
-    assert.equal(statusFor(1.8, THRESHOLDS.ec), 'green');
-    assert.equal(statusFor(3.2, THRESHOLDS.ec), 'red');
+    assert.equal(statusFor(2.5, THRESHOLDS.ec), 'green');
+    assert.equal(statusFor(4.5, THRESHOLDS.ec), 'red');
     assert.equal(statusFor(80, THRESHOLDS.tankLevel), 'green');
     assert.equal(statusFor(15, THRESHOLDS.tankLevel), 'red');
   });

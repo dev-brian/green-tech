@@ -4,6 +4,10 @@ on:
   # Se ejecuta en cada push a la rama main
   push:
     branches: ['main']
+  # Y al publicar una versión (GitHub Release con tag v*): es el despliegue
+  # oficial de cada liberación.
+  release:
+    types: [published]
   # Permite ejecutar el flujo de trabajo manualmente desde la pestaña Actions
   workflow_dispatch:
 
@@ -24,6 +28,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -73,3 +79,19 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Avisar a Slack (despliegue exitoso)
+        if: success() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":rocket: Despliegue de ${GITHUB_REF_NAME} publicado (${GITHUB_ACTOR}): ${PAGE_URL} · ejecución ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Avisar a Slack (despliegue fallido)
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":x: Falló el despliegue de ${GITHUB_REF_NAME} (${GITHUB_ACTOR}): ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$SLACK_WEBHOOK_URL"

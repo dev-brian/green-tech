@@ -257,7 +257,7 @@ export default function Landing() {
 
       {/* ── 5. TECNOLOGÍA ───────────────────────────────────────────────────── */}
       <section className="container" style={{ padding: '6rem 0' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '4rem', alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '4rem', alignItems: 'center' }}>
           {/* Left: text */}
           <div>
             <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>HARDWARE & SOFTWARE</p>
@@ -304,7 +304,7 @@ export default function Landing() {
           </h2>
 
           {/* Trust grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', maxWidth: 900, margin: '0 auto 3rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '1rem', maxWidth: 900, margin: '0 auto 3rem' }}>
             {trustItems.map((item, i) => (
               <div key={i} className="glass-panel" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', textAlign: 'left', padding: '1rem 1.25rem' }}>
                 <CheckCircle2 size={18} style={{ color: 'var(--accent-green)', flexShrink: 0, marginTop: 2 }} />
@@ -361,19 +361,22 @@ export default function Landing() {
             href="mailto:green.tech.contacto@gmail.com"
             className="glass-panel"
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '1.5rem', padding: '1.25rem 2.5rem', borderRadius: 20,
+              // maxWidth + padding fluido: en celular el correo cabía solo con scroll horizontal.
+              display: 'inline-flex', alignItems: 'center', gap: 'clamp(0.75rem, 3vw, 1.5rem)',
+              padding: 'clamp(1rem, 3vw, 1.25rem) clamp(1rem, 5vw, 2.5rem)', borderRadius: 20,
+              maxWidth: '100%', boxSizing: 'border-box',
               textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
               border: '1px solid var(--status-blue)', boxShadow: '0 0 40px var(--status-blue-glow)'
             }}
             onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--status-blue-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--status-blue-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Mail size={28} style={{ color: 'var(--accent-blue)' }} />
             </div>
-            <div style={{ textAlign: 'left' }}>
+            <div style={{ textAlign: 'left', minWidth: 0 }}>
               <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Escríbenos a</p>
-              <p style={{ fontWeight: 800, color: 'white', margin: 0, fontSize: '1.2rem', letterSpacing: '0.02em' }}>green.tech.contacto@gmail.com</p>
+              <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: 'clamp(0.95rem, 4vw, 1.2rem)', letterSpacing: '0.02em', overflowWrap: 'anywhere' }}>green.tech.contacto<wbr />@gmail.com</p>
             </div>
           </a>
         </div>

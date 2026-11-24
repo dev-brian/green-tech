@@ -427,7 +427,7 @@ export default function Dashboard() {
           {/* 3. Tus zonas */}
           <section aria-labelledby="zonas-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             <h2 id="zonas-titulo" className="section-title">Tus zonas</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-sm)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 'var(--space-sm)' }}>
               {sortedZones.map((zone) => {
                 const z = zoneName(zone);
                 const bad = VARIABLE_ORDER.filter((v) => zone[v].status === 'red' || zone[v].status === 'yellow');

@@ -14,15 +14,25 @@
  *   válido, para que un reloj mal puesto no deje la zona en verde para siempre.
  * - Si falta una variable se muestra "sin dato" (value null, gris), nunca un
  *   valor inventado que caiga en rango.
+ * - Si la lectura no trae `level` del backend, el color se calcula con los
+ *   umbrales del cultivo de la zona (T5.1 #44): los que el admin guardó en el
+ *   invernadero o, si no hay, el perfil por defecto del cultivo.
  */
 import {
-  THRESHOLDS,
   levelToStatus,
   statusFor,
   worstOf,
   type HydroponicVariable,
   type SensorStatus,
+  type ThresholdRange,
 } from './sensorThresholds.ts';
+import { defaultThresholdsFor } from './cropProfiles.ts';
+
+/** Umbrales de las 7 variables para un cultivo. */
+export type VariableThresholds = Record<HydroponicVariable, ThresholdRange>;
+
+/** Devuelve los umbrales que aplican a una zona (según su cultivo). */
+export type ThresholdsResolver = (zone: { zoneId: string; crop?: string }) => VariableThresholds;
 
 /**
  * 15 minutos: tres ciclos del motor de alertas, que corre cada 5 min en un cron
@@ -50,14 +60,21 @@ export interface ZoneVariableState {
   status: SensorStatus;
 }
 
-/** Lo que se lee de Firestore, antes de aplicar el reloj. */
+/** Una variable tal como viene en la lectura, antes de evaluarla. */
+export interface ParsedVariable {
+  /** null = la lectura no trajo esta variable ("sin dato"). */
+  value: number | null;
+  /** Estado que calculó el backend; null si la lectura no lo trae. */
+  level: SensorStatus | null;
+}
+
+/** Lo que se lee de Firestore, antes de aplicar umbrales y reloj. */
 export interface ParsedZone {
   zoneId: string;
   crop?: string;
   /** null = la lectura no trae una hora válida. */
   timestamp: Date | null;
-  /** Estado de cada variable según la lectura, sin contar la vigencia. */
-  variables: Record<HydroponicVariable, ZoneVariableState>;
+  variables: Record<HydroponicVariable, ParsedVariable>;
 }
 
 export type ZoneLatestState = {
@@ -91,22 +108,33 @@ function toFiniteNumber(raw: unknown): number | null {
   return null;
 }
 
-/**
- * Acepta `{ value, level }` (state/latest) o un número suelto (readings).
- * El `level` que calculó el backend tiene prioridad sobre la tabla local.
- */
-export function parseVariable(raw: unknown, variable: HydroponicVariable): ZoneVariableState {
+/** Acepta `{ value, level }` (state/latest) o un número suelto (readings). */
+export function readVariable(raw: unknown): ParsedVariable {
   if (raw && typeof raw === 'object' && 'value' in raw) {
     const obj = raw as { value?: unknown; level?: unknown };
     const value = toFiniteNumber(obj.value);
-    if (value === null) return { value: null, status: 'offline' };
-    const status =
-      typeof obj.level === 'string' ? levelToStatus(obj.level) : statusFor(value, THRESHOLDS[variable]);
-    return { value, status };
+    if (value === null) return { value: null, level: null };
+    return { value, level: typeof obj.level === 'string' ? levelToStatus(obj.level) : null };
   }
-  const value = toFiniteNumber(raw);
-  if (value === null) return { value: null, status: 'offline' };
-  return { value, status: statusFor(value, THRESHOLDS[variable]) };
+  return { value: toFiniteNumber(raw), level: null };
+}
+
+/** El `level` que calculó el backend tiene prioridad sobre los umbrales locales. */
+export function evaluateVariable(parsed: ParsedVariable, range: ThresholdRange): ZoneVariableState {
+  if (parsed.value === null) return { value: null, status: 'offline' };
+  return { value: parsed.value, status: parsed.level ?? statusFor(parsed.value, range) };
+}
+
+/**
+ * Lee y evalúa una variable. Sin `range` usa el perfil por defecto de jitomate,
+ * el mismo que usa el backend cuando una lectura no trae `crop`.
+ */
+export function parseVariable(
+  raw: unknown,
+  variable: HydroponicVariable,
+  range: ThresholdRange = defaultThresholdsFor()[variable],
+): ZoneVariableState {
+  return evaluateVariable(readVariable(raw), range);
 }
 
 /** Convierte una entrada de state/latest o un documento de readings. */
@@ -115,8 +143,8 @@ export function parseZone(
   raw: Record<string, unknown>,
   pick: (variable: HydroponicVariable) => unknown = (v) => raw[v],
 ): ParsedZone {
-  const variables = {} as Record<HydroponicVariable, ZoneVariableState>;
-  for (const v of ZONE_VARIABLES) variables[v] = parseVariable(pick(v), v);
+  const variables = {} as Record<HydroponicVariable, ParsedVariable>;
+  for (const v of ZONE_VARIABLES) variables[v] = readVariable(pick(v));
   return {
     zoneId,
     crop: typeof raw.crop === 'string' ? raw.crop : undefined,
@@ -132,8 +160,15 @@ export function isStaleAt(timestamp: Date | null, nowMs: number): boolean {
   return age > STALE_THRESHOLD_MS || age < -MAX_FUTURE_SKEW_MS;
 }
 
-/** Aplica el reloj: una zona vieja pasa entera a gris. */
-export function withFreshness(zone: ParsedZone, nowMs: number): ZoneLatestState {
+/**
+ * Aplica los umbrales de la zona y el reloj: una zona vieja pasa entera a gris.
+ * Sin `thresholds` usa el perfil por defecto del cultivo de la zona.
+ */
+export function withFreshness(
+  zone: ParsedZone,
+  nowMs: number,
+  thresholds: VariableThresholds = defaultThresholdsFor(zone.crop),
+): ZoneLatestState {
   const isStale = isStaleAt(zone.timestamp, nowMs);
   const out = {
     zoneId: zone.zoneId,
@@ -142,7 +177,7 @@ export function withFreshness(zone: ParsedZone, nowMs: number): ZoneLatestState 
     isStale,
   } as ZoneLatestState;
   for (const v of ZONE_VARIABLES) {
-    const s = zone.variables[v];
+    const s = evaluateVariable(zone.variables[v], thresholds[v]);
     out[v] = isStale ? { value: s.value, status: 'offline' } : s;
   }
   out.overallStatus = isStale ? 'offline' : worstOf(...ZONE_VARIABLES.map((v) => out[v].status));

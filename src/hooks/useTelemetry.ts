@@ -9,11 +9,12 @@ import {
   parseZone,
   withFreshness,
   type ParsedZone,
+  type ThresholdsResolver,
   type ZoneLatestState,
 } from '../lib/zoneFreshness';
 import { useNow } from './useNow';
 
-export type { ZoneLatestState, ZoneVariableState } from '../lib/zoneFreshness';
+export type { ThresholdsResolver, ZoneLatestState, ZoneVariableState } from '../lib/zoneFreshness';
 
 export type TelemetryReading = {
   id: string;
@@ -41,7 +42,11 @@ interface Snapshot<T> {
   failed?: boolean;
 }
 
-export function useTelemetry(greenhouseId: string | null) {
+/**
+ * `thresholdsFor` da los umbrales de cada zona (T5.1 #44). Sin él se usa el
+ * perfil por defecto del cultivo de la zona.
+ */
+export function useTelemetry(greenhouseId: string | null, thresholdsFor?: ThresholdsResolver) {
   const [readingsSnap, setReadingsSnap] = useState<Snapshot<TelemetryReading[]> | null>(null);
   const [stateSnap, setStateSnap] = useState<Snapshot<Record<string, ParsedZone>> | null>(null);
   const [fallbackSnap, setFallbackSnap] = useState<Snapshot<Record<string, ParsedZone>> | null>(null);
@@ -120,9 +125,9 @@ export function useTelemetry(greenhouseId: string | null) {
   const zonesById = useMemo(() => {
     const merged = { ...(fallbackZones ?? {}), ...(stateZones ?? {}) };
     const out: Record<string, ZoneLatestState> = {};
-    for (const [id, zone] of Object.entries(merged)) out[id] = withFreshness(zone, now);
+    for (const [id, zone] of Object.entries(merged)) out[id] = withFreshness(zone, now, thresholdsFor?.(zone));
     return out;
-  }, [fallbackZones, stateZones, now]);
+  }, [fallbackZones, stateZones, now, thresholdsFor]);
 
   const activeReadings = readings ?? [];
   // Auditoría A5: un error no debe verse como "todavía no llegan lecturas".

@@ -9,6 +9,7 @@ import {
   parseZone,
   withFreshness,
 } from '../src/lib/zoneFreshness.ts';
+import { CROP_PROFILES } from '../src/lib/cropProfiles.ts';
 
 const NOW = Date.parse('2026-11-17T12:00:00Z');
 const minutesAgo = (m: number) => new Date(NOW - m * 60_000);
@@ -99,6 +100,27 @@ describe('variables faltantes (sin valores inventados)', () => {
 
   it('un número suelto (documento de readings) se evalúa con la tabla local', () => {
     assert.equal(parseVariable(4.2, 'ph').status, 'red');
+  });
+
+  it('sin level, usa el perfil del cultivo de la zona (T5.1 #44)', () => {
+    // EC 1.0 es ideal para lechuga y crítico para jitomate.
+    const lechuga = withFreshness(parseZone('zona-1', { timestamp: minutesAgo(1), crop: 'lechuga', ec: 1.0 }), NOW);
+    assert.equal(lechuga.ec.status, 'green');
+    const jitomate = withFreshness(parseZone('zona-2', { timestamp: minutesAgo(1), crop: 'jitomate', ec: 1.0 }), NOW);
+    assert.equal(jitomate.ec.status, 'red');
+  });
+
+  it('sin level, usa los umbrales que guardó el admin (T5.1 #44)', () => {
+    const custom = { ...CROP_PROFILES.jitomate, ph: { redMin: 4.0, yellowMin: 4.5, yellowMax: 7.5, redMax: 8.0 } };
+    const parsed = parseZone('zona-1', { timestamp: minutesAgo(1), crop: 'jitomate', ph: 6.8 });
+    assert.equal(withFreshness(parsed, NOW).ph.status, 'yellow');
+    assert.equal(withFreshness(parsed, NOW, custom).ph.status, 'green');
+  });
+
+  it('el level del backend manda aunque haya umbrales personalizados', () => {
+    const custom = { ...CROP_PROFILES.jitomate, ph: { redMin: 4.0, yellowMin: 4.5, yellowMax: 7.5, redMax: 8.0 } };
+    const parsed = parseZone('zona-1', { timestamp: minutesAgo(1), ph: { value: 7.2, level: 'critical' } });
+    assert.equal(withFreshness(parsed, NOW, custom).ph.status, 'red');
   });
 
   it('una zona sin ninguna variable queda en gris aunque sea reciente', () => {

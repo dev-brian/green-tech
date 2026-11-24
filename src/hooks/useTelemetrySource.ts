@@ -1,4 +1,4 @@
-import { useTelemetry } from './useTelemetry';
+import { useTelemetry, type ThresholdsResolver } from './useTelemetry';
 
 /**
  * T11.4 (#29) & T6.2 (#49):
@@ -9,6 +9,6 @@ import { useTelemetry } from './useTelemetry';
  */
 export const USE_LOCAL_DEMO_DATA = false;
 
-export function useTelemetrySource(greenhouseId: string | null) {
-  return useTelemetry(USE_LOCAL_DEMO_DATA ? null : greenhouseId);
+export function useTelemetrySource(greenhouseId: string | null, thresholdsFor?: ThresholdsResolver) {
+  return useTelemetry(USE_LOCAL_DEMO_DATA ? null : greenhouseId, thresholdsFor);
 }

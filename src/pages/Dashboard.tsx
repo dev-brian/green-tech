@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -184,18 +184,21 @@ function EmptyState() {
 export default function Dashboard() {
   const { activeWorkspace, user } = useAuth();
   const greenhouseId = activeWorkspace?.id ?? null;
-  const { zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId);
   // Cada zona se pinta con los umbrales de su cultivo (jitomate o lechuga).
   const { forCrop } = useThresholdsByCrop(greenhouseId);
-  const { alerts, attend, attendState } = useAlerts(greenhouseId);
   // Nombre y cultivo que el admin registró para cada zona (T4.2 #65).
   const { zonesById: registeredZones } = useZones(greenhouseId);
+  const thresholdsOf = useCallback(
+    (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => forCrop(registeredZones[zone.zoneId]?.crop ?? zone.crop),
+    [forCrop, registeredZones],
+  );
+  // Las lecturas sin `level` del backend se colorean con esos mismos umbrales (T5.1 #44).
+  const { zonesById, loading, error: telemetryError } = useTelemetrySource(greenhouseId, thresholdsOf);
+  const { alerts, attend, attendState } = useAlerts(greenhouseId);
   const zoneName = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) => ({
     name: zoneDisplayName(zone.zoneId, registeredZones),
     crop: cropLabel(registeredZones[zone.zoneId]?.crop ?? zone.crop),
   });
-  const thresholdsOf = (zone: Pick<ZoneLatestState, 'zoneId' | 'crop'>) =>
-    forCrop(registeredZones[zone.zoneId]?.crop ?? zone.crop);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const readingsRef = useRef<HTMLElement>(null);
 

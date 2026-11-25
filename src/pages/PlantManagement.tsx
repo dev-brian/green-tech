@@ -112,7 +112,7 @@ function PlantCard({
           textTransform: 'uppercase',
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--bg)', opacity: 0.8, animation: 'led-pulse 1.5s ease-in-out infinite' }} />
-          Cultivo Actual
+          Cultivo actual
         </div>
       )}
 
@@ -200,7 +200,7 @@ function PlantCard({
           className="btn-secondary"
           style={{ width: '100%', minHeight: 48, fontSize: '0.8125rem' }}
         >
-          Establecer como Cultivo
+          Usar como cultivo actual
         </button>
       )}
     </div>
@@ -299,7 +299,7 @@ function PlantModal({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
-                {editingPlant ? 'Editar Cultivo' : 'Nuevo Cultivo'}
+                {editingPlant ? 'Editar cultivo' : 'Nuevo cultivo'}
               </h3>
               <p className="metric-timestamp" style={{ marginTop: 2 }}>
                 Parámetros del perfil de planta
@@ -508,7 +508,7 @@ function PlantModal({
                   <span style={{ width: 16, height: 16, border: '2px solid var(--text-disabled)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
                   Guardando...
                 </span>
-              ) : 'Guardar Cultivo'}
+              ) : 'Guardar cultivo'}
             </button>
           </div>
         </div>
@@ -536,7 +536,7 @@ export default function PlantManagement() {
   const loadPlants = async () => {
     if (!activeWorkspace) return;
     try { setLoading(true); setErrorMsg(null); setPlants(await plantsService.getPlants(activeWorkspace.id)); }
-    catch (e) { setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); }
+    catch (e) { setErrorMsg('No se pudieron cargar los cultivos: ' + ((e as Error).message || 'Error desconocido')); }
     finally { setLoading(false); }
   };
 
@@ -552,7 +552,7 @@ export default function PlantManagement() {
     let ignore = false;
     plantsService.getPlants(activeWorkspace.id)
       .then((list) => { if (!ignore) { setPlants(list); setErrorMsg(null); } })
-      .catch((e) => { if (!ignore) setErrorMsg('No se pudieron cargar las plantas: ' + ((e as Error).message || 'Error desconocido')); })
+      .catch((e) => { if (!ignore) setErrorMsg('No se pudieron cargar los cultivos: ' + ((e as Error).message || 'Error desconocido')); })
       .finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
   }, [isAdmin, activeWorkspace]);
@@ -661,7 +661,7 @@ export default function PlantManagement() {
           display: 'inline-flex', alignItems: 'center', gap: 'var(--space-xs)',
           textDecoration: 'none', minWidth: 200,
         }}>
-          Volver al Dashboard
+          Volver al inicio
         </Link>
       </div>
     );
@@ -681,10 +681,10 @@ export default function PlantManagement() {
         }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)', letterSpacing: '-0.02em' }}>
-              Catálogo de Cultivos
+              Cultivos
             </h1>
             <p style={{ margin: 0, marginTop: 'var(--space-xs)', fontSize: '0.875rem' }}>
-              Perfiles y parámetros de las plantas del invernadero.
+              Perfiles y rangos ideales de lo que se siembra en el invernadero.
             </p>
           </div>
           <button
@@ -694,7 +694,7 @@ export default function PlantManagement() {
             style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', minWidth: 160 }}
           >
             <Plus size={18} strokeWidth={1.5} />
-            Registrar Cultivo
+            Agregar cultivo
           </button>
         </div>
 

@@ -196,13 +196,25 @@ function AlertItem({
   );
 }
 
+/** Punto de color del semáforo (en lugar de emojis, que cambian según el sistema). */
+function StatusDot({ color, label }: { color: string; label?: string }) {
+  return (
+    <span
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginRight: 6, verticalAlign: 'middle', flexShrink: 0 }}
+    />
+  );
+}
+
 // ─── Componente: filtros activos ──────────────────────────────────────────────
 
 const FILTER_OPTIONS = {
   severity: [
     { value: undefined,  label: 'Toda severidad' },
-    { value: 'red',      label: '🔴 Crítico' },
-    { value: 'yellow',   label: '🟡 Precaución' },
+    { value: 'red',      label: 'Crítico',    dot: 'var(--status-crit)' },
+    { value: 'yellow',   label: 'Precaución', dot: 'var(--status-warn)' },
   ],
   status: [
     { value: undefined,        label: 'Todo estado' },
@@ -251,6 +263,7 @@ function FilterBar({
             transition: 'background 0.15s ease, color 0.15s ease',
           }}
         >
+          {'dot' in opt && <StatusDot color={opt.dot} />}
           {opt.label}
         </button>
       ))}
@@ -388,10 +401,10 @@ function ThresholdBlock({
   const [open, setOpen] = useState(varKey === 'airTemp' || varKey === 'ph' || !!error);
 
   const sliders: { field: string; label: string; color: string; description: string }[] = [
-    { field: 'redMin',    label: 'Crítico mínimo',   color: 'var(--status-red)',    description: `Por debajo → 🔴 Rojo` },
-    { field: 'yellowMin', label: 'Precaución mínimo', color: 'var(--status-yellow)', description: `Por debajo → 🟡 Amarillo` },
-    { field: 'yellowMax', label: 'Precaución máximo', color: 'var(--status-yellow)', description: `Por arriba → 🟡 Amarillo` },
-    { field: 'redMax',    label: 'Crítico máximo',   color: 'var(--status-red)',    description: `Por arriba → 🔴 Rojo` },
+    { field: 'redMin',    label: 'Crítico mínimo',   color: 'var(--status-red)',    description: 'Por debajo pasa a rojo' },
+    { field: 'yellowMin', label: 'Precaución mínimo', color: 'var(--status-yellow)', description: 'Por debajo pasa a amarillo' },
+    { field: 'yellowMax', label: 'Precaución máximo', color: 'var(--status-yellow)', description: 'Por arriba pasa a amarillo' },
+    { field: 'redMax',    label: 'Crítico máximo',   color: 'var(--status-red)',    description: 'Por arriba pasa a rojo' },
   ];
 
   return (
@@ -416,7 +429,7 @@ function ThresholdBlock({
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
-            🟢 {values.yellowMin}–{values.yellowMax}{unit} · 🔴 &lt;{values.redMin} o &gt;{values.redMax}{unit}
+            <StatusDot color="var(--status-ok)" label="Bien" />{values.yellowMin}–{values.yellowMax}{unit} · <StatusDot color="var(--status-crit)" label="Crítico" />&lt;{values.redMin} o &gt;{values.redMax}{unit}
           </span>
           {open ? <ChevronUp size={14} strokeWidth={1.5} color="var(--text-disabled)" /> : <ChevronDown size={14} strokeWidth={1.5} color="var(--text-disabled)" />}
         </div>
@@ -617,7 +630,7 @@ function ThresholdsSection({ greenhouseId, canEdit }: { greenhouseId: string; ca
                   transition: 'background 0.15s ease, color 0.15s ease',
                 }}
               >
-                {option === 'jitomate' ? '🍅 Jitomate' : '🥬 Lechuga'}
+                {option === 'jitomate' ? 'Jitomate' : 'Lechuga'}
               </button>
             );
           })}

@@ -112,7 +112,7 @@ export default function ControlPanel() {
           <p>Aparecerán en cuanto los sensores (o el simulador) manden la primera lectura.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-sm)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 'var(--space-sm)' }}>
           {current.zones.map((zone) => {
             const stale = isStaleAt(zone.updatedAt, now);
             const crop = cropLabel(zonesById[zone.zoneId]?.crop);

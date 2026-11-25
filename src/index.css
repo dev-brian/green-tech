@@ -477,7 +477,8 @@ p {
 .grid-cards,
 .grid-charts {
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, …): una tarjeta con contenido ancho no estira la columna en 320 px */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
 }
 
@@ -491,7 +492,7 @@ p {
 @media (min-width: 1024px) {
   .container { padding: 0 var(--space-lg); }
   .dashboard-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-lg); }
-  .grid-cards { grid-template-columns: repeat(2, 1fr); }
+  .grid-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (min-width: 560px) {
@@ -773,4 +774,6 @@ input[type=range]::-moz-range-thumb {
 /* T3.2 (#72): nombre del invernadero en la barra; más corto en celular. */
 .ws-name { max-width: 120px; }
 @media (max-width: 639px) { .ws-name { max-width: 96px; } }
+/* 320 px (iPhone SE): la barra medía 347 px; el nombre se recorta antes. */
+@media (max-width: 359px) { .ws-name { max-width: 56px; } }
 @media (max-width: 479px) { .gh-callout { display: none !important; } }

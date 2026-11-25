@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Thermometer, Droplets, Sprout, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts, type FirestoreAlert } from '../hooks/useAlerts';
+import { useZones } from '../hooks/useZones';
+import { zoneDisplayName } from '../lib/zones';
 
 function iconFor(variable: string, color: string) {
   const props = { size: 20, strokeWidth: 1.5, color };
@@ -56,10 +58,13 @@ const iconButtonStyle: React.CSSProperties = {
 
 function AlertBanner({
   alert,
+  zoneName,
   onClose,
   onAttend,
 }: {
   alert: FirestoreAlert;
+  /** Nombre que el admin le puso a la zona (T3.3 #73: "zona-2" no le decía nada a los usuarios). */
+  zoneName: string;
   onClose: (alert: FirestoreAlert) => void;
   onAttend: (alert: FirestoreAlert) => void;
 }) {
@@ -82,7 +87,7 @@ function AlertBanner({
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, marginBottom: 4, fontWeight: 700, fontSize: '0.9rem', color }}>
-          {alert.sector} — {alert.message}
+          {zoneName} — {alert.message}
         </p>
         <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
           Valor actual: <strong style={{ color }}>{alert.value}</strong>. Ver historial en la sección de Alertas.
@@ -122,6 +127,7 @@ function AlertBanner({
 export default function AlertSystem() {
   const { activeWorkspace } = useAuth();
   const { alerts, markAttended } = useAlerts(activeWorkspace?.id ?? null);
+  const { zonesById } = useZones(activeWorkspace?.id ?? null);
   const [dismissed, setDismissed] = useState<Set<string>>(readDismissed);
 
   const close = useCallback((alert: FirestoreAlert) => {
@@ -159,7 +165,7 @@ export default function AlertSystem() {
   return (
     <div className="alert-container">
       {banners.map((alert) => (
-        <AlertBanner key={alert.id} alert={alert} onClose={close} onAttend={attend} />
+        <AlertBanner key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onClose={close} onAttend={attend} />
       ))}
       {more > 0 && (
         <Link to="/alerts" className="alert-more">

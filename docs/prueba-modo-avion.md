@@ -2,8 +2,8 @@
 
 > **Historia:** [HU-10 Funciona sin internet](https://github.com/dev-brian/green-tech/issues/58)
 > **Tarea:** [#62 T10.4 Prueba en modo avión en 3 dispositivos, documentada](https://github.com/dev-brian/green-tech/issues/62)
-> **Responsable:** Gael · **Estado:** 🟡 Protocolo listo y verificación local ejecutada;
-> la matriz de resultados se completa cuando T10.1–T10.3 estén en la versión publicada.
+> **Responsable:** Gael · **Estado:** 🟢 C1, C2 y C3 comprobados el 2026-11-24 en Android (emulado) y
+> escritorio con la build de producción (§5 y §8). Falta la corrida en iPhone/Safari real (D2).
 
 ## 1. Objetivo
 
@@ -15,11 +15,11 @@ ya vistas y que los cambios hechos sin red quedan **pendientes de enviar** hasta
 
 | # | Criterio | Tarea que lo habilita | Estado |
 | --- | --- | --- | --- |
-| C1 | Dado que la PWA ya se abrió antes, cuando abro en modo avión, entonces veo el último estado y un aviso **"Sin conexión · datos de las HH:MM"**. | T10.2 (aviso + hora del dato) sobre T10.1 (caché) | ⏳ pendiente |
-| C2 | Dado que estoy sin red, cuando cambio un umbral o atiendo una alerta, entonces queda marcado como **pendiente** y se envía solo al volver la red. | T10.3 (marcar pendientes) | ⏳ pendiente |
-| C3 | Las alertas que ya había visto siguen **visibles sin red**. | T10.1 (`persistentLocalCache` de Firestore) | ⏳ pendiente |
+| C1 | Dado que la PWA ya se abrió antes, cuando abro en modo avión, entonces veo el último estado y un aviso **"Sin conexión · datos de las HH:MM"**. | T10.2 (aviso + hora del dato) sobre T10.1 (caché) | ✅ 2026-11-24 |
+| C2 | Dado que estoy sin red, cuando cambio un umbral o atiendo una alerta, entonces queda marcado como **pendiente** y se envía solo al volver la red. | T10.3 (marcar pendientes) | ✅ 2026-11-24 |
+| C3 | Las alertas que ya había visto siguen **visibles sin red**. | T10.1 (`persistentLocalCache` de Firestore) | ✅ 2026-11-24 |
 
-### Dependencias (al momento de escribir este documento)
+### Dependencias (al escribir el protocolo, 2026-11-15; ya están todas en `main`: #99, #132)
 
 - **T10.1** caché persistente de Firestore → PR [#99](https://github.com/dev-brian/green-tech/pull/99) (Brian), abierto.
 - **T10.2** aviso de conexión y hora del dato → Alexa, sin PR.
@@ -77,16 +77,17 @@ documento queda como **protocolo ejecutable**: solo hay que repetir los pasos y 
 
 | Dispositivo | Versión (commit / fecha) | C1: abre sin red + aviso | C3: alertas visibles | C2: cambios pendientes y autoenvío | Notas |
 | --- | --- | --- | --- | --- | --- |
-| D1 · Android / Chrome | ⏳ | ⏳ | ⏳ | ⏳ | |
-| D2 · iPhone / Safari | ⏳ | ⏳ | ⏳ | ⏳ | |
-| D3 · Escritorio / Chrome-Edge | ⏳ | ⏳ | ⏳ | ⏳ | |
+| D1 · Android / Chrome (Pixel 7 emulado en Chromium) | `develop` 31b1aa3 · 2026-11-24 | ✅ abre desde el SW con "Sin conexión · datos de las 20:16" ([captura](evidencias/modo-avion/android-p3-c1.png)) | ✅ las 6 alertas vistas en P2 siguen en la lista ([captura](evidencias/modo-avion/android-p4-c3.png)) | ✅ "2 cambios pendientes de enviar", alerta con "Pendiente de enviar" aun tras recargar sin red ([captura](evidencias/modo-avion/android-p5-c2.png)); al volver la red llegaron solos al servidor ([captura](evidencias/modo-avion/android-p6-c2.png)) | Automatizado, §8 |
+| D2 · iPhone / Safari | — | ⏳ | ⏳ | ⏳ | Requiere un iPhone real: el contenedor de pruebas no tiene WebKit. |
+| D3 · Escritorio / Chrome (1366×860) | `develop` 31b1aa3 · 2026-11-24 | ✅ ([captura](evidencias/modo-avion/escritorio-p3-c1.png)) | ✅ ([captura](evidencias/modo-avion/escritorio-p4-c3.png)) | ✅ ([captura](evidencias/modo-avion/escritorio-p5-c2.png), [al volver](evidencias/modo-avion/escritorio-p6-c2.png)) | Automatizado, §8 |
 
 **Registro de la corrida**
 
 | Fecha | Quién | Dispositivos | Resultado |
 | --- | --- | --- | --- |
 | 2026-11-15 | Gael | PC (escritorio, verificación local §6) | ✅ base técnica verificada · C1–C3 pendientes de T10.1–T10.3 |
-| | | Android / iPhone | pendiente |
+| 2026-11-24 | Brian (con Claude Code) | D1 Android emulado, D3 escritorio | ✅ P1–P7 completos, C1–C3 cumplen (detalle en §8) |
+| | | D2 iPhone / Safari real | pendiente |
 
 ## 6. Verificación local ya ejecutada (2026-11-15, rama del PR)
 
@@ -109,10 +110,31 @@ Comprueba la **base técnica** de C1 (que la app pueda abrir sin red) con la ver
 
 - [x] Protocolo de prueba documentado para 3 dispositivos (Android, iPhone, escritorio).
 - [x] Verificación local de la base técnica (precache del shell + servicio en la ruta de Pages).
-- [ ] C1 — último estado + aviso "Sin conexión · datos de las HH:MM" en los 3 dispositivos.
-- [ ] C2 — cambios sin red marcados como pendientes y enviados al volver.
-- [ ] C3 — alertas ya vistas visibles sin red.
-- [ ] Matriz (§5) completa con capturas en `docs/evidencias/modo-avion/`.
+- [x] C1 — último estado + aviso "Sin conexión · datos de las HH:MM" (Android y escritorio; iPhone pendiente).
+- [x] C2 — cambios sin red marcados como pendientes y enviados al volver.
+- [x] C3 — alertas ya vistas visibles sin red.
+- [x] Matriz (§5) con capturas en `docs/evidencias/modo-avion/` (falta la fila D2 iPhone).
 
-> Los tres últimos puntos se ejecutan cuando **T10.1 (#99), T10.2 y T10.3** estén en la versión
-> publicada; este documento es el procedimiento que se repetirá tal cual.
+
+
+## 8. Corrida automatizada del 2026-11-24
+
+Se ejecutaron P1–P7 tal cual con Playwright (Chromium) sobre la **build de producción**
+(`pnpm build && pnpm preview`, ruta `/green-tech/`, service worker activo y controlando la página),
+conectada a los emuladores de Firebase (Auth + Firestore, proyecto `demo-greentech`) con un
+invernadero de prueba: 3 zonas, lecturas recientes, una zona en crítico y alertas sin atender.
+El "modo avión" es `context.setOffline(true)`: corta **toda** la red de la página, incluido el
+emulador, igual que el modo avión del teléfono.
+
+| Paso | Android (Pixel 7) | Escritorio |
+| --- | --- | --- |
+| P1 Dashboard con red; SW controla la página | ✅ | ✅ |
+| P2 Alertas sin atender | 6 | 5 |
+| P3 Recarga sin red: abre, aviso y último estado | ✅ "Sin conexión · datos de las 20:16", Zona 2 Jitomate en crítico | ✅ igual |
+| P4 Alertas visibles sin red | ✅ las 6 | ✅ las 5 |
+| P5 Atender alerta + bajar un umbral sin red | ✅ "2 cambios pendientes de enviar"; la alerta dice "Pendiente de enviar" y sigue así tras recargar | ✅ igual |
+| P6 Vuelve la red (15 s) | ✅ el servidor pasó de 6 a 7 alertas atendidas y guardó `thresholdsByCrop.jitomate` (12 → 11); el aviso de pendientes desaparece | ✅ 7 → 8; umbral 11 → 10 |
+
+La comprobación de P6 se hizo leyendo Firestore con `firebase-admin` (el "otro dispositivo").
+Lo único que no cubre es **Safari en iPhone (D2)**: hay que correr P1–P7 a mano en un iPhone
+real y llenar su fila.

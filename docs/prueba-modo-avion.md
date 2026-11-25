@@ -2,8 +2,9 @@
 
 > **Historia:** [HU-10 Funciona sin internet](https://github.com/dev-brian/green-tech/issues/58)
 > **Tarea:** [#62 T10.4 Prueba en modo avión en 3 dispositivos, documentada](https://github.com/dev-brian/green-tech/issues/62)
-> **Responsable:** Gael · **Estado:** 🟢 C1, C2 y C3 comprobados el 2026-11-24 en Android (emulado) y
-> escritorio con la build de producción (§5 y §8). Falta la corrida en iPhone/Safari real (D2).
+> **Responsable:** Gael · **Estado:** ✅ C1, C2 y C3 comprobados el 2026-11-24 en Android (emulado) y
+> escritorio con la build de producción (§5 y §8). C1 y C3 confirmados el 2026-11-25 en un Android
+> real con la PWA publicada (§9). iPhone/Safari (D2) queda fuera de alcance: el equipo no tiene iPhone.
 
 ## 1. Objetivo
 
@@ -78,7 +79,8 @@ documento queda como **protocolo ejecutable**: solo hay que repetir los pasos y 
 | Dispositivo | Versión (commit / fecha) | C1: abre sin red + aviso | C3: alertas visibles | C2: cambios pendientes y autoenvío | Notas |
 | --- | --- | --- | --- | --- | --- |
 | D1 · Android / Chrome (Pixel 7 emulado en Chromium) | `develop` 31b1aa3 · 2026-11-24 | ✅ abre desde el SW con "Sin conexión · datos de las 20:16" ([captura](evidencias/modo-avion/android-p3-c1.png)) | ✅ las 6 alertas vistas en P2 siguen en la lista ([captura](evidencias/modo-avion/android-p4-c3.png)) | ✅ "2 cambios pendientes de enviar", alerta con "Pendiente de enviar" aun tras recargar sin red ([captura](evidencias/modo-avion/android-p5-c2.png)); al volver la red llegaron solos al servidor ([captura](evidencias/modo-avion/android-p6-c2.png)) | Automatizado, §8 |
-| D2 · iPhone / Safari | — | ⏳ | ⏳ | ⏳ | Requiere un iPhone real: el contenedor de pruebas no tiene WebKit. |
+| D1 · Android real (OPPO, ColorOS) · PWA instalada | `main` v1.0.0 publicada · 2026-11-25 | ✅ "Sin conexión · datos de las 05:38" ([captura](evidencias/modo-avion/android-real-p3-c1.jpg)) | ✅ el historial de alertas sigue visible ([captura](evidencias/modo-avion/android-real-p4-c3.jpg)) | — no se repitió en real; cubierto por la corrida automatizada (§8) | Manual, §9 |
+| D2 · iPhone / Safari | — | — | — | — | Fuera de alcance: el equipo no tiene iPhone. Queda como riesgo conocido. |
 | D3 · Escritorio / Chrome (1366×860) | `develop` 31b1aa3 · 2026-11-24 | ✅ ([captura](evidencias/modo-avion/escritorio-p3-c1.png)) | ✅ ([captura](evidencias/modo-avion/escritorio-p4-c3.png)) | ✅ ([captura](evidencias/modo-avion/escritorio-p5-c2.png), [al volver](evidencias/modo-avion/escritorio-p6-c2.png)) | Automatizado, §8 |
 
 **Registro de la corrida**
@@ -87,7 +89,8 @@ documento queda como **protocolo ejecutable**: solo hay que repetir los pasos y 
 | --- | --- | --- | --- |
 | 2026-11-15 | Gael | PC (escritorio, verificación local §6) | ✅ base técnica verificada · C1–C3 pendientes de T10.1–T10.3 |
 | 2026-11-24 | Brian (con Claude Code) | D1 Android emulado, D3 escritorio | ✅ P1–P7 completos, C1–C3 cumplen (detalle en §8) |
-| | | D2 iPhone / Safari real | pendiente |
+| 2026-11-25 | Rodrigo | D1 Android real (PWA instalada, `main` v1.0.0) | ✅ P1, P3 y P4: C1 y C3 cumplen (detalle en §9) |
+| — | — | D2 iPhone / Safari real | Fuera de alcance: el equipo no tiene iPhone |
 
 ## 6. Verificación local ya ejecutada (2026-11-15, rama del PR)
 
@@ -110,10 +113,10 @@ Comprueba la **base técnica** de C1 (que la app pueda abrir sin red) con la ver
 
 - [x] Protocolo de prueba documentado para 3 dispositivos (Android, iPhone, escritorio).
 - [x] Verificación local de la base técnica (precache del shell + servicio en la ruta de Pages).
-- [x] C1 — último estado + aviso "Sin conexión · datos de las HH:MM" (Android y escritorio; iPhone pendiente).
+- [x] C1 — último estado + aviso "Sin conexión · datos de las HH:MM" (Android emulado y real, y escritorio; iPhone fuera de alcance).
 - [x] C2 — cambios sin red marcados como pendientes y enviados al volver.
 - [x] C3 — alertas ya vistas visibles sin red.
-- [x] Matriz (§5) con capturas en `docs/evidencias/modo-avion/` (falta la fila D2 iPhone).
+- [x] Matriz (§5) con capturas en `docs/evidencias/modo-avion/` (D2 iPhone fuera de alcance).
 
 
 
@@ -138,3 +141,18 @@ emulador, igual que el modo avión del teléfono.
 La comprobación de P6 se hizo leyendo Firestore con `firebase-admin` (el "otro dispositivo").
 Lo único que no cubre es **Safari en iPhone (D2)**: hay que correr P1–P7 a mano en un iPhone
 real y llenar su fila.
+
+## 9. Corrida en Android real del 2026-11-25
+
+Se repitieron P1, P3 y P4 a mano en un teléfono Android real (OPPO con ColorOS), con la PWA
+instalada desde Chrome y la versión publicada en `https://dev-brian.github.io/green-tech/`
+(`main`, v1.0.0), sesión de admin en el invernadero MiloRata.
+
+| Paso | Resultado | Evidencia |
+| --- | --- | --- |
+| P1 Con red | El tablero carga y muestra la última lectura de las 05:38. Ese día el motor programado no había publicado lecturas nuevas, por eso las 3 zonas salen "Sin datos" (T3.1 funcionando). | [captura](evidencias/modo-avion/android-real-p1.jpg) |
+| P3 Modo avión y volver a abrir | ✅ La app abre sin red y muestra el aviso **"Sin conexión · datos de las 05:38"** con el último estado. | [captura](evidencias/modo-avion/android-real-p3-c1.jpg) |
+| P4 Alertas sin red | ✅ El historial de alertas y sus filtros siguen visibles. | [captura](evidencias/modo-avion/android-real-p4-c3.jpg) |
+
+C2 (cambios pendientes y envío al volver la red) no se repitió en el teléfono; está comprobado
+en la corrida automatizada de §8 en Android emulado y escritorio.

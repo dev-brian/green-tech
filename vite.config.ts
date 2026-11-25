@@ -44,5 +44,6 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ],
-  base: mode === 'production' ? PAGES_BASE : '/',
+  // El build de pruebas e2e (modo e2e) se sirve igual que producción.
+  base: mode === 'production' || mode === 'e2e' ? PAGES_BASE : '/',
 }))

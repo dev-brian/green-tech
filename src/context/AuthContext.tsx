@@ -451,12 +451,17 @@ async function rotateInviteCode(workspaceId: string, oldCode: string): Promise<s
   return newCode;
 }
 
+const INVITE_CODE_LENGTH = 8;
+
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const randomValues = new Uint8Array(5);
+  // 8 caracteres de 32 (≈ 1.1 billones de códigos): las reglas rechazan los
+  // más cortos porque se podían adivinar probando (reauditoría R4).
+  // 256 es múltiplo de 32, así que `% 32` no sesga ningún carácter.
+  const randomValues = new Uint8Array(INVITE_CODE_LENGTH);
   crypto.getRandomValues(randomValues);
   let code = 'GT-';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < INVITE_CODE_LENGTH; i++) {
     code += chars[randomValues[i] % chars.length];
   }
   return code;

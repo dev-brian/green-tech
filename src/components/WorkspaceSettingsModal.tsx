@@ -411,7 +411,13 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
           borderTop: '1px solid var(--line)',
           flexShrink: 0,
         }}>
-          {/* Abandonar invernadero */}
+          {/* Abandonar invernadero. Un admin no puede salir: el invernadero se
+              quedaría sin quien lo gestione, y las reglas lo rechazan (reauditoría R1). */}
+          {isAdmin ? (
+            <p className="metric-timestamp" style={{ margin: 0, flex: '1 1 220px' }}>
+              Como administrador no puedes abandonar este invernadero: se quedaría sin quien lo gestione.
+            </p>
+          ) : (
           <button
             onClick={handleLeaveWorkspace}
             className="nm-flat btn-nm-danger"
@@ -431,6 +437,7 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
             <LogOut size={16} strokeWidth={1.5} />
             Abandonar Invernadero
           </button>
+          )}
 
           {/* Cerrar */}
           <button

@@ -28,7 +28,7 @@ import {
 
 const PROJECT_ID = 'demo-green-tech-rules';
 const GREENHOUSE_ID = 'gh-1';
-const VALID_CODE = 'GT-ABCD2';
+const VALID_CODE = 'GT-ABCD2345';
 
 let testEnv;
 
@@ -112,10 +112,10 @@ beforeEach(async () => {
     });
     await setDoc(doc(adminDb, 'greenhouse_invites', VALID_CODE), { greenhouseId: GREENHOUSE_ID });
     // Invernadero con un solo miembro que NO es admin (caso B de la auditoría)
-    await setDoc(doc(adminDb, 'greenhouses', 'gh-solo'), { name: 'Solo', inviteCode: 'GT-ZZZZ9', memberIds: ['uid-solo'] });
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-solo'), { name: 'Solo', inviteCode: 'GT-ZZZZ9999', memberIds: ['uid-solo'] });
     await setDoc(doc(adminDb, 'greenhouses', 'gh-solo', 'members', 'uid-solo'), { role: 'operador' });
     // Otro invernadero con su propio admin (caso C)
-    await setDoc(doc(adminDb, 'greenhouses', 'gh-otro'), { name: 'Otro', inviteCode: 'GT-OTRO1', memberIds: ['uid-admin-otro'] });
+    await setDoc(doc(adminDb, 'greenhouses', 'gh-otro'), { name: 'Otro', inviteCode: 'GT-OTRO1234', memberIds: ['uid-admin-otro'] });
     await setDoc(doc(adminDb, 'greenhouses', 'gh-otro', 'members', 'uid-admin-otro'), { role: 'admin' });
     await setDoc(doc(adminDb, 'users', 'uid-operador', 'fcmTokens', 'tok-1'), {
       token: 'fcm-token-operador',
@@ -263,7 +263,7 @@ describe('Firebase Emulator — Reglas de Firestore (HU-11 y Seguridad Backend)'
       updateDoc(doc(operatorDb, 'greenhouses', GREENHOUSE_ID, 'alerts', 'alert-sub-1'), {
         status: 'attended',
         attendedBy: 'uid-operador',
-        attendedAt: '2026-11-08T12:00:00.000Z',
+        attendedAt: serverTimestamp(), // la hora la pone el servidor (reauditoría R3)
       }),
     );
   });
@@ -330,8 +330,8 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
     kick.delete(member(adminDb, 'uid-operador'));
     await assertSucceeds(kick.commit());
     const rotate = writeBatch(adminDb);
-    rotate.update(gh(adminDb), { inviteCode: 'GT-NUEVO7', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z' });
-    rotate.set(doc(adminDb, 'greenhouse_invites', 'GT-NUEVO7'), { greenhouseId: GREENHOUSE_ID, createdAt: '2026-11-17T00:00:00.000Z' });
+    rotate.update(gh(adminDb), { inviteCode: 'GT-NUEVO789', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z' });
+    rotate.set(doc(adminDb, 'greenhouse_invites', 'GT-NUEVO789'), { greenhouseId: GREENHOUSE_ID, createdAt: '2026-11-17T00:00:00.000Z' });
     rotate.delete(doc(adminDb, 'greenhouse_invites', VALID_CODE));
     await assertSucceeds(rotate.commit());
 
@@ -424,10 +424,10 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
     const db = testEnv.authenticatedContext('uid-creador').firestore();
     const batch = writeBatch(db);
     batch.set(gh(db, 'gh-nuevo'), {
-      name: 'Nuevo', inviteCode: 'GT-NEW22', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z', memberIds: ['uid-creador'], createdAt: '2026-11-17T00:00:00.000Z',
+      name: 'Nuevo', inviteCode: 'GT-NEW22222', inviteCodeCreatedAt: '2026-11-17T00:00:00.000Z', memberIds: ['uid-creador'], createdAt: '2026-11-17T00:00:00.000Z',
     });
     batch.set(member(db, 'uid-creador', 'gh-nuevo'), { role: 'admin', email: 'c@x.mx', name: 'C', joinedAt: '2026-11-17T00:00:00.000Z' });
-    batch.set(doc(db, 'greenhouse_invites', 'GT-NEW22'), { greenhouseId: 'gh-nuevo', createdAt: '2026-11-17T00:00:00.000Z' });
+    batch.set(doc(db, 'greenhouse_invites', 'GT-NEW22222'), { greenhouseId: 'gh-nuevo', createdAt: '2026-11-17T00:00:00.000Z' });
     await assertSucceeds(batch.commit());
   });
 
@@ -436,7 +436,7 @@ describe('Auditoría C1 — unión, roles, invitaciones y umbrales', () => {
     await assertFails(setDoc(doc(db, 'greenhouse_invites', VALID_CODE), { greenhouseId: 'gh-otro' }));
     await assertFails(deleteDoc(doc(db, 'greenhouse_invites', VALID_CODE)));
     // Tampoco crear un código que no es el vigente de su invernadero
-    await assertFails(setDoc(doc(db, 'greenhouse_invites', 'GT-LIBRE1'), { greenhouseId: 'gh-otro' }));
+    await assertFails(setDoc(doc(db, 'greenhouse_invites', 'GT-LIBRE123'), { greenhouseId: 'gh-otro' }));
     // Ni el admin dueño puede redirigir su código a otro invernadero
     const adminDb = testEnv.authenticatedContext('uid-admin').firestore();
     await assertFails(setDoc(doc(adminDb, 'greenhouse_invites', VALID_CODE), { greenhouseId: 'gh-otro' }));

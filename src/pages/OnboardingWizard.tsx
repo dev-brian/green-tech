@@ -329,8 +329,8 @@ export default function OnboardingWizard() {
                     type="text"
                     value={code}
                     onChange={e => setCode(e.target.value.toUpperCase())}
-                    placeholder="GT-8X9B2"
-                    maxLength={10}
+                    placeholder="GT-8X9B2K4M"
+                    maxLength={14}
                     className="nm-concave"
                     style={{
                       width: '100%',

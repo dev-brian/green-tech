@@ -189,7 +189,7 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     assert.equal(snap.size, 1);
     greenhouseId = snap.docs[0].id;
     inviteCode = snap.docs[0].data().inviteCode;
-    assert.match(inviteCode, /^GT-[A-Z2-9]{5}$/);
+    assert.match(inviteCode, /^GT-[A-Z2-9]{8}$/);
     const member = await db.doc(`greenhouses/${greenhouseId}/members/${ADMIN.uid}`).get();
     assert.equal(member.data().role, 'admin');
     const invite = await db.doc(`greenhouse_invites/${inviteCode}`).get();
@@ -227,7 +227,7 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     pages.stranger = page;
     await page.waitForURL(/#\/onboarding$/, { timeout: LIVE_MS });
     await page.getByRole('button', { name: /Unirme/ }).first().click();
-    await page.getByPlaceholder('GT-8X9B2').fill('GT-ZZZZ9');
+    await page.getByPlaceholder('GT-8X9B2K4M').fill('GT-ZZZZ9999');
     await page.getByRole('button', { name: 'Unirme como Operador' }).click();
     await waitForText(page, /no válido|inexistente/i);
     const gh = await db.doc(`greenhouses/${greenhouseId}`).get();
@@ -239,7 +239,7 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     pages.operator = page;
     await page.waitForURL(/#\/onboarding$/, { timeout: LIVE_MS });
     await page.getByRole('button', { name: /Unirme/ }).first().click();
-    await page.getByPlaceholder('GT-8X9B2').fill(inviteCode.toLowerCase());
+    await page.getByPlaceholder('GT-8X9B2K4M').fill(inviteCode.toLowerCase());
     await page.getByRole('button', { name: 'Unirme como Operador' }).click();
     await page.waitForURL(/#\/dashboard$/, { timeout: LIVE_MS });
     await waitForText(page, '8.40');
@@ -314,6 +314,19 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     await page.goto(`${BASE}#/dashboard`);
     await waitForText(page, 'Mesa norte');
     await waitForText(page, /Lechuga/);
+  });
+
+  it('el admin no ve "Abandonar" (dejaría el invernadero sin admin) y el código que comparte es largo (R1, R4)', async () => {
+    const page = pages.admin;
+    // En celular la configuración vive en el menú del invernadero; en escritorio hay botón.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${BASE}#/dashboard`);
+    await page.getByRole('button', { name: 'Configuración del Invernadero' }).first().click();
+    await waitForText(page, 'Como administrador no puedes abandonar');
+    assert.equal(await page.getByRole('button', { name: 'Abandonar Invernadero' }).count(), 0);
+    await waitForText(page, inviteCode);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
   });
 
   it('si el sensor deja de mandar, la zona pasa a "sin datos" aunque no llegue nada nuevo (C2)', async () => {

@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, X } from 'lucide-react';
 import { useAuth, LS_PRIVACY_ACCEPTED } from '../../context/AuthContext';
 import iconUrl from '../../icons/icon_green-tech.svg';
+import { CONTACT_EMAIL } from '../../lib/brand';
+import PrivacyDetails from '../../components/PrivacyDetails';
 
 /* ── Modal de Aviso de Privacidad ───────────────────────── */
 function PrivacyNoticeModal({ onAccept }: { onAccept: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const p: React.CSSProperties = { fontSize: '0.875rem', lineHeight: 1.65, margin: '0 0 var(--space-xs)' };
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 200,
@@ -14,32 +18,45 @@ function PrivacyNoticeModal({ onAccept }: { onAccept: () => void }) {
       padding: 'var(--space-sm)',
     }}>
       <div
-        className="nm-flat animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="privacy-title"
+        className="animate-fade-in"
         style={{
           width: '100%',
-          maxWidth: 480,
+          maxWidth: 520,
+          maxHeight: 'calc(100dvh - 2 * var(--space-sm))',
+          overflowY: 'auto',
           padding: 'var(--space-md)',
-          borderLeft: '3px solid var(--accent)',
+          background: 'var(--surface-strong)',
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-card)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
           <ShieldAlert size={20} strokeWidth={1.5} color="var(--accent)" />
-          <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Aviso de Privacidad</h3>
+          <h3 id="privacy-title" style={{ margin: 0, fontSize: '1.05rem' }}>Aviso de privacidad</h3>
         </div>
-        <p style={{ fontSize: '0.875rem', lineHeight: 1.7, marginBottom: 'var(--space-xs)' }}>
-          GREEN TECH recopila tu nombre, correo y datos de uso para operar el sistema de monitoreo.
-          Tus datos se almacenan cifrados y{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>no se comparten con terceros</strong> sin tu consentimiento.
+        <p style={p}>
+          GreenTech, un producto de Palarix, usa tu nombre, tu correo y las lecturas de tu invernadero
+          solo para que funcione el monitoreo.{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>No vendemos ni compartimos tus datos con terceros.</strong>
         </p>
-        <p style={{ fontSize: '0.875rem', lineHeight: 1.7, marginBottom: 'var(--space-md)' }}>
-          Tienes derechos ARCO conforme a la{' '}
-          <abbr title="Ley Federal de Protección de Datos Personales en Posesión de los Particulares">LFPDPPP</abbr>.{' '}
-          Contáctanos en{' '}
-          <a href="mailto:privacidad@greentech.mx" style={{ color: 'var(--accent)' }}>
-            privacidad@greentech.mx
-          </a>.
+        <p style={p}>
+          Para ejercer tus derechos ARCO (
+          <abbr title="Ley Federal de Protección de Datos Personales en Posesión de los Particulares">LFPDPPP</abbr>)
+          escríbenos a{' '}
+          <a href={`mailto:${CONTACT_EMAIL}`} style={{ color: 'var(--accent)', overflowWrap: 'anywhere' }}>{CONTACT_EMAIL}</a>.
         </p>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+
+        {expanded && (
+          <div id="privacy-full" style={{ borderTop: '1px solid var(--line)', marginTop: 'var(--space-sm)', paddingTop: 'var(--space-xs)' }}>
+            <PrivacyDetails />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 'var(--space-sm)', flexWrap: 'wrap', marginTop: 'var(--space-sm)' }}>
           <button
             id="privacy-accept-btn"
             onClick={onAccept}
@@ -48,18 +65,27 @@ function PrivacyNoticeModal({ onAccept }: { onAccept: () => void }) {
           >
             Aceptar y continuar
           </button>
-          <a
-            href="#"
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-controls="privacy-full"
             style={{
               display: 'flex',
               alignItems: 'center',
+              minHeight: 48,
               padding: '0 var(--space-sm)',
+              background: 'transparent',
+              border: 'none',
               color: 'var(--text-secondary)',
               fontSize: '0.875rem',
+              fontWeight: 600,
+              textDecoration: 'underline',
+              cursor: 'pointer',
             }}
           >
-            Leer más
-          </a>
+            {expanded ? 'Leer menos' : 'Leer más'}
+          </button>
         </div>
       </div>
     </div>
@@ -122,7 +148,7 @@ export default function LoginPage() {
             }}>
               <img
                 src={iconUrl}
-                alt="Green Tech"
+                alt="GreenTech"
                 style={{ width: 48, height: 48, objectFit: 'contain' }}
               />
             </div>
@@ -134,10 +160,10 @@ export default function LoginPage() {
               color: 'var(--text-primary)',
               letterSpacing: '-0.02em',
             }}>
-              GREEN<span style={{ color: 'var(--accent)' }}> TECH</span>
+              Green<span style={{ color: 'var(--accent)' }}>Tech</span>
             </h1>
             <p style={{ marginTop: 'var(--space-xs)', marginBottom: 0, fontSize: '0.875rem' }}>
-              Sistema inteligente de invernadero
+              Monitoreo de invernaderos hidropónicos, por Palarix
             </p>
           </div>
 
@@ -167,7 +193,7 @@ export default function LoginPage() {
                   style={{ background: 'none', border: 'none', color: 'var(--text-disabled)', cursor: 'pointer', padding: 4 }}
                   aria-label="Cerrar error"
                 >
-                  ✕
+                  <X size={16} strokeWidth={1.75} />
                 </button>
               </div>
             )}
@@ -225,7 +251,7 @@ export default function LoginPage() {
             color: 'var(--text-disabled)',
             marginTop: 'var(--space-lg)',
           }}>
-            © {new Date().getFullYear()} Palarix — Universidad Tecnológica de Tlaxcala
+            © {new Date().getFullYear()} Palarix · Universidad Tecnológica de Tlaxcala
           </p>
         </div>
       </div>

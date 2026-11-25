@@ -153,7 +153,7 @@ export default function OnboardingWizard() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto var(--space-sm)',
           }}>
-            <img src={logoUrl} alt="Green Tech" style={{ width: 38, height: 38, objectFit: 'contain' }} />
+            <img src={logoUrl} alt="GreenTech" style={{ width: 38, height: 38, objectFit: 'contain' }} />
           </div>
           <StepDots current={0} total={2} />
           <h1 style={{
@@ -211,7 +211,7 @@ export default function OnboardingWizard() {
               {isCreate ? (
                 <>
                   <strong style={{ color: 'var(--text-primary)' }}>Administrador: </strong>
-                  Serás el propietario con control total sobre plantas, configuración y códigos de invitación.
+                  Serás el propietario con control total sobre cultivos, configuración y códigos de invitación.
                 </>
               ) : (
                 <>
@@ -396,7 +396,7 @@ export default function OnboardingWizard() {
             aria-label="Sistema activo"
           />
           <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-disabled)' }}>
-            Sistema GREEN TECH — {user?.email}
+            GreenTech, por Palarix · {user?.email}
           </p>
         </div>
 

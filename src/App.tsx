@@ -57,7 +57,8 @@ function AppShell() {
         <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* ── Public routes ── */}
-          <Route path="/" element={<Landing />} />
+          {/* Con sesión, la landing de marketing no aplica: "Inicio" es el tablero (revisión UI 25 nov). */}
+          <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
           <Route
             path="/login"
             element={

@@ -163,7 +163,7 @@ export async function exportPdf({
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(16);
   pdf.setTextColor(16, 185, 129); // --accent
-  pdf.text('GREEN TECH — Reporte de Histórico', margin, y);
+  pdf.text('GreenTech · Reporte de histórico', margin, y);
   y += 9;
 
   pdf.setFont('helvetica', 'normal');

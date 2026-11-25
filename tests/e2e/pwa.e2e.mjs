@@ -247,10 +247,10 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     assert.equal(member.data().role, 'operador');
   });
 
-  it('el operador no ve Plantas ni puede abrirla a mano, ni guardar umbrales', async () => {
+  it('el operador no ve Cultivos ni puede abrirla a mano, ni guardar umbrales', async () => {
     const page = pages.operator;
     const nav = await page.locator('nav, header').allInnerTexts();
-    assert.ok(!nav.join(' ').includes('Plantas'), `el menú del operador muestra Plantas: ${nav.join(' | ')}`);
+    assert.ok(!nav.join(' ').includes('Cultivos'), `el menú del operador muestra Cultivos: ${nav.join(' | ')}`);
     await page.goto(`${BASE}#/plants`);
     await page.waitForURL(/#\/dashboard$/, { timeout: LIVE_MS });
     await page.goto(`${BASE}#/alerts`);

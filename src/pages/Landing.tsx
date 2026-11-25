@@ -1,387 +1,290 @@
-import { useState } from 'react';
-import { ArrowRight, Activity, Droplets, Zap, Wifi, FlaskConical, Thermometer, Sun, BarChart3, Shield, Leaf, ChevronDown, CheckCircle2, TrendingDown, Clock, Users, Mail } from 'lucide-react';
+import {
+  ArrowRight,
+  Bell,
+  CheckCheck,
+  ChevronDown,
+  Droplets,
+  FlaskConical,
+  Gauge,
+  History as HistoryIcon,
+  Leaf,
+  Mail,
+  MapPin,
+  Radio,
+  Smartphone,
+  Sun,
+  Thermometer,
+  Users,
+  Waves,
+  WifiOff,
+  Zap,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
-import iconUrl from '../icons/icon_green-tech.svg';
+import GreenhouseIllustration, { type IllustrationZone } from '../components/GreenhouseIllustration';
+import PrivacyDetails from '../components/PrivacyDetails';
+import { CONTACT_EMAIL } from '../lib/brand';
+import { STATUS_CLASS, STATUS_WORD, VARIABLES, VARIABLE_ORDER } from '../lib/plainLanguage';
+import type { HydroponicVariable, SensorStatus } from '../lib/sensorThresholds';
 
-// ─── DATA ────────────────────────────────────────────────────────────────────
+/*
+ * Landing (revisión UI 25 nov). Solo dice lo que el sistema hace hoy:
+ * sin cifras inventadas, sin "control automático" (Equipos es solo lectura)
+ * y sin "alertas predictivas" (las alertas salen al cruzar un umbral).
+ */
 
-const stats = [
-  { value: '40%', label: 'Reducción de pérdidas de cultivo', icon: TrendingDown, color: 'var(--accent-green)' },
-  { value: '60%', label: 'Ahorro en consumo de agua', icon: Droplets, color: 'var(--accent-blue)' },
-  { value: '24/7', label: 'Monitoreo continuo sin interrupciones', icon: Clock, color: 'var(--accent-amber)' },
-  { value: '3x', label: 'Mayor rendimiento por ciclo de cultivo', icon: Activity, color: 'var(--status-blue)' },
+// ─── Datos ───────────────────────────────────────────────────────────────────
+
+/** Vista de ejemplo del semáforo; se marca como ejemplo en pantalla. */
+const EXAMPLE_ZONES: (IllustrationZone & { crop: string; note: string })[] = [
+  { zoneId: 'z1', label: 'Zona 1', crop: 'Lechuga NFT', status: 'green', note: 'Todo en orden' },
+  { zoneId: 'z2', label: 'Zona 2', crop: 'Jitomate DWC', status: 'red', note: 'El agua lleva demasiados nutrientes' },
+  { zoneId: 'z3', label: 'Zona 3', crop: 'Lechuga NFT', status: 'yellow', note: 'Hace un poco de calor' },
 ];
 
-const steps = [
-  {
-    number: '01',
-    icon: Wifi,
-    title: 'Sensores Capturan',
-    description: 'Nodos IoT distribuidos en el invernadero miden temperatura, humedad relativa y pH del agua en ciclos de 5 segundos.',
-    color: 'var(--accent-green)',
-    glow: 'var(--leaf)',
-  },
-  {
-    number: '02',
-    icon: BarChart3,
-    title: 'Palarix Analiza',
-    description: 'Nuestro motor de reglas procesa los datos en tiempo real, detecta anomalías y genera predicciones de comportamiento.',
-    color: 'var(--accent-blue)',
-    glow: 'var(--status-blue)',
-  },
-  {
-    number: '03',
-    icon: Zap,
-    title: 'Sistema Actúa',
-    description: 'Las actualizaciones se envían a la interfaz web al instante. El riego y la ventilación se ajustan automáticamente.',
-    color: 'var(--accent-amber)',
-    glow: 'var(--status-warn)',
-  },
+/** Hechos comprobados en el repositorio (docs/latencia-alertas.md, docs/prueba-modo-avion.md). */
+const FACTS = [
+  { value: '7', label: 'variables por zona, del aire y del agua' },
+  { value: '< 5 s', label: 'para crear la alerta desde que llega la lectura' },
+  { value: 'Sin red', label: 'sigue mostrando la última lectura y se pone al día solo' },
+  { value: '2', label: 'cultivos con rangos ideales: jitomate y lechuga' },
 ];
 
-const benefits = [
+const STEPS = [
   {
-    icon: TrendingDown,
-    title: 'Reduce pérdidas hasta un 40%',
-    description: 'Detecta condiciones fuera de rango antes de que afecten el cultivo. Evita pérdidas por golpes de calor, hongos y sobre-riego.',
-    audience: 'Operadores',
-    color: 'var(--accent-green)',
+    icon: Radio,
+    title: 'Llegan las lecturas',
+    text: 'Los sensores de cada zona (o el simulador, en la demo) mandan temperatura, humedad, luz, acidez, nutrientes, temperatura del agua y nivel del tanque.',
   },
   {
-    icon: Droplets,
-    title: 'Ahorra hasta 60% de agua',
-    description: 'El riego se activa únicamente cuando los sensores confirman que es necesario, eliminando el desperdicio por ciclos fijos.',
-    audience: 'Sustentabilidad',
-    color: 'var(--accent-blue)',
+    icon: Gauge,
+    title: 'Se comparan con el cultivo',
+    text: 'Cada lectura se compara con los rangos del cultivo de esa zona. Si sale del rango, se crea una alerta y la zona cambia de color.',
   },
   {
-    icon: BarChart3,
-    title: 'Datos para tomar decisiones',
-    description: 'Históricos de cada sensor con gráficas exportables. Información precisa para justificar inversiones y optimizar protocolos.',
-    audience: 'Gestión',
-    color: 'var(--status-blue)',
-  },
-  {
-    icon: Shield,
-    title: 'Alertas antes que el problema',
-    description: 'Notificaciones inmediatas en la interfaz cuando cualquier parámetro sale del rango óptimo definido por el operador.',
-    audience: 'Seguridad',
-    color: 'var(--accent-amber)',
+    icon: Bell,
+    title: 'Te enteras y lo atiendes',
+    text: 'Lo ves en la web o en la app Android, te llega un aviso al celular y marcas "Ya lo revisé" para que tu equipo sepa que alguien se encargó.',
   },
 ];
 
-const techStack = [
-  { name: 'Temperatura', sensor: 'DHT22', precision: '±0.5°C', icon: Thermometer, color: 'var(--accent-amber)' },
-  { name: 'Humedad', sensor: 'DHT22', precision: '±2% RH', icon: Droplets, color: 'var(--accent-blue)' },
-  { name: 'pH del Agua', sensor: 'Sonda analógica', precision: '±0.1 pH', icon: FlaskConical, color: 'var(--accent-green)' },
-  { name: 'Luminosidad', sensor: 'BH1750', precision: '±5% lux', icon: Sun, color: 'var(--status-warn-text)' },
+const VARIABLE_ICON: Record<HydroponicVariable, React.ElementType> = {
+  airTemp: Thermometer,
+  humidity: Droplets,
+  light: Sun,
+  ph: FlaskConical,
+  ec: Zap,
+  solutionTemp: Waves,
+  tankLevel: Gauge,
+};
+
+const FEATURES = [
+  { icon: Leaf, title: 'Semáforo por zona', text: 'Verde, amarillo o rojo, con una frase que dice qué pasa. La zona con problema aparece primero.' },
+  { icon: Bell, title: 'Alertas con seguimiento', text: 'Bandeja con filtros por gravedad y zona. Quién la revisó y cuándo queda registrado.' },
+  { icon: HistoryIcon, title: 'Histórico', text: 'Gráfica por variable con la franja ideal del cultivo, por día o por semana.' },
+  { icon: MapPin, title: 'Zonas y cultivos', text: 'El admin registra las zonas, elige el cultivo de cada una y ajusta sus rangos.' },
+  { icon: Users, title: 'Admin y operador', text: 'El admin configura; el operador ve y atiende. Se entra con Google y un código de invitación.' },
+  { icon: WifiOff, title: 'Funciona sin internet', text: 'Se instala como app y sigue abriendo sin red. Lo que marques se envía al volver la conexión.' },
 ];
 
-const trustItems = [
-  'Proyecto de investigación aplicada de la UTT',
-  'Datos no salen del sistema — infraestructura local',
-  'Interfaz validada con operadores reales de invernadero',
-  'Código abierto y auditable por el equipo académico',
+const AUDIENCE = [
+  { title: 'Quien lleva el invernadero', text: 'Abre el inicio y sabe en segundos si todo está bien o qué zona revisar, sin interpretar números.' },
+  { title: 'Quien está en campo', text: 'Recibe el aviso en el celular, ve qué hacer en palabras simples y marca la alerta como revisada.' },
 ];
 
-// ─── COMPONENT ───────────────────────────────────────────────────────────────
+// ─── Piezas ──────────────────────────────────────────────────────────────────
+
+function scrollToSection(id: string) {
+  // HashRouter: un href="#id" cambiaría la ruta; se hace scroll a mano.
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function SectionHead({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
+  return (
+    <header className="landing-head">
+      <p className="landing-eyebrow">{eyebrow}</p>
+      <h2 className="landing-h2">{title}</h2>
+      {text && <p className="landing-lead">{text}</p>}
+    </header>
+  );
+}
+
+function ZoneRow({ zone }: { zone: (typeof EXAMPLE_ZONES)[number] }) {
+  const cls = STATUS_CLASS[zone.status as SensorStatus];
+  return (
+    <li className="landing-zone">
+      <span className={`nm-led nm-led--${zone.status}`} aria-hidden="true" />
+      <span className="landing-zone__name">
+        <strong>{zone.label}</strong> · {zone.crop}
+        <span className="landing-zone__note">{zone.note}</span>
+      </span>
+      <span className={`chip chip--${cls}`}>{STATUS_WORD[zone.status as SensorStatus]}</span>
+    </li>
+  );
+}
+
+// ─── Página ──────────────────────────────────────────────────────────────────
 
 export default function Landing() {
-  const [activeStep, setActiveStep] = useState(0);
-
   return (
-    <div style={{ width: '100%' }}>
+    <div className="landing">
 
-      {/* ── 1. HERO ─────────────────────────────────────────────────────────── */}
-      <section className="container animate-fade-in" style={{ textAlign: 'center', padding: '7rem 0 5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-          padding: '0.4rem 1rem', background: 'var(--accent-green-glow)',
-          borderRadius: '999px', color: 'var(--accent-green)', fontWeight: 700,
-          fontSize: '0.85rem', border: '1px solid var(--leaf)',
-          marginBottom: '2rem', letterSpacing: '0.05em'
-        }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)', display: 'inline-block' }} />
-          UTT · Proyecto Palarix · Invernadero Hidropónico
-        </div>
-
-        {/* Headline */}
-        <h1 className="hero-title" style={{
-          fontSize: 'clamp(2.8rem, 6vw, 5rem)', fontWeight: 900,
-          lineHeight: 1.1, marginBottom: '1.5rem',
-          color: 'var(--text-primary)', letterSpacing: '-0.03em',
-        }}>
-          El Invernadero que<br />
-          <span style={{ color: 'var(--leaf-ink)' }}>
-            piensa por sí solo.
-          </span>
-        </h1>
-
-        <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)', maxWidth: '620px', marginBottom: '3rem', lineHeight: 1.7 }}>
-          Palarix transforma invernaderos tradicionales en sistemas inteligentes. Telemetría en tiempo real, control automático y alertas predictivas para proteger cada ciclo de cultivo.
-        </p>
-
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link to="/dashboard" className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2rem', gap: '0.6rem' }}>
-            Ver el Dashboard en Vivo <ArrowRight size={18} />
-          </Link>
-          <a href="#como-funciona" className="btn-secondary" style={{ fontSize: '1rem', padding: '0.9rem 2rem', gap: '0.6rem' }}>
-            Cómo Funciona <ChevronDown size={18} />
-          </a>
-        </div>
-
-        {/* Subtle grid graphic */}
-        <div style={{
-          marginTop: '5rem', width: '100%', maxWidth: 800, height: 2,
-          background: 'linear-gradient(to right, transparent, var(--leaf), var(--status-blue), transparent)'
-        }} />
-      </section>
-
-      {/* ── 2. STATS BANNER ─────────────────────────────────────────────────── */}
-      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '3rem 0' }}>
-        <div className="container">
-          <div className="grid grid-metrics" style={{ gap: '0' }}>
-            {stats.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <div key={i} style={{
-                  textAlign: 'center', padding: '1.5rem 1rem',
-                  borderRight: i < stats.length - 1 ? '1px solid var(--panel-border)' : 'none'
-                }}>
-                  <Icon size={28} style={{ color: s.color, margin: '0 auto 0.75rem' }} />
-                  <div style={{ fontSize: '2.5rem', fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.5rem 0 0', lineHeight: 1.4 }}>{s.label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 3. CÓMO FUNCIONA ────────────────────────────────────────────────── */}
-      <section id="como-funciona" className="container" style={{ padding: '6rem 0' }}>
-        <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-          <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>EL PROCESO</p>
-          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 800, margin: 0 }}>Tres pasos. Cero pérdidas.</h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: '1rem', maxWidth: 520, margin: '1rem auto 0' }}>
-            Desde el sensor hasta la decisión, Palarix cierra el ciclo de control en segundos.
+      {/* 1. Portada */}
+      <section className="container landing-hero animate-fade-in">
+        <div className="landing-hero__text">
+          <p className="landing-eyebrow">GreenTech · por Palarix</p>
+          <h1 className="display landing-h1">
+            Tu invernadero hidropónico, <span style={{ color: 'var(--leaf-ink)' }}>zona por zona.</span>
+          </h1>
+          <p className="landing-lead">
+            Ves cada zona en verde, amarillo o rojo desde el navegador o el celular. Si algo sale de rango,
+            te avisa y te dice qué revisar.
           </p>
-        </div>
-
-        {/* Steps selector */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginBottom: '3rem', flexWrap: 'wrap' }}>
-          {steps.map((step, i) => (
-            <button key={i} onClick={() => setActiveStep(i)} style={{
-              background: activeStep === i ? step.color : 'transparent',
-              color: activeStep === i ? 'var(--text-on-ink)' : 'var(--text-muted)',
-              border: `1px solid ${activeStep === i ? step.color : 'var(--panel-border)'}`,
-              padding: '0.6rem 1.25rem', borderRadius: '999px', cursor: 'pointer',
-              fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.3s ease',
-              boxShadow: activeStep === i ? `0 0 20px ${step.glow}` : 'none'
-            }}>
-              {step.number} · {step.title}
+          <div className="landing-cta">
+            <Link to="/login" className="btn-primary">
+              Entrar <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+            <button type="button" className="btn-secondary" onClick={() => scrollToSection('como-funciona')}>
+              Cómo funciona <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" />
             </button>
-          ))}
+          </div>
         </div>
 
-        {/* Active step card */}
-        {steps.map((step, i) => {
-          const Icon = step.icon;
-          if (i !== activeStep) return null;
-          return (
-            <div key={i} className="glass-panel animate-fade-in" style={{
-              maxWidth: 700, margin: '0 auto', textAlign: 'center', padding: '3rem',
-              border: `1px solid ${step.color}40`,
-              boxShadow: `0 0 40px ${step.glow}`
-            }}>
-              <div style={{
-                width: 80, height: 80, borderRadius: '50%',
-                background: step.glow, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', margin: '0 auto 1.5rem'
-              }}>
-                <Icon size={40} style={{ color: step.color }} />
-              </div>
-              <div style={{ fontSize: '3rem', fontWeight: 900, color: step.color, opacity: 0.15, lineHeight: 1, marginBottom: '-1.5rem' }}>{step.number}</div>
-              <h3 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '1rem' }}>{step.title}</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: 1.7, margin: 0 }}>{step.description}</p>
-            </div>
-          );
-        })}
+        <figure className="glass landing-preview">
+          <figcaption className="landing-preview__cap">
+            <span className="metric-label">Vista de ejemplo</span>
+            <span className="chip chip--crit">1 zona crítica</span>
+          </figcaption>
+          <GreenhouseIllustration
+            zones={EXAMPLE_ZONES}
+            callout={{ zoneId: 'z2', title: 'Zona 2 · Nutrientes', value: 'EC 3.4 mS/cm', status: 'red' }}
+          />
+          <ul className="landing-zones">
+            {[...EXAMPLE_ZONES]
+              .sort((a, b) => ['red', 'yellow', 'green', 'offline'].indexOf(a.status) - ['red', 'yellow', 'green', 'offline'].indexOf(b.status))
+              .map((z) => <ZoneRow key={z.zoneId} zone={z} />)}
+          </ul>
+        </figure>
+      </section>
 
-        {/* Step connectors */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '2rem' }}>
-          {steps.map((_, i) => (
-            <div key={i} onClick={() => setActiveStep(i)} style={{
-              width: activeStep === i ? 32 : 8, height: 8, borderRadius: 999,
-              background: activeStep === i ? steps[i].color : 'var(--panel-border)',
-              cursor: 'pointer', transition: 'all 0.4s ease'
-            }} />
+      {/* 2. Datos reales del sistema */}
+      <section className="landing-band" aria-label="Lo que hace GreenTech hoy">
+        <dl className="container landing-facts">
+          {FACTS.map((f) => (
+            <div key={f.label} className="landing-fact">
+              <dt className="landing-fact__value">{f.value}</dt>
+              <dd className="landing-fact__label">{f.label}</dd>
+            </div>
           ))}
+        </dl>
+      </section>
+
+      {/* 3. Cómo funciona */}
+      <section id="como-funciona" className="container landing-section">
+        <SectionHead
+          eyebrow="Cómo funciona"
+          title="De la lectura al aviso, en tres pasos."
+          text="No hace falta saber de química del agua: el sistema traduce cada lectura a lo que significa para tu cultivo."
+        />
+        <ol className="landing-steps">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <li key={s.title} className="glass landing-step">
+                <div className="landing-step__top">
+                  <span className="icon-well icon-well--ok"><Icon size={22} strokeWidth={1.75} aria-hidden="true" /></span>
+                  <span className="landing-step__num" aria-hidden="true">{i + 1}</span>
+                </div>
+                <h3 className="landing-h3">{s.title}</h3>
+                <p className="landing-p">{s.text}</p>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="landing-vars">
+          <p className="metric-label" style={{ margin: 0 }}>Lo que se mide en cada zona</p>
+          <ul>
+            {VARIABLE_ORDER.map((v) => {
+              const Icon = VARIABLE_ICON[v];
+              const info = VARIABLES[v];
+              return (
+                <li key={v}>
+                  <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
+                  {info.name}{info.technical ? ` (${info.technical})` : ''}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </section>
 
-      {/* ── 4. BENEFICIOS ───────────────────────────────────────────────────── */}
-      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', padding: '6rem 0' }}>
+      {/* 4. Qué puedes hacer */}
+      <section className="landing-band landing-section">
         <div className="container">
-          <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-            <p style={{ color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>IMPACTO REAL</p>
-            <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 800, margin: 0 }}>Retorno tangible en cada cosecha.</h2>
-            <p style={{ color: 'var(--text-muted)', marginTop: '1rem', maxWidth: 540, margin: '1rem auto 0' }}>
-              Diseñado para convencer con datos, no con promesas.
-            </p>
-          </div>
-
-          <div className="grid grid-cards" style={{ gap: '1.5rem' }}>
-            {benefits.map((b, i) => {
-              const Icon = b.icon;
+          <SectionHead eyebrow="Qué puedes hacer" title="Todo lo que necesitas para vigilar el invernadero." />
+          <div className="landing-features">
+            {FEATURES.map((f) => {
+              const Icon = f.icon;
               return (
-                <div key={i} className="glass-panel" style={{ borderTop: `3px solid ${b.color}` }}>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    background: `${b.color}20`, padding: '0.3rem 0.8rem', borderRadius: 999,
-                    fontSize: '0.75rem', fontWeight: 700, color: b.color, marginBottom: '1.25rem',
-                    letterSpacing: '0.05em'
-                  }}>
-                    {b.audience}
+                <article key={f.title} className="landing-feature">
+                  <span className="icon-well icon-well--ok"><Icon size={20} strokeWidth={1.75} aria-hidden="true" /></span>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 className="landing-h3">{f.title}</h3>
+                    <p className="landing-p">{f.text}</p>
                   </div>
-                  <Icon size={36} style={{ color: b.color, marginBottom: '1rem' }} />
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '0.75rem' }}>{b.title}</h3>
-                  <p style={{ color: 'var(--text-muted)', lineHeight: 1.6, margin: 0, fontSize: '0.95rem' }}>{b.description}</p>
-                </div>
+                </article>
               );
             })}
           </div>
-        </div>
-      </section>
-
-      {/* ── 5. TECNOLOGÍA ───────────────────────────────────────────────────── */}
-      <section className="container" style={{ padding: '6rem 0' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '4rem', alignItems: 'center' }}>
-          {/* Left: text */}
-          <div>
-            <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>HARDWARE & SOFTWARE</p>
-            <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 800, marginBottom: '1.25rem' }}>
-              Precisión de laboratorio. Costo de campo.
-            </h2>
-            <p style={{ color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '2rem' }}>
-              Cada sensor fue seleccionado por su exactitud, durabilidad en entornos de alta humedad y bajo costo de reemplazo. El firmware corre sobre microcontroladores ESP32 con transmisión MQTT segura.
-            </p>
-            <Link to="/dashboard" className="btn-primary" style={{ display: 'inline-flex' }}>
-              Ver datos en vivo <ArrowRight size={18} />
-            </Link>
-          </div>
-
-          {/* Right: sensor cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            {techStack.map((tech, i) => {
-              const Icon = tech.icon;
-              return (
-                <div key={i} className="glass-panel" style={{ padding: '1.25rem', textAlign: 'center' }}>
-                  <Icon size={28} style={{ color: tech.color, margin: '0 auto 0.75rem' }} />
-                  <p style={{ fontWeight: 700, margin: '0 0 0.25rem', fontSize: '0.95rem' }}>{tech.name}</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.25rem' }}>{tech.sensor}</p>
-                  <span style={{
-                    display: 'inline-block', background: `${tech.color}20`, color: tech.color,
-                    padding: '0.2rem 0.6rem', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700
-                  }}>{tech.precision}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 6. CONFIANZA ────────────────────────────────────────────────────── */}
-      <section style={{ background: 'var(--glass)', borderTop: '1px solid var(--panel-border)', borderBottom: '1px solid var(--panel-border)', padding: '5rem 0' }}>
-        <div className="container" style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <Users size={24} style={{ color: 'var(--accent-green)' }} />
-            <p style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', margin: 0 }}>RESPALDO ACADÉMICO</p>
-          </div>
-          <h2 style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.4rem)', fontWeight: 800, marginBottom: '3rem' }}>
-            Desarrollado con rigor universitario.
-          </h2>
-
-          {/* Trust grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '1rem', maxWidth: 900, margin: '0 auto 3rem' }}>
-            {trustItems.map((item, i) => (
-              <div key={i} className="glass-panel" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', textAlign: 'left', padding: '1rem 1.25rem' }}>
-                <CheckCircle2 size={18} style={{ color: 'var(--accent-green)', flexShrink: 0, marginTop: 2 }} />
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* UTT Badge */}
-          <div className="glass-panel" style={{ display: 'inline-flex', alignItems: 'center', gap: '1rem', padding: '1rem 2rem', borderRadius: 16 }}>
-            <Leaf size={32} style={{ color: 'var(--accent-green)' }} />
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontWeight: 800, margin: 0, fontSize: '1rem' }}>Universidad Tecnológica de Tlaxcala</p>
-              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.85rem' }}>Proyecto Integrador · Ingeniería · 2025</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 7. CTA FINAL ────────────────────────────────────────────────────── */}
-      <section className="container animate-fade-in" style={{ padding: '8rem 0', textAlign: 'center' }}>
-        <div className="glass-panel" style={{
-          maxWidth: 700, margin: '0 auto', padding: '4rem 3rem',
-          background: 'linear-gradient(135deg, var(--status-ok-soft), var(--status-blue-glow))',
-          border: '1px solid var(--leaf)',
-          boxShadow: '0 0 60px var(--status-ok-soft)'
-        }}>
-          <img src={iconUrl} alt="Green Tech" style={{ width: 64, height: 64, margin: '0 auto 1.5rem', filter: 'drop-shadow(0 0 12px var(--leaf))' }} />
-          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: 900, marginBottom: '1.25rem' }}>
-            Tu invernadero, sin sorpresas.
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', lineHeight: 1.7, marginBottom: '2.5rem' }}>
-            Accede al dashboard en vivo, explora los datos de sensores y comprueba por qué Palarix es la solución que el campo mexicano necesita.
+          <p className="landing-platforms">
+            <Smartphone size={18} strokeWidth={1.75} aria-hidden="true" />
+            En el navegador (se instala como app) y en la app Android, con los mismos datos.
           </p>
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/dashboard" className="btn-primary" style={{ fontSize: '1.05rem', padding: '1rem 2.2rem' }}>
-              Ir al Centro de Control <ArrowRight size={20} />
-            </Link>
-            <Link to="/plants" className="btn-secondary" style={{ fontSize: '1.05rem', padding: '1rem 2.2rem' }}>
-              Ver Perfiles de Cultivo
-            </Link>
-          </div>
         </div>
       </section>
 
-      {/* ── 8. CONTACTO ─────────────────────────────────────────────────────── */}
-      <section style={{ padding: '4rem 0 6rem', textAlign: 'center' }}>
-        <div className="container flex flex-col items-center">
-          <p style={{ color: 'var(--accent-blue)', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.1em', marginBottom: '1rem' }}>¿TIENES DUDAS?</p>
-          <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 800, marginBottom: '2rem' }}>
-            Contáctanos
-          </h2>
-          <a
-            href="mailto:green.tech.contacto@gmail.com"
-            className="glass-panel"
-            style={{
-              // maxWidth + padding fluido: en celular el correo cabía solo con scroll horizontal.
-              display: 'inline-flex', alignItems: 'center', gap: 'clamp(0.75rem, 3vw, 1.5rem)',
-              padding: 'clamp(1rem, 3vw, 1.25rem) clamp(1rem, 5vw, 2.5rem)', borderRadius: 20,
-              maxWidth: '100%', boxSizing: 'border-box',
-              textDecoration: 'none', transition: 'all 0.3s ease', cursor: 'pointer',
-              border: '1px solid var(--status-blue)', boxShadow: '0 0 40px var(--status-blue-glow)'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--status-blue-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Mail size={28} style={{ color: 'var(--accent-blue)' }} />
-            </div>
-            <div style={{ textAlign: 'left', minWidth: 0 }}>
-              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Escríbenos a</p>
-              <p style={{ fontWeight: 800, color: 'var(--text-primary)', margin: 0, fontSize: 'clamp(0.95rem, 4vw, 1.2rem)', letterSpacing: '0.02em', overflowWrap: 'anywhere' }}>green.tech.contacto<wbr />@gmail.com</p>
-            </div>
+      {/* 5. Para quién */}
+      <section className="container landing-section">
+        <SectionHead eyebrow="Para quién" title="Pensado para quien está en el invernadero." />
+        <div className="landing-audience">
+          {AUDIENCE.map((a) => (
+            <article key={a.title} className="glass landing-card">
+              <CheckCheck size={22} strokeWidth={1.75} color="var(--leaf-ink)" aria-hidden="true" />
+              <h3 className="landing-h3">{a.title}</h3>
+              <p className="landing-p">{a.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* 6. Quiénes somos + 7. Contacto */}
+      <section className="landing-band landing-section">
+        <div className="container landing-about">
+          <div>
+            <p className="landing-eyebrow">Quiénes somos</p>
+            <h2 className="landing-h2">Palarix</h2>
+            <p className="landing-lead" style={{ marginLeft: 0 }}>
+              Somos el equipo de la Universidad Tecnológica de Tlaxcala que hace GreenTech: Brian, Rodrigo,
+              Alexa y Gael. Es nuestro proyecto integrador 2026.
+            </p>
+          </div>
+          <a href={`mailto:${CONTACT_EMAIL}`} className="glass landing-contact">
+            <span className="icon-well icon-well--ok"><Mail size={22} strokeWidth={1.75} aria-hidden="true" /></span>
+            <span style={{ minWidth: 0 }}>
+              <span className="metric-label" style={{ display: 'block' }}>¿Dudas o quieres probarlo? Escríbenos</span>
+              <span className="landing-contact__mail">green.tech.contacto<wbr />@gmail.com</span>
+            </span>
           </a>
         </div>
       </section>
 
+      <footer className="container landing-footer">
+        <p style={{ margin: 0 }}>© {new Date().getFullYear()} Palarix · GreenTech</p>
+        <details className="landing-privacy">
+          <summary>Aviso de privacidad</summary>
+          <div className="landing-privacy__body"><PrivacyDetails /></div>
+        </details>
+      </footer>
     </div>
   );
 }

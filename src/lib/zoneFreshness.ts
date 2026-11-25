@@ -35,11 +35,13 @@ export type VariableThresholds = Record<HydroponicVariable, ThresholdRange>;
 export type ThresholdsResolver = (zone: { zoneId: string; crop?: string }) => VariableThresholds;
 
 /**
- * 15 minutos: tres ciclos del motor de alertas, que corre cada 5 min en un cron
- * de GitHub que suele retrasarse varios minutos. Con 5 min la zona parpadearía
- * entre "en orden" y "sin datos" entre una corrida y otra.
+ * 5 minutos, lo que pide la HU-03 y lo mismo que usa la app (live_clock.dart).
+ * Antes eran 15 (#116) para tolerar los retrasos del cron de GitHub, pero así
+ * la app ponía gris una zona que la PWA seguía pintando de color (revisión UI
+ * 25 nov). Los sensores y el simulador mandan una lectura por minuto; el cron
+ * no es la fuente de las lecturas en la demo.
  */
-export const STALE_THRESHOLD_MS = 15 * 60 * 1000;
+export const STALE_THRESHOLD_MS = 5 * 60 * 1000;
 export const MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 /** Cada cuánto se vuelve a calcular la vigencia en pantalla. */
 export const FRESHNESS_TICK_MS = 30 * 1000;

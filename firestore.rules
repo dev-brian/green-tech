@@ -9,7 +9,7 @@ service cloud.firestore {
     // Collection: /greenhouses/{greenhouseId}
     // Fields:
     //   - name: string (required, 1..200 chars)
-    //   - inviteCode: string (required, 1..32 chars)
+    //   - inviteCode: string (required, 'GT-' + 8 chars: 11..32 chars, reauditoría R4)
     //   - inviteCodeCreatedAt: string | timestamp (optional)
     //   - memberIds: list<string> (required, UIDs of members)
     //   - thresholds: map (optional, legacy: solo aplica a jitomate)
@@ -82,9 +82,29 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // ─── Helper: código de invitación difícil de adivinar (reauditoría R4) ──
+    // Cualquier sesión puede consultar greenhouse_invites/{código} y las reglas
+    // no limitan intentos. Con 5 caracteres (32^5 ≈ 33.5 M) adivinar uno era
+    // cuestión de horas; con 8 (32^8 ≈ 1.1 billones) deja de ser práctico.
+    // 'GT-' + 8 caracteres = 11. Los códigos viejos de 5 ya no sirven para
+    // unirse: el admin genera uno nuevo desde Configuración.
+    function isStrongInviteCode(code) {
+      return code is string && code.size() >= 11 && code.size() <= 32;
+    }
+
+    // ─── Helper: ¿el usuario autenticado es admin (por su documento)? ───────
+    function hasAdminDoc(greenhouseId) {
+      let memberPath = /databases/$(database)/documents/greenhouses/$(greenhouseId)/members/$(request.auth.uid);
+      return exists(memberPath) && get(memberPath).data.role == 'admin';
+    }
+
     // ─── Helper: validación de creación de invernadero ───────────────────────
+    // Reauditoría R2: solo las claves que escribe la PWA al crear; los umbrales
+    // se editan después, ya validados. R4: el código nuevo debe ser largo.
     function isValidGreenhouseCreate() {
       return isSignedIn()
+          && request.resource.data.keys().hasOnly(['name', 'inviteCode', 'inviteCodeCreatedAt', 'memberIds', 'createdAt'])
+          && isStrongInviteCode(request.resource.data.inviteCode)
           && request.resource.data.memberIds is list
           && request.resource.data.memberIds.size() == 1
           && request.auth.uid in request.resource.data.memberIds
@@ -110,8 +130,7 @@ service cloud.firestore {
           && request.resource.data.memberIds.hasAll(resource.data.memberIds)
           && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
           && request.auth.uid in request.resource.data.memberIds
-          && resource.data.inviteCode is string
-          && resource.data.inviteCode.size() > 0
+          && isStrongInviteCode(resource.data.inviteCode)
           && !exists(memberPath)
           && existsAfter(memberPath)
           && getAfter(memberPath).data.role == 'operador'
@@ -119,8 +138,12 @@ service cloud.firestore {
     }
 
     // ─── Helper: miembro abandonando el invernadero ──────────────────────────
-    function isLeavingGreenhouse() {
+    // Reauditoría R1: un admin no sale por aquí; si lo hiciera, el invernadero
+    // podría quedarse sin nadie que lo gestione. Primero otro admin le quita
+    // el rol (y como nadie se lo quita a sí mismo, siempre queda un admin).
+    function isLeavingGreenhouse(greenhouseId) {
       return isSignedIn()
+          && !hasAdminDoc(greenhouseId)
           && request.auth.uid in resource.data.memberIds
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
           && request.resource.data.memberIds is list
@@ -153,8 +176,7 @@ service cloud.firestore {
           && memberId == request.auth.uid
           && request.resource.data.role == 'operador'
           && exists(ghPath)
-          && get(ghPath).data.inviteCode is string
-          && get(ghPath).data.inviteCode.size() > 0
+          && isStrongInviteCode(get(ghPath).data.inviteCode)
           && request.resource.data.get('inviteCode', '') == get(ghPath).data.inviteCode
           && request.auth.uid in getAfter(ghPath).data.memberIds;
     }
@@ -213,6 +235,10 @@ service cloud.firestore {
           && request.resource.data.inviteCode.size() <= 32
           && request.resource.data.memberIds is list
           && resource.data.memberIds.hasAll(request.resource.data.memberIds)
+          // R1: el admin expulsa a otros, nunca a sí mismo.
+          && request.auth.uid in request.resource.data.memberIds
+          // R4: al regenerar, el código nuevo debe ser largo.
+          && (!('inviteCode' in changed) || isStrongInviteCode(request.resource.data.inviteCode))
           && (!('thresholds' in changed) || isValidThresholds(request.resource.data.thresholds))
           && (!('thresholdsByCrop' in changed) || isValidThresholdsByCropUpdate());
     }
@@ -228,10 +254,14 @@ service cloud.firestore {
     }
 
     // ─── Helper: acuse de recibo ("attended") de una alerta ──────────────────
+    // Reauditoría R3: solo se atiende una alerta abierta ('new'; las que ya
+    // cerró el sistema no), y la hora la pone el servidor (serverTimestamp()).
     function isValidAlertAcknowledge() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'attendedBy', 'attendedAt'])
+          && resource.data.status == 'new'
           && request.resource.data.status == 'attended'
-          && request.resource.data.attendedBy == request.auth.uid;
+          && request.resource.data.attendedBy == request.auth.uid
+          && request.resource.data.get('attendedAt', request.time) == request.time;
     }
 
     // ─── Índice de códigos de invitación (/greenhouse_invites/{inviteCode}) ──
@@ -279,7 +309,7 @@ service cloud.firestore {
       // 3. Miembro que abandona el invernadero
       allow update: if isValidAdminGreenhouseUpdate(greenhouseId)
                     || isJoiningWithValidInvite(greenhouseId)
-                    || isLeavingGreenhouse();
+                    || isLeavingGreenhouse(greenhouseId);
 
       // Solo el admin del invernadero puede eliminarlo.
       allow delete: if isAdmin(greenhouseId);
@@ -293,16 +323,22 @@ service cloud.firestore {
                       || isSelfJoiningAsOperator(greenhouseId, memberId);
 
         // Solo el admin puede cambiar roles o actualizar documentos de miembros.
+        // R1: nadie se cambia el rol a sí mismo; así el último admin no se
+        // degrada y el invernadero nunca queda sin administrador.
         allow update: if isAdmin(greenhouseId)
+                      && memberId != request.auth.uid
                       && request.resource.data.role in ['admin', 'operador'];
 
         // El admin puede expulsar miembros, o el propio miembro puede salir.
         // Salir exige quitarse de memberIds en el mismo batch: así nadie puede
         // borrar su documento y recrearlo con otro rol.
-        allow delete: if isAdmin(greenhouseId)
+        // R1: el admin borra el documento de otros, no el suyo; un operador
+        // borra el suyo al salir.
+        allow delete: if (isAdmin(greenhouseId) && memberId != request.auth.uid)
                       || (
                         isMember(greenhouseId)
                         && memberId == request.auth.uid
+                        && resource.data.role != 'admin'
                         && !(request.auth.uid in getAfter(/databases/$(database)/documents/greenhouses/$(greenhouseId)).data.memberIds)
                       );
       }

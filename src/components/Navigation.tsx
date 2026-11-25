@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
-  LayoutDashboard,
   Settings2,
   Leaf,
   Menu,
@@ -34,13 +33,14 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { path: '/',          label: 'Inicio',    icon: Home },
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  // Con sesión, "Inicio" es el tablero. La landing es solo para quien no ha
+  // entrado (revisión UI 25 nov: "Inicio" y "Dashboard" confundían).
+  { path: '/dashboard', label: 'Inicio',    icon: Home },
   { path: '/alerts',    label: 'Alertas',   icon: Bell },
   { path: '/history',   label: 'Histórico', icon: HistoryIcon },
   { path: '/control',   label: 'Equipos',   icon: Settings2 },
   { path: '/zones',     label: 'Zonas',     icon: MapPin },
-  { path: '/plants',    label: 'Plantas',   icon: Leaf },
+  { path: '/plants',    label: 'Cultivos',  icon: Leaf },
 ];
 
 
@@ -138,7 +138,7 @@ function WorkspaceSelector() {
           <>
             <div style={{ position: 'fixed', inset: 0, zIndex: 30 }} onClick={() => setOpen(false)} />
             <div
-              className="nm-flat animate-fade-in"
+              className="dropdown-panel animate-fade-in"
               style={{
                 position: 'absolute', right: 0, top: 'calc(100% + 8px)',
                 zIndex: 40, width: 224,
@@ -280,7 +280,7 @@ function UserMenu() {
         }}>
           {user.name.charAt(0).toUpperCase()}
         </div>
-        <span className="hidden sm:block" style={{
+        <span className="nav-user-name" style={{
           fontSize: '0.8125rem', fontWeight: 600,
           color: 'var(--text-primary)',
           maxWidth: 100,
@@ -290,7 +290,7 @@ function UserMenu() {
         </span>
         <ChevronDown
           size={12} strokeWidth={1.5} color="var(--text-disabled)"
-          className="hidden sm:block"
+          className="nav-user-name"
           style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
         />
       </button>
@@ -300,7 +300,7 @@ function UserMenu() {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 30 }} onClick={() => setOpen(false)} />
           <div
-            className="nm-flat animate-fade-in"
+            className="dropdown-panel animate-fade-in"
             style={{
               position: 'absolute', right: 0, top: 'calc(100% + 8px)',
               zIndex: 40, width: 216,
@@ -382,7 +382,8 @@ export default function Navigation() {
   }
 
   // Mismo criterio que ProtectedRoute (lib/routeAccess.ts, T1.1 #34)
-  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.path, currentRole));
+  // Sin sesión (landing) no hay menú de la app: todas esas páginas piden entrar.
+  const visibleItems = user ? NAV_ITEMS.filter((item) => canAccess(item.path, currentRole)) : [];
 
 
   return (
@@ -401,7 +402,7 @@ export default function Navigation() {
       <div className="container flex justify-between items-center">
         {/* Brand */}
         <Link
-          to="/"
+          to={user ? '/dashboard' : '/'}
           aria-label="GreenTech, inicio"
           style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', textDecoration: 'none', flex: '0 0 auto', minHeight: 48, minWidth: 48 }}
         >
@@ -412,7 +413,7 @@ export default function Navigation() {
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden lg:flex" style={{ alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-full)', background: 'var(--track)' }}>
+        <div className={visibleItems.length ? 'hidden xl:flex' : 'hidden'} style={{ alignItems: 'center', gap: 4, padding: 4, borderRadius: 'var(--radius-full)', background: 'var(--track)' }}>
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             const isAlertsLink = item.path === '/alerts';
@@ -447,7 +448,7 @@ export default function Navigation() {
         {/* Right: workspace selector + user menu + mobile toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', minWidth: 0 }}>
           {/* En móvil va dentro del menú para no desbordar la barra a 375px */}
-          <div className="hidden lg:flex">
+          <div className="hidden xl:flex">
             <PwaInstallButton variant="bar" />
           </div>
 
@@ -460,10 +461,16 @@ export default function Navigation() {
             </>
           )}
 
+          {!user && (
+            <Link to="/login" className="btn-primary" style={{ width: 'auto', minHeight: 44, padding: '0 18px' }}>
+              Entrar
+            </Link>
+          )}
+
           {/* Mobile menu toggle */}
           <button
             id="mobile-menu-toggle"
-            className="mobile-menu-btn lg:hidden"
+            className="mobile-menu-btn xl:hidden"
             aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
             onClick={() => setIsOpen((v) => !v)}
           >
@@ -475,7 +482,7 @@ export default function Navigation() {
       {/* Mobile menu */}
       {isOpen && (
         <div
-          className="lg:hidden"
+          className="xl:hidden"
           style={{
             position: 'absolute',
             width: '100%',

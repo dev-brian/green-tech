@@ -7,7 +7,7 @@ import { useZones } from '../hooks/useZones';
 import { zoneDisplayName } from '../lib/zones';
 
 function iconFor(variable: string, color: string) {
-  const props = { size: 20, strokeWidth: 1.5, color };
+  const props = { size: 18, strokeWidth: 1.75, color };
   if (variable === 'temperature') return <Thermometer {...props} />;
   if (variable === 'humidity')    return <Droplets    {...props} />;
   return                                  <Sprout     {...props} />;
@@ -40,89 +40,77 @@ function saveDismissed(keys: Set<string>) {
   }
 }
 
-const iconButtonStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--text-disabled)',
-  cursor: 'pointer',
-  padding: 8,
-  borderRadius: 'var(--radius-sm)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 48,
-  minHeight: 48,
-  flexShrink: 0,
-  transition: 'color 0.15s ease',
-};
-
-function AlertBanner({
+function AlertToast({
   alert,
   zoneName,
+  more,
   onClose,
   onAttend,
 }: {
   alert: FirestoreAlert;
   /** Nombre que el admin le puso a la zona (T3.3 #73: "zona-2" no le decía nada a los usuarios). */
   zoneName: string;
+  /** Cuántas alertas nuevas más hay, además de esta. */
+  more: number;
   onClose: (alert: FirestoreAlert) => void;
   onAttend: (alert: FirestoreAlert) => void;
 }) {
   const isDanger = alert.severity === 'red';
-  const color    = isDanger ? 'var(--status-red)' : 'var(--status-yellow)';
+  const color    = isDanger ? 'var(--status-crit-text)' : 'var(--status-warn-text)';
 
   return (
     <div
-      className={`alert-nm alert-nm--${isDanger ? 'danger' : 'warning'} animate-fade-in`}
+      className={`alert-toast alert-toast--${isDanger ? 'danger' : 'warning'} animate-fade-in`}
       role="alert"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-xs)', paddingTop: 2 }}>
-        {iconFor(alert.variable, color)}
-        <span
-          className={`nm-led nm-led--${isDanger ? 'red' : 'yellow'}${isDanger ? ' nm-led--red-pulse' : ''}`}
-          role="status"
-          aria-label={isDanger ? 'Alerta crítica' : 'Advertencia'}
-        />
+      <span className="alert-toast__icon" aria-hidden="true">{iconFor(alert.variable, color)}</span>
+
+      <div className="alert-toast__text">
+        <p className="alert-toast__title" style={{ color }}>
+          <span className="sr-only">{isDanger ? 'Alerta crítica: ' : 'Advertencia: '}</span>
+          {zoneName}
+        </p>
+        <p className="alert-toast__msg" title={`${alert.message}. Valor actual: ${alert.value}`}>
+          {alert.message}
+        </p>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, marginBottom: 4, fontWeight: 700, fontSize: '0.9rem', color }}>
-          {zoneName} — {alert.message}
-        </p>
-        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-          Valor actual: <strong style={{ color }}>{alert.value}</strong>. Ver historial en la sección de Alertas.
-        </p>
+      <div className="alert-toast__actions">
+        <Link to="/alerts" className="alert-toast__btn" title="Abrir la bandeja de alertas">
+          {more > 0 ? `Ver (+${more})` : 'Ver'}
+        </Link>
         <button
+          type="button"
           onClick={() => onAttend(alert)}
-          className="btn-nm-secondary"
-          title="Marca la alerta como atendida para todo el equipo"
-          style={{ width: 'auto', minHeight: 48, padding: '0 16px', marginTop: 'var(--space-xs)', fontSize: '0.8125rem' }}
+          className="alert-toast__btn alert-toast__btn--icon"
+          aria-label="Ya lo revisé"
+          title="Ya lo revisé: la marca como atendida para todo el equipo"
         >
-          <Check size={14} strokeWidth={2} />
-          Ya lo revisé
+          <Check size={18} strokeWidth={2} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onClose(alert)}
+          className="alert-toast__btn alert-toast__btn--icon"
+          aria-label="Cerrar aviso"
+          title="Cerrar aviso (solo en este dispositivo)"
+        >
+          <X size={18} strokeWidth={1.75} />
         </button>
       </div>
-
-      <button
-        onClick={() => onClose(alert)}
-        aria-label="Cerrar aviso"
-        title="Cerrar aviso (solo en este dispositivo)"
-        style={iconButtonStyle}
-        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-disabled)')}
-      >
-        <X size={16} strokeWidth={1.5} />
-      </button>
     </div>
   );
 }
 
 /**
- * Muestra banners flotantes para las alertas "new" del invernadero activo.
- * - La X solo cierra el aviso en este dispositivo; la alerta sigue igual para el equipo.
+ * Aviso flotante de la alerta "new" más reciente del invernadero activo.
+ * - Uno solo y en una línea: antes se apilaban hasta 3 y tapaban media pantalla
+ *   en celular y la pantalla entera en horizontal (revisión UI 25 nov).
+ * - La X solo cierra el aviso en este dispositivo y no vuelve al cambiar de
+ *   página; sale otra vez si llega una alerta nueva o si sube a crítica.
  * - "Ya lo revisé" la marca como atendida en Firestore para todos. La alerta
  *   sigue abierta hasta que el valor vuelva a rango, sin crear otra (C4).
- * Máximo 3 banners visibles a la vez para no saturar la pantalla.
+ * - No se muestra en la página de Alertas (App.tsx).
  */
 export default function AlertSystem() {
   const { activeWorkspace } = useAuth();
@@ -155,23 +143,20 @@ export default function AlertSystem() {
   );
 
   const open = alerts.filter((a) => a.status === 'new' && !a.resolvedAt && !dismissed.has(dismissKey(a)));
-  const banners = open.slice(0, 3);
+  if (open.length === 0) return null;
 
-  if (banners.length === 0) return null;
-
-  // T3.2 (#72): en un celular de 360 px tres avisos tapaban media pantalla;
-  // ahí se muestra solo el primero y un enlace a los demás (ver index.css).
-  const more = open.length - 1;
+  // La más grave primero; a igual severidad, la que llegó al final (useAlerts ordena por fecha).
+  const first = open.find((a) => a.severity === 'red') ?? open[0];
   return (
     <div className="alert-container">
-      {banners.map((alert) => (
-        <AlertBanner key={alert.id} alert={alert} zoneName={zoneDisplayName(alert.sector, zonesById)} onClose={close} onAttend={attend} />
-      ))}
-      {more > 0 && (
-        <Link to="/alerts" className="alert-more">
-          {more === 1 ? 'Ver 1 aviso más' : `Ver ${more} avisos más`}
-        </Link>
-      )}
+      <AlertToast
+        key={first.id}
+        alert={first}
+        zoneName={zoneDisplayName(first.sector, zonesById)}
+        more={open.length - 1}
+        onClose={close}
+        onAttend={attend}
+      />
     </div>
   );
 }

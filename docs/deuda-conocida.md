@@ -25,7 +25,7 @@ Lo ya corregido de la auditoría: C1 (#114), C4 (#115), A4 (#113), C2 (#116), A2
 **Qué pasa.** `.github/workflows/alert-engine.yml` corre cada 5 min `simulator/cli.ts --firestore --once`, que inventa lecturas para el invernadero de `GREENHOUSE_ID`, evalúa alertas y manda push reales.
 
 - Cada corrida arranca desde los valores iniciales, así que los datos casi no cambian.
-- GitHub retrasa los cron varios minutos. Por eso #116 subió el umbral de "sin datos" a 15 min.
+- GitHub retrasa los cron varios minutos (en la práctica corre cada 5 a 9 horas). #116 subió el umbral de "sin datos" a 15 min, pero el 25 nov volvió a 5 min para coincidir con la HU-03 y la app: con datos solo del cron, las zonas se ven en gris. En la demo las lecturas llegan del simulador cada minuto.
 - GitHub **desactiva los cron tras 60 días sin actividad** en el repositorio.
 - La purga solo limpia el invernadero de `GREENHOUSE_ID`; los demás crecen sin límite.
 
@@ -66,6 +66,6 @@ Lo ya corregido de la auditoría: C1 (#114), C4 (#115), A4 (#113), C2 (#116), A2
 | Reglas e índices de Firestore se publican a mano | Automatizarlo pide una cuenta de servicio con permiso de administrar reglas | A7 |
 | Firebase Auth y Firestore siguen en el paquete inicial | `AuthProvider` envuelve toda la app, incluida la landing | A8 |
 | `PlantManagement` usa `alert()` y `confirm()` nativos | Reemplazarlos pide un diálogo propio; va con el rediseño visual | A5 |
-| La app Flutter no calcula "sin datos" | Se queda en verde si el sensor deja de enviar; misma regla que la PWA: gris a los 15 min | C2 |
+| La app Flutter no calcula "sin datos" | Se queda en verde si el sensor deja de enviar; misma regla que la PWA: gris a los 5 min | C2 |
 | Login en la PWA instalada en iPhone sin probar | No tenemos iPhone con la PWA instalada | A9 |
 | Subir a Firebase 13 | Las vulnerabilidades que quedan en `pnpm audit` son transitivas de `firebase` y `firebase-admin`; el salto de versión mayor se deja para después del MVP | A4 |

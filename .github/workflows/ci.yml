@@ -56,6 +56,11 @@ jobs:
           npm install -g firebase-tools
           pnpm test:emulator
 
+      - name: Pruebas de punta a punta (PWA en Chromium + emuladores de Auth y Firestore + ingesta)
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:e2e
+
       - name: Build
         run: pnpm build
 

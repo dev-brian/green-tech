@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import {
+  connectFirestoreEmulator,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -32,3 +33,18 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 export const googleProvider = new GoogleAuthProvider();
+
+/**
+ * Pruebas e2e (tests/e2e): con VITE_FIREBASE_EMULATORS=true la PWA habla con
+ * los emuladores locales de Auth y Firestore en vez del proyecto real. Solo se
+ * activa en el build de `pnpm test:e2e`; el build normal no lo trae encendido.
+ * El inicio con Google necesita apis.google.com, así que las pruebas entran con
+ * correo y contraseña de usuarios creados en el emulador (window.__GT_E2E__).
+ */
+if (import.meta.env.VITE_FIREBASE_EMULATORS === 'true') {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  (window as unknown as { __GT_E2E__: unknown }).__GT_E2E__ = {
+    signIn: (email: string, password: string) => signInWithEmailAndPassword(auth, email, password),
+  };
+}

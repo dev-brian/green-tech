@@ -20,6 +20,7 @@ import {
   where,
   arrayUnion,
   arrayRemove,
+  updateDoc,
   writeBatch
 } from 'firebase/firestore';
 
@@ -69,6 +70,8 @@ interface AuthContextValue {
   regenerateInviteCode: (workspaceId: string) => Promise<string>;
   leaveWorkspace: (workspaceId: string) => Promise<void>;
   removeMember: (workspaceId: string, memberUid: string) => Promise<void>;
+  setMemberRole: (workspaceId: string, memberUid: string, role: UserRole) => Promise<void>;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
   getWorkspaceMembers: (workspaceId: string) => Promise<WorkspaceMember[]>;
   getWorkspaceInviteCode: (workspaceId: string) => Promise<string>;
 
@@ -358,6 +361,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await batch.commit();
   }, [user]);
 
+  // Un admin cambia el rol de OTRO integrante (las reglas no dejan cambiarse
+  // el propio, R1). Así se cede la administración antes de salir.
+  const setMemberRole = useCallback(async (workspaceId: string, memberUid: string, role: UserRole): Promise<void> => {
+    if (!user) throw new Error('Debes estar autenticado.');
+    if (memberUid === user.uid) throw new Error('No puedes cambiar tu propio rol.');
+    await updateDoc(doc(db, 'greenhouses', workspaceId, 'members', memberUid), { role });
+  }, [user]);
+
+  // Borra el invernadero y su código de invitación. Los integrantes dejan de
+  // verlo de inmediato. Lecturas y alertas quedan huérfanas en Firestore (el
+  // cliente no puede borrarlas) pero nadie las puede leer: las reglas exigen
+  // estar en memberIds del documento, que ya no existe.
+  const deleteWorkspace = useCallback(async (workspaceId: string): Promise<void> => {
+    if (!user) throw new Error('Debes estar autenticado.');
+    const greenhouseRef = doc(db, 'greenhouses', workspaceId);
+    const snap = await getDoc(greenhouseRef);
+    if (!snap.exists()) throw new Error('Invernadero no encontrado.');
+    const code = String(snap.data().inviteCode || '');
+    const batch = writeBatch(db);
+    if (code) {
+      const inviteRef = doc(db, 'greenhouse_invites', code);
+      const inviteSnap = await getDoc(inviteRef);
+      if (inviteSnap.exists() && inviteSnap.data().greenhouseId === workspaceId) batch.delete(inviteRef);
+    }
+    batch.delete(greenhouseRef);
+    await batch.commit();
+    try {
+      if (localStorage.getItem('gt_active_workspace') === workspaceId) localStorage.removeItem('gt_active_workspace');
+    } catch { /* sin almacenamiento */ }
+    await fetchWorkspaces(user.uid);
+  }, [user, fetchWorkspaces]);
+
   const getWorkspaceMembers = useCallback(async (workspaceId: string): Promise<WorkspaceMember[]> => {
     const snapshot = await getDocs(collection(db, 'greenhouses', workspaceId, 'members'));
     const members: WorkspaceMember[] = [];
@@ -407,6 +442,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         regenerateInviteCode,
         leaveWorkspace,
         removeMember,
+        setMemberRole,
+        deleteWorkspace,
         getWorkspaceMembers,
         getWorkspaceInviteCode,
         login,

@@ -11,7 +11,9 @@ import {
   Wrench,
   Users,
   Key,
-  AlertTriangle
+  AlertTriangle,
+  Trash2,
+  ShieldOff
 } from 'lucide-react';
 import { useAuth, type WorkspaceMember } from '../context/AuthContext';
 
@@ -74,7 +76,9 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
     regenerateInviteCode,
     getWorkspaceMembers,
     removeMember,
-    leaveWorkspace
+    leaveWorkspace,
+    setMemberRole,
+    deleteWorkspace
   } = useAuth();
 
   const [inviteCode,     setInviteCode]     = useState<string>('');
@@ -142,6 +146,43 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
       setMembers(prev => prev.filter(m => m.uid !== uid));
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : 'Error al expulsar integrante');
+    }
+  }
+
+  async function handleChangeRole(member: WorkspaceMember) {
+    if (!activeWorkspace) return;
+    const toAdmin = member.role !== 'admin';
+    const who = member.name || member.email || 'este integrante';
+    const question = toAdmin
+      ? `¿Hacer administrador a ${who}? Podrá cambiar umbrales, zonas e integrantes.`
+      : `¿Quitarle la administración a ${who}? Quedará como operador.`;
+    if (!window.confirm(question)) return;
+    setActionError(null);
+    try {
+      const role = toAdmin ? 'admin' : 'operador';
+      await setMemberRole(activeWorkspace.id, member.uid, role);
+      setMembers(prev => prev.map(m => (m.uid === member.uid ? { ...m, role } : m)));
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Error al cambiar el rol');
+    }
+  }
+
+  async function handleDeleteWorkspace() {
+    if (!activeWorkspace) return;
+    const typed = window.prompt(
+      `Esto borra "${activeWorkspace.name}" para todos sus integrantes y no se puede deshacer.\n\nEscribe el nombre del invernadero para confirmar:`,
+    );
+    if (typed === null) return;
+    if (typed.trim() !== activeWorkspace.name.trim()) {
+      setActionError('El nombre no coincide; el invernadero no se borró.');
+      return;
+    }
+    setActionError(null);
+    try {
+      await deleteWorkspace(activeWorkspace.id);
+      onClose();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Error al eliminar el invernadero');
     }
   }
 
@@ -374,6 +415,24 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
                           <RoleBadge role={member.role as 'admin' | 'operador'} />
                           {!isSelf && (
                             <button
+                              onClick={() => handleChangeRole(member)}
+                              title={member.role === 'admin' ? 'Quitar administración' : 'Hacer administrador'}
+                              aria-label={member.role === 'admin' ? `Quitar administración a ${member.name || member.email}` : `Hacer administrador a ${member.name || member.email}`}
+                              className="nm-flat"
+                              style={{
+                                width: 32, height: 32,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: 'none', borderRadius: 'var(--radius-sm)',
+                                color: 'var(--text-disabled)', cursor: 'pointer',
+                              }}
+                            >
+                              {member.role === 'admin'
+                                ? <ShieldOff size={14} strokeWidth={1.5} />
+                                : <ShieldCheck size={14} strokeWidth={1.5} />}
+                            </button>
+                          )}
+                          {!isSelf && (
+                            <button
                               onClick={() => handleRemoveMember(member.uid, member.name || member.email)}
                               title="Expulsar integrante"
                               className="nm-flat"
@@ -414,9 +473,31 @@ export default function WorkspaceSettingsModal({ isOpen, onClose }: WorkspaceSet
           {/* Abandonar invernadero. Un admin no puede salir: el invernadero se
               quedaría sin quien lo gestione, y las reglas lo rechazan (reauditoría R1). */}
           {isAdmin ? (
-            <p className="metric-timestamp" style={{ margin: 0, flex: '1 1 220px' }}>
-              Como administrador no puedes abandonar este invernadero: se quedaría sin quien lo gestione.
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)', flex: '1 1 220px' }}>
+              <p className="metric-timestamp" style={{ margin: 0 }}>
+                Como administrador no puedes abandonar este invernadero: se quedaría sin quien lo gestione.
+                Para irte, haz administrador a otro integrante (escudo junto a su nombre) y pídele que te quite.
+                Si ya no se usa, elimínalo.
+              </p>
+              <button
+                onClick={handleDeleteWorkspace}
+                className="nm-flat btn-nm-danger"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 'var(--space-xs)',
+                  minHeight: 48,
+                  padding: '0 var(--space-md)',
+                  border: '1px solid var(--status-crit)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                }}
+              >
+                <Trash2 size={16} strokeWidth={1.5} />
+                Eliminar invernadero
+              </button>
+            </div>
           ) : (
           <button
             onClick={handleLeaveWorkspace}

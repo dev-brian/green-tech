@@ -8,6 +8,7 @@ import PwaUpdatePrompt from './components/PwaUpdatePrompt';
 import PushPermissionPrompt from './components/PushPermissionPrompt';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConnectionBanner from './components/ConnectionBanner';
+import GuidedTour from './components/GuidedTour';
 
 // Pages
 // La landing va en el paquete inicial; el resto se carga por ruta (auditoría A8)
@@ -49,6 +50,8 @@ function AppShell() {
       {!isAuthPage && user && <ConnectionBanner />}
       {/* En Alertas ya está la lista completa; los avisos flotantes la tapaban (T3.2 #72) */}
       {!isAuthPage && location.pathname !== '/alerts' && <AlertSystem />}
+      {/* Recorrido para usuarios nuevos: sale solo la primera vez en el tablero */}
+      {!isAuthPage && user && <GuidedTour />}
 
       <main style={{ flex: 1 }}>
         {/* El ErrorBoundary va por fuera del Suspense: también atrapa una página

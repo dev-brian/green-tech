@@ -160,6 +160,7 @@ function RangeGauge({
 function EmptyState() {
   return (
     <div
+      data-tour="sin-datos"
       className="glass animate-fade-in"
       style={{
         display: 'flex',
@@ -312,7 +313,7 @@ export default function Dashboard() {
       ) : (
         <>
           {/* 1. La frase */}
-          <section className="glass" aria-labelledby="estado-titulo" style={{ padding: 'clamp(20px, 4vw, 32px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
+          <section className="glass" data-tour="estado" aria-labelledby="estado-titulo" style={{ padding: 'clamp(20px, 4vw, 32px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-md)' }}>
             <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <span className="metric-label" style={{ fontSize: '0.9375rem' }}>
                 {greeting()}{firstName ? `, ${firstName}` : ''}
@@ -346,7 +347,7 @@ export default function Dashboard() {
 
           {/* 2. Qué hacer ahora */}
           {problems.length > 0 && (
-            <section aria-labelledby="hacer-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            <section data-tour="hacer" aria-labelledby="hacer-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               <h2 id="hacer-titulo" className="section-title">Qué hacer ahora</h2>
               <div className="grid-cards">
                 {problems.slice(0, 4).map((p) => {
@@ -425,7 +426,7 @@ export default function Dashboard() {
           )}
 
           {/* 3. Tus zonas */}
-          <section aria-labelledby="zonas-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+          <section data-tour="zonas" aria-labelledby="zonas-titulo" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
             <h2 id="zonas-titulo" className="section-title">Tus zonas</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 'var(--space-sm)' }}>
               {sortedZones.map((zone) => {
@@ -491,7 +492,7 @@ export default function Dashboard() {
 
           {/* 4. Lecturas de la zona elegida */}
           {activeZone && (
-            <section ref={readingsRef} aria-labelledby="lecturas-titulo" className="glass" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 96 }}>
+            <section ref={readingsRef} data-tour="lecturas" aria-labelledby="lecturas-titulo" className="glass" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 18, scrollMarginTop: 96 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                 <h2 id="lecturas-titulo" className="section-title">Lecturas de la {zoneName(activeZone).name}</h2>
                 <span className="metric-label">

@@ -1014,3 +1014,50 @@ input[type=range]::-moz-range-thumb {
   color: var(--text-primary);
 }
 .landing-privacy__body { padding-bottom: var(--space-sm); color: var(--text-secondary); }
+
+/* ═══════════════════════════════════════════════════════════
+   RECORRIDO GUIADO (components/GuidedTour.tsx)
+   Encima de todo, incluidos los avisos flotantes (89–90).
+   ═══════════════════════════════════════════════════════════ */
+.tour-root { position: fixed; inset: 0; z-index: 1000; }
+.tour-blocker { position: absolute; inset: 0; }
+.tour-spot {
+  position: fixed;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 2px var(--leaf), 0 0 0 9999px rgba(10, 9, 9, 0.55);
+  pointer-events: none;
+  transition: top 0.25s ease-out, left 0.25s ease-out, width 0.25s ease-out, height 0.25s ease-out;
+}
+.tour-card {
+  position: fixed;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--surface-strong);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card), 0 12px 32px rgba(10, 9, 9, 0.25);
+  animation: tour-in 0.2s ease-out;
+}
+.tour-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin: -12px -12px 0 0;
+  border: none; border-radius: var(--radius-full);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.tour-close:hover { color: var(--text-primary); background: var(--track); }
+.tour-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--track); }
+.tour-dots span.is-active { width: 18px; border-radius: 3px; background: var(--leaf); }
+:root[data-theme="dark"] .tour-spot { box-shadow: 0 0 0 2px var(--leaf), 0 0 0 9999px rgba(0, 0, 0, 0.7); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tour-spot { box-shadow: 0 0 0 2px var(--leaf), 0 0 0 9999px rgba(0, 0, 0, 0.7); }
+}
+@keyframes tour-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .tour-card { animation: none; }
+  .tour-spot { transition: none; }
+}

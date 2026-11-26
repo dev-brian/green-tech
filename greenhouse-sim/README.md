@@ -16,14 +16,23 @@ Levanta la ingesta en memoria y el simulador, cada uno en su proceso, y abre la 
 
 ### 2. Verlo en la PWA y la app (Firestore real)
 
-En `.env.local` hacen falta `DEVICE_INGEST_KEY`, `GREENHOUSE_ID` y `FIREBASE_SERVICE_ACCOUNT` (ver `.env.local.example`). En dos terminales:
+En `.env.local` hacen falta `DEVICE_INGEST_KEY` y `FIREBASE_SERVICE_ACCOUNT` (o `GOOGLE_APPLICATION_CREDENTIALS`). Un solo comando:
+
+```bash
+pnpm sim:live                            # lista los invernaderos y preguntas cuál
+pnpm sim:live --invernadero="Demo clase" # por nombre o id, sin preguntar
+```
+
+Muestra los invernaderos de Firestore (el más nuevo arriba, con sus zonas y su admin), levanta la ingesta con Firestore y push, y abre la interfaz en http://localhost:4100 publicando cada 15 s. Ya no hace falta copiar el id de la consola de Firebase ni poner `GREENHOUSE_ID` (si está, sale como opción sugerida).
+
+Abre la PWA o la app con un usuario miembro de ese invernadero: las lecturas, el semáforo y las alertas aparecen en tiempo real.
+
+Por separado, como antes (aquí sí se usa `GREENHOUSE_ID`):
 
 ```bash
 pnpm ingest:firestore   # backend de ingesta en http://127.0.0.1:8787, escribe en Firestore
 pnpm sim                # simulador + interfaz en http://localhost:4100
 ```
-
-Abre la PWA o la app con un usuario miembro de ese invernadero: las lecturas, el semáforo y las alertas aparecen en tiempo real.
 
 ### 3. Sin interfaz
 

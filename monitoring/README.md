@@ -30,6 +30,10 @@ GitHub Actions cada 5 minutos; ninguno tiene un servidor que Prometheus pueda le
 | `greentech_variable_level` | Semáforo de cada variable: 0 ok, 1 precaución, 2 crítico |
 | `greentech_alerts_created_total` | Alertas de cultivo creadas por el motor |
 | `greentech_process_resident_memory_bytes` | Memoria de la ingesta |
+| `greentech_process_cpu_seconds_total` | CPU usado por la ingesta (con `rate()` da la fracción de un núcleo) |
+
+Además, el servicio `node-exporter` publica el **CPU y la memoria de la computadora** donde corre
+todo (`node_cpu_seconds_total`, `node_memory_MemAvailable_bytes`, `node_memory_MemTotal_bytes`).
 
 El código está en `simulator/core/metrics.ts`, sin dependencias nuevas, y lo prueba
 `tests/metrics.test.ts`.
@@ -45,54 +49,70 @@ en `prometheus.yml`). Sin él, `/metrics` es público para quien llegue al puert
 | `ZonaSinDatos` | Una zona lleva más de 5 min sin lectura (el mismo umbral que pinta la zona en gris) | warning |
 | `LecturasRechazadas` | Más de 3 respuestas 4xx/5xx por minuto en `/ingestTelemetry` durante 5 min | warning |
 | `IngestaLenta` | El p95 de `/ingestTelemetry` pasa de 2 s durante 5 min | warning |
+| `MemoriaAlta` | La computadora usa más del 80 % de su memoria durante 2 min | warning |
+| `CPUAlta` | El CPU de la computadora pasa de 85 % durante 5 min | warning |
 | `VariableCriticaSostenida` | Una variable lleva 15 min en rojo (¿sensor dañado?) | info |
 
 Alertmanager agrupa por regla y zona, no repite avisos de zona cuando la ingesta está caída
 (`inhibit_rules`) y avisa también cuando la alerta se resuelve.
 
-## Cómo levantarlo
+## Cómo levantarlo (Linux; probado pensando en Fedora)
 
-Requisitos: Docker Desktop y el `.env.local` de siempre (`DEVICE_INGEST_KEY`, `GREENHOUSE_ID`,
-`FIREBASE_SERVICE_ACCOUNT`).
+Requisitos: Docker Engine con el plugin `compose`, o Podman con `podman compose`
+(`sudo dnf install -y podman-compose`), y el `.env.local` de siempre (`DEVICE_INGEST_KEY`,
+`FIREBASE_SERVICE_ACCOUNT`). Con Podman, cambien `docker` por `podman` en los comandos.
 
-1. **Webhook de Slack.** En Slack: Apps → Incoming Webhooks → Add to Slack → canal
-   `#green-tech-monitoreo`. Guarden la URL en `monitoring/secrets/slack_webhook` (una línea, sin
-   comillas). Está en `.gitignore`: **nunca la suban**. Debe existir antes de levantar Docker; si no,
-   Docker crea una carpeta con ese nombre y Alertmanager no arranca.
+Los montajes de `docker-compose.yml` llevan `,z`: sin eso, SELinux (activo por defecto en Fedora)
+no deja que Prometheus, Alertmanager y Grafana lean sus archivos y los contenedores se reinician.
 
-2. **Ingesta y simulador**, cada uno en su terminal:
+1. **Webhook de Slack.** En https://api.slack.com/apps → la app del equipo → Incoming Webhooks →
+   Add New Webhook → canal `#green-tech-monitoreo`. Guarden la URL (una línea, sin comillas):
 
    ```bash
-   pnpm ingest:firestore -- --host=0.0.0.0
-   pnpm sim
+   printf '%s\n' 'https://hooks.slack.com/services/…' > monitoring/secrets/slack_webhook
    ```
 
-   `--host=0.0.0.0` hace falta porque Prometheus corre dentro de Docker y para la ingesta es otra
-   máquina. Si Windows pregunta por el firewall, permitan solo redes privadas.
+   Está en `.gitignore`: **nunca la suban**. Debe existir antes de levantar los contenedores; si no,
+   se crea una carpeta con ese nombre y Alertmanager no arranca.
 
-3. **Monitoreo:**
+2. **Ingesta y simulador** en una terminal. La ingesta tiene que escuchar en `0.0.0.0`, porque
+   Prometheus corre dentro de un contenedor y para la ingesta es otra máquina:
+
+   ```bash
+   INGEST_HOST=0.0.0.0 pnpm sim:live
+   ```
+
+   (`sim:live` levanta la ingesta y el simulador juntos. Por separado:
+   `pnpm ingest:firestore -- --host=0.0.0.0` y `pnpm sim`.)
+
+3. **Monitoreo**, en otra terminal:
 
    ```bash
    cd monitoring
    docker compose up -d
+   docker compose ps
    ```
 
 4. **Revisar:**
 
-   - [ ] `curl http://localhost:8787/metrics` muestra las métricas `greentech_…`
-   - [ ] http://localhost:9090/targets → `greentech-ingesta` en **UP**
-   - [ ] http://localhost:9090/alerts → las 5 reglas en verde (*inactive*)
+   - [ ] `curl -s http://localhost:8787/metrics | grep greentech_` muestra las métricas
+   - [ ] http://localhost:9090/targets → `greentech-ingesta` y `node` en **UP**
+   - [ ] http://localhost:9090/alerts → las 7 reglas en verde (*inactive*)
    - [ ] http://localhost:9093 → Alertmanager sin alertas
-   - [ ] http://localhost:3000 → tablero «GreenTech · Monitoreo del sistema» con datos
+   - [ ] http://localhost:3000 → tablero «GreenTech · Monitoreo del sistema» con datos, CPU y memoria
+
+   Si `greentech-ingesta` sale **DOWN**, casi siempre es que la ingesta quedó en `127.0.0.1`
+   (falta `INGEST_HOST=0.0.0.0`). Si sigue DOWN, revisen que el firewall deje pasar el puerto 8787
+   desde los contenedores: `sudo firewall-cmd --list-all`.
 
 Para validar la configuración sin levantar nada:
 
 ```bash
-docker run --rm -v "$(pwd -W):/cfg" --entrypoint promtool prom/prometheus:v2.53.0 check config /cfg/prometheus.yml
-docker run --rm -v "$(pwd -W):/cfg" --entrypoint amtool prom/alertmanager:v0.27.0 check-config /cfg/alertmanager.yml
+docker run --rm -v "$(pwd):/cfg:ro,z" --entrypoint promtool prom/prometheus:v2.53.0 check config /cfg/prometheus.yml
+docker run --rm -v "$(pwd):/cfg:ro,z" --entrypoint amtool prom/alertmanager:v0.27.0 check-config /cfg/alertmanager.yml
 ```
 
-(En PowerShell usen `${PWD}` en lugar de `$(pwd -W)`.)
+Consumo de los contenedores (para el reporte): `docker stats --no-stream`.
 
 ## Probar las alertas
 
@@ -102,6 +122,7 @@ docker run --rm -v "$(pwd -W):/cfg" --entrypoint amtool prom/alertmanager:v0.27.
 | Recuperación | Volver a encender el simulador | Llega ✅ resuelta |
 | Ingesta caída | Cerrar la terminal de la ingesta | A 1 min llega 🔴 `IngestaCaida`, sin avisos por zona |
 | Lecturas rechazadas | Escenario `sonda-desconectada` (la ingesta responde 422) | A los 5 min llega 🔴 `LecturasRechazadas` |
+| Memoria alta | Solo en su copia local, bajen el umbral de `MemoriaAlta` a `> 1` y recarguen | A los 2 min llega 🔴 `MemoriaAlta`; regresen el umbral a 80 |
 
 **Para grabar un video o una demo**, bajen los tiempos solo en su copia local (sin subirlo):
 `scrape_interval: 5s` en `prometheus.yml`, `> 60` en lugar de `> 300` y `for: 30s` en

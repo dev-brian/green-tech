@@ -194,6 +194,7 @@ export function createIngestMetrics(now: () => number = Date.now): IngestMetrics
 
     render() {
       const mem = process.memoryUsage();
+      const cpu = process.cpuUsage();
       const lines = [
         ...httpDuration.render(),
         ...readingsAccepted.render(),
@@ -207,6 +208,10 @@ export function createIngestMetrics(now: () => number = Date.now): IngestMetrics
         '# HELP greentech_process_resident_memory_bytes Memoria residente del proceso.',
         '# TYPE greentech_process_resident_memory_bytes gauge',
         `greentech_process_resident_memory_bytes ${mem.rss}`,
+        // Práctica 2.3: CPU de la ingesta. Con rate() en Prometheus da la fracción de un núcleo.
+        '# HELP greentech_process_cpu_seconds_total Tiempo de CPU (usuario + sistema) usado por la ingesta.',
+        '# TYPE greentech_process_cpu_seconds_total counter',
+        `greentech_process_cpu_seconds_total ${(cpu.user + cpu.system) / 1e6}`,
       ];
       return `${lines.join('\n')}\n`;
     },

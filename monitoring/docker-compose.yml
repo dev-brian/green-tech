@@ -1,6 +1,7 @@
 # Monitoreo del sistema GreenTech: Prometheus + Alertmanager + Grafana.
 # Uso (con la ingesta corriendo en esta máquina): ver monitoring/README.md
-#   docker compose up -d
+#   docker compose up -d      (o: podman compose up -d)
+# Los montajes llevan ',z' para que SELinux (Fedora) deje leer los archivos.
 name: greentech-monitoreo
 
 services:
@@ -11,8 +12,8 @@ services:
       - --storage.tsdb.retention.time=7d
       - --web.enable-lifecycle
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro,z
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -25,10 +26,22 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
     volumes:
-      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - ./secrets/slack_webhook:/etc/alertmanager/slack_webhook:ro
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,z
+      - ./secrets/slack_webhook:/etc/alertmanager/slack_webhook:ro,z
     ports:
       - "9093:9093"
+    restart: unless-stopped
+
+  # Práctica 2.3: CPU y memoria de la computadora donde corren la ingesta y el
+  # monitoreo. /proc/stat y /proc/meminfo dentro del contenedor ya son los del
+  # equipo, así que no hace falta montar nada del sistema.
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    command:
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.meminfo
+      - --collector.loadavg
     restart: unless-stopped
 
   grafana:
@@ -38,8 +51,8 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/greentech.json
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro,z
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro,z
     ports:
       - "3000:3000"
     depends_on:

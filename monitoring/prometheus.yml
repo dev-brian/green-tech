@@ -17,6 +17,13 @@ scrape_configs:
     # authorization:
     #   credentials_file: /etc/prometheus/metrics_token
 
+  # Práctica 2.3: CPU y memoria de esta computadora (servicio node-exporter).
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          servicio: computadora
+
 rule_files:
   - alerts.yml
 

@@ -40,6 +40,27 @@ groups:
           summary: "La ingesta tarda más de 2 s por lectura"
           description: "El 95 % de las lecturas tarda {{ $value | humanize }} s. Puede ser Firestore lento o la cuota del plan Spark."
 
+  # Práctica 2.3 (Operate): recursos de la computadora del invernadero.
+  - name: greentech-recursos
+    rules:
+      - alert: MemoriaAlta
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memoria de la computadora arriba de 80 %"
+          description: "La computadora de la ingesta usa {{ $value | humanize }} % de su memoria. Si se llena, la ingesta puede cerrarse y dejar de guardar lecturas."
+
+      - alert: CPUAlta
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[2m]))) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU de la computadora arriba de 85 %"
+          description: "El CPU lleva 5 minutos en {{ $value | humanize }} %. La ingesta puede responder lento."
+
   - name: greentech-cultivo
     rules:
       - alert: VariableCriticaSostenida

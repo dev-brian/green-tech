@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: GreenTech
+    folder: GreenTech
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

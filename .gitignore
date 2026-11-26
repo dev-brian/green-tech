@@ -30,3 +30,7 @@ greenhouse-sim/data/
 
 # Llaves de producción: nunca se suben
 .env.production
+
+# Monitoreo: el webhook de Slack y tokens no se suben
+monitoring/secrets/*
+!monitoring/secrets/*.example

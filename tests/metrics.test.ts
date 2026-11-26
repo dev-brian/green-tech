@@ -89,4 +89,11 @@ describe('Monitoreo: GET /metrics para Prometheus', () => {
     assert.ok(text.includes('greentech_http_request_duration_seconds_bucket{route="/ingestTelemetry",method="POST",status="201",le="0.5"} 1'));
     assert.ok(text.includes('greentech_http_request_duration_seconds_bucket{route="/ingestTelemetry",method="POST",status="201",le="+Inf"} 1'));
   });
+
+  it('publica el CPU y la memoria de la ingesta (práctica 2.3)', () => {
+    const text = createIngestMetrics(() => NOW).render();
+    assert.match(text, /# TYPE greentech_process_cpu_seconds_total counter/);
+    assert.match(text, /^greentech_process_cpu_seconds_total \d+(\.\d+)?$/m);
+    assert.match(text, /^greentech_process_resident_memory_bytes \d+$/m);
+  });
 });

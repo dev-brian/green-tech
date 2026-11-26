@@ -1,0 +1,33 @@
+# Qué lee Prometheus y a quién le avisa.
+global:
+  scrape_interval: 15s       # cada cuánto lee /metrics
+  evaluation_interval: 15s   # cada cuánto revisa las reglas de alerts.yml
+
+scrape_configs:
+  - job_name: greentech-ingesta
+    metrics_path: /metrics
+    static_configs:
+      # La ingesta corre fuera de Docker, en esta misma computadora:
+      #   pnpm ingest:firestore -- --host=0.0.0.0
+      - targets: ["host.docker.internal:8787"]
+        labels:
+          servicio: ingesta
+    # Si definen METRICS_TOKEN en la ingesta, descomenten y guarden el token
+    # en monitoring/secrets/metrics_token (y móntenlo en docker-compose.yml):
+    # authorization:
+    #   credentials_file: /etc/prometheus/metrics_token
+
+  # Práctica 2.3: CPU y memoria de esta computadora (servicio node-exporter).
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          servicio: computadora
+
+rule_files:
+  - alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]

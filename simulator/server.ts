@@ -4,6 +4,7 @@
  * - POST /ingestTelemetry (cabecera x-device-key)
  * - GET  /actuatorsState?greenhouseId=...&zoneId=...
  * - GET  /health
+ * - GET  /metrics (Prometheus; con METRICS_TOKEN pide Authorization: Bearer)
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -15,6 +16,7 @@ import {
   type TelemetryStorageAdapter,
 } from './core/alertAndActuatorEngine.ts';
 import type { AlertPushNotifier } from './core/pushNotifier.ts';
+import { createIngestMetrics, METRICS_CONTENT_TYPE, type IngestMetrics } from './core/metrics.ts';
 
 /** Una lectura pesa ~300 bytes; 16 KB deja margen y corta cuerpos abusivos. */
 export const MAX_BODY_BYTES = 16 * 1024;
@@ -36,6 +38,11 @@ function headerKey(req: IncomingMessage): string | undefined {
   return Array.isArray(h) ? h[0] : h;
 }
 
+function bearerToken(req: IncomingMessage): string | undefined {
+  const h = req.headers.authorization;
+  return h?.startsWith('Bearer ') ? h.slice('Bearer '.length).trim() : undefined;
+}
+
 /** Invernaderos aceptados, de INGEST_GREENHOUSE_IDS="id1,id2". Vacío = cualquiera. */
 function parseAllowedGreenhouses(raw: string | undefined): Set<string> | null {
   const ids = (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -55,6 +62,11 @@ export interface IngestServerOptions {
   storage?: TelemetryStorageAdapter;
   /** Envío de push de alertas críticas (T6.5 #52); sin él no se notifica. */
   notifier?: AlertPushNotifier;
+  /**
+   * Token para leer GET /metrics. Por defecto METRICS_TOKEN; si está vacío,
+   * /metrics es público (uso local con Prometheus en la misma máquina).
+   */
+  metricsToken?: string;
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -87,6 +99,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 export function createIngestHttpServer(options: IngestServerOptions = {}): {
   server: Server;
   storage: TelemetryStorageAdapter;
+  metrics: IngestMetrics;
 } {
   // Sin clave por defecto: una clave conocida en el repo equivale a no tener clave.
   const expectedKey = (options.deviceKey ?? process.env.DEVICE_INGEST_KEY ?? '').trim();
@@ -100,8 +113,17 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
     ? new Set(options.allowedGreenhouseIds)
     : parseAllowedGreenhouses(process.env.INGEST_GREENHOUSE_IDS);
   const now = options.now ?? Date.now;
+  const metrics = createIngestMetrics(now);
+  const metricsToken = (options.metricsToken ?? process.env.METRICS_TOKEN ?? '').trim();
 
   const server = createServer(async (req, res) => {
+    // Monitoreo: se mide cada petición al terminar de responder, con su código real.
+    const startedAt = performance.now();
+    res.on('finish', () => {
+      const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+      metrics.observeRequest(pathname, req.method ?? 'GET', res.statusCode, (performance.now() - startedAt) / 1000);
+    });
+
     try {
       if (req.method === 'OPTIONS') {
         sendJson(res, 204, {});
@@ -112,6 +134,17 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
 
       if (req.method === 'GET' && url.pathname === '/health') {
         sendJson(res, 200, { ok: true, service: 'green-tech-ingest' });
+        return;
+      }
+
+      // Monitoreo con Prometheus (monitoring/README.md).
+      if (req.method === 'GET' && url.pathname === '/metrics') {
+        if (metricsToken && !deviceKeyMatches(bearerToken(req), metricsToken)) {
+          sendJson(res, 401, { error: 'Token de métricas inválido o ausente.' });
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': METRICS_CONTENT_TYPE });
+        res.end(metrics.render());
         return;
       }
 
@@ -176,6 +209,7 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
         }
 
         const result = await processIngestedReading(validation.data, storage, options.notifier);
+        metrics.recordReading(validation.data.greenhouseId, validation.data.zoneId, result);
         sendJson(res, 201, {
           ok: true,
           readingId: result.readingId,
@@ -194,5 +228,5 @@ export function createIngestHttpServer(options: IngestServerOptions = {}): {
     }
   });
 
-  return { server, storage };
+  return { server, storage, metrics };
 }

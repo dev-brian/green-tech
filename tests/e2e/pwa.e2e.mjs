@@ -423,4 +423,30 @@ describe('PWA de punta a punta (navegador + emuladores + ingesta real)', () => {
     assert.equal(left.ws, null);
     assert.equal(left.docs, 0, `quedaron ${left.docs} documentos de Firestore en IndexedDB`);
   });
+  it('el admin cede la administración a otro integrante y elimina el invernadero; nadie lo vuelve a ver', async () => {
+    const page = pages.admin;
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${BASE}#/dashboard`);
+    await page.getByRole('button', { name: 'Configuración del Invernadero' }).first().click();
+    page.once('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: `Hacer administrador a ${OPERATOR.displayName}` }).click();
+    await page.getByRole('button', { name: `Quitar administración a ${OPERATOR.displayName}` }).waitFor({ timeout: LIVE_MS });
+    const op = await db.doc(`greenhouses/${greenhouseId}/members/${OPERATOR.uid}`).get();
+    assert.equal(op.data().role, 'admin');
+    if (process.env.E2E_SHOTS) await page.screenshot({ path: `${process.env.E2E_SHOTS}/ceder-y-eliminar.png` });
+
+    // Un nombre equivocado no borra nada.
+    page.once('dialog', (d) => d.accept('otro nombre'));
+    await page.getByRole('button', { name: 'Eliminar invernadero' }).click();
+    await waitForText(page, 'El nombre no coincide');
+    assert.ok((await db.doc(`greenhouses/${greenhouseId}`).get()).exists);
+
+    page.once('dialog', (d) => d.accept('Invernadero E2E'));
+    await page.getByRole('button', { name: 'Eliminar invernadero' }).click();
+    await page.waitForURL(/#\/onboarding$/, { timeout: LIVE_MS });
+    assert.equal((await db.doc(`greenhouses/${greenhouseId}`).get()).exists, false);
+    assert.equal((await db.doc(`greenhouse_invites/${inviteCode}`).get()).exists, false);
+    const left = await db.collection('greenhouses').where('memberIds', 'array-contains', OPERATOR.uid).get();
+    assert.equal(left.size, 0);
+  });
 });

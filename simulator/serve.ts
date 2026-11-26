@@ -47,7 +47,7 @@ function main(): void {
     console.log(
       `[Ingesta] Escuchando en http://${host}:${port} · almacenamiento: ${useFirestore ? 'Firestore' : 'memoria'}`,
     );
-    console.log('[Ingesta] POST /ingestTelemetry (x-device-key) · GET /actuatorsState · GET /health');
+    console.log('[Ingesta] POST /ingestTelemetry (x-device-key) · GET /actuatorsState · GET /health · GET /metrics');
   });
 
   const shutdown = () => server.close(() => process.exit(0));

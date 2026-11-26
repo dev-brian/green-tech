@@ -1,0 +1,52 @@
+# Reglas de alerta del SISTEMA (para el equipo). Las alertas del CULTIVO para
+# el productor siguen saliendo del motor de alertas y llegan por push.
+groups:
+  - name: greentech-sistema
+    rules:
+      - alert: IngestaCaida
+        expr: up{job="greentech-ingesta"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "La ingesta no responde"
+          description: "Prometheus no puede leer /metrics desde hace más de 1 minuto. No se están guardando lecturas."
+
+      - alert: ZonaSinDatos
+        # 300 s = el mismo umbral con el que la PWA y la app pintan la zona en gris.
+        expr: time() - greentech_zone_last_reading_timestamp_seconds > 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.zone }} no manda lecturas"
+          description: "La última lectura de {{ $labels.zone }} fue hace {{ $value | humanizeDuration }}. En la PWA ya aparece en gris."
+
+      - alert: LecturasRechazadas
+        expr: sum(rate(greentech_http_request_duration_seconds_count{route="/ingestTelemetry",status=~"4..|5.."}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La ingesta está rechazando lecturas"
+          description: "Hay respuestas 4xx o 5xx en /ingestTelemetry ({{ $value | humanize }} por segundo). Revisar la clave del dispositivo, las sondas o Firestore."
+
+      - alert: IngestaLenta
+        expr: histogram_quantile(0.95, sum by (le) (rate(greentech_http_request_duration_seconds_bucket{route="/ingestTelemetry"}[5m]))) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La ingesta tarda más de 2 s por lectura"
+          description: "El 95 % de las lecturas tarda {{ $value | humanize }} s. Puede ser Firestore lento o la cuota del plan Spark."
+
+  - name: greentech-cultivo
+    rules:
+      - alert: VariableCriticaSostenida
+        expr: greentech_variable_level == 2
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.variable }} crítico en {{ $labels.zone }} desde hace 15 min"
+          description: "El productor ya recibió el push. Si no baja, revisar si es una falla del sensor."

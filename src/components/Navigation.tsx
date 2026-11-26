@@ -14,7 +14,9 @@ import {
   Bell,
   MapPin,
   History as HistoryIcon,
+  CircleHelp,
 } from 'lucide-react';
+import { requestTourStart } from '../lib/tour';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
 import AlertBadge from './AlertBadge';
@@ -421,6 +423,7 @@ export default function Navigation() {
               <Link
                 key={item.path}
                 to={item.path}
+                data-tour={`nav-${item.path}`}
                 style={{
                   position: 'relative',
                   minHeight: 44,
@@ -452,7 +455,22 @@ export default function Navigation() {
             <PwaInstallButton variant="bar" />
           </div>
 
-          <span className="hidden sm:flex"><ThemeToggle /></span>
+          <span className="hidden sm:flex" data-tour="tema"><ThemeToggle /></span>
+
+          {user && (
+            // En celular va dentro del menú para que la barra quepa en 360 px
+            <span className="hidden sm:flex" data-tour="ayuda">
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={requestTourStart}
+                aria-label="Ver recorrido guiado"
+                title="Ver recorrido guiado"
+              >
+                <CircleHelp size={20} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </span>
+          )}
 
           {user && (
             <>
@@ -528,6 +546,22 @@ export default function Navigation() {
             })}
 
             <PwaInstallButton variant="menu" />
+
+            {user && (
+              <button
+                type="button"
+                onClick={() => { setIsOpen(false); requestTourStart(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-sm)',
+                  padding: 'var(--space-sm)', borderRadius: 'var(--radius-md)', minHeight: 48,
+                  color: 'var(--text-secondary)', background: 'transparent', border: 'none',
+                  cursor: 'pointer', fontWeight: 600, fontSize: '0.9375rem', width: '100%', textAlign: 'left',
+                }}
+              >
+                <CircleHelp size={20} strokeWidth={1.5} aria-hidden="true" />
+                Ver recorrido guiado
+              </button>
+            )}
 
             {/* En celular el cambio de tema vive aquí para que la barra quepa en 360 px */}
             <div className="flex sm:hidden" style={{ alignItems: 'center', gap: 'var(--space-sm)', padding: '0 var(--space-xs)', color: 'var(--text-secondary)', fontWeight: 600 }}>
